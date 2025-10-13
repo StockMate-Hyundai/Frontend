@@ -2,13 +2,16 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# 의존성 설치
-COPY package*.json ./
-RUN npm ci
+# pnpm 설치
+RUN npm install -g pnpm
+
+# 의존성 설치 (pnpm-lock.yaml도 복사하여 캐싱 활용)
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
 # 소스 복사 및 프로덕션용 번들 생성
 COPY . .
-RUN npm run build
+RUN pnpm run build
 
 # 2) 프로덕션 스테이지: NGINX로 정적 파일 서빙
 FROM nginx:stable-alpine
