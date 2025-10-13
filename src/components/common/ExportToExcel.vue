@@ -130,7 +130,7 @@ async function onExport() {
       :loading="exporting"
       @click="onExport"
     >
-      Export
+      내보내기
     </VBtn>
   </slot>
 </template>
