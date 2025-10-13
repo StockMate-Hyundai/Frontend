@@ -37,6 +37,17 @@ const headers = [
   { title: '관리', key: 'actions', sortable: false },
 ]
 
+// 엑셀 컬럼 매핑 (원하는 순서/이름으로 바꿔도 됨)
+const excelFields = [
+  { key: 'fullName',       label: '이름' },
+  { key: 'email',          label: '이메일' },
+  { key: 'storeName',      label: '지점' },
+  { key: 'businessNumber', label: '사업자번호' },
+  { key: 'role',           label: '역할' },
+  { key: 'status',         label: '상태' },
+]
+
+
 /* ==========================
    서버 정렬 미지원 → 클라에서만 기억
 ========================== */
@@ -340,9 +351,9 @@ const widgetData = computed(() => [
       </VCardText>
 
       <VDivider />
-
       <VCardText class="d-flex flex-wrap gap-4">
         <div class="me-3 d-flex gap-3">
+          <!-- 페이지 사이즈 선택 그대로 -->
           <AppSelect
             :model-value="itemsPerPage"
             :items="[
@@ -359,7 +370,6 @@ const widgetData = computed(() => [
         <VSpacer />
 
         <div class="app-user-search-filter d-flex align-center flex-wrap gap-4">
-          <!-- 👉 Search  -->
           <div style="inline-size: 15.625rem;">
             <AppTextField
               v-model="searchQuery"
@@ -367,26 +377,15 @@ const widgetData = computed(() => [
             />
           </div>
 
-          <!-- 👉 Export button -->
-          <!--
-            <VBtn
-            variant="tonal"
-            color="secondary"
-            prepend-icon="bx-export"
-            >
-            Export
-            </VBtn> 
-          -->
-
-          <!-- 👉 Add user button -->
-          <!--
-            <VBtn
-            prepend-icon="bx-plus"
-            @click="isAddNewUserDrawerVisible = true"
-            >
-            Add New User
-            </VBtn> 
-          -->
+          <ExportToExcel
+            :items="users"
+            :fields="excelFields"
+            :transform="transformForExcel"
+            filename="유저리스트.xlsx"
+            sheet-name="Users"
+            @exported="({ filename, count }) => console.log('엑셀 내보내기 완료:', filename, count)"
+            @error="err => console.error('엑셀 내보내기 오류:', err)"
+          />
         </div>
       </VCardText>
       <VDivider />
