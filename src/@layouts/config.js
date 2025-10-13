@@ -1,0 +1,42 @@
+import { AppContentLayoutNav, ContentWidth, FooterType, HorizontalNavType, NavbarType } from '@layouts/enums'
+import { breakpointsVuetify } from '@vueuse/core'
+
+export const layoutConfig = {
+  app: {
+    title: 'my-layout',
+    logo: h('img', { src: '/src/assets/logo.png' }),
+    contentWidth: ContentWidth.Boxed,
+    contentLayoutNav: AppContentLayoutNav.Vertical,
+    overlayNavFromBreakpoint: breakpointsVuetify.md,
+
+    // isRTL: false,
+    i18n: {
+      enable: true,
+    },
+    iconRenderer: h('div'),
+  },
+  navbar: {
+    type: NavbarType.Sticky,
+    navbarBlur: true,
+  },
+  footer: {
+    type: FooterType.Static,
+  },
+  verticalNav: {
+    isVerticalNavCollapsed: false,
+    defaultNavItemIconProps: { icon: 'mdi-circle-outline' },
+  },
+  horizontalNav: {
+    type: HorizontalNavType.Sticky,
+    transition: 'none',
+    popoverOffset: 0,
+  },
+  icons: {
+    chevronDown: { icon: 'mdi-chevron-down' },
+    chevronRight: { icon: 'mdi-chevron-right' },
+    close: { icon: 'mdi-close' },
+    verticalNavPinned: { icon: 'mdi-record-circle-outline' },
+    verticalNavUnPinned: { icon: 'mdi-radiobox-blank' },
+    sectionTitlePlaceholder: { icon: 'mdi-minus' },
+  },
+}
