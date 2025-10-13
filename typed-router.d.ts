@@ -20,11 +20,13 @@ declare module 'vue-router/auto-routes' {
   export interface RouteNamedMap {
     'root': RouteRecordInfo<'root', '/', Record<never, never>, Record<never, never>>,
     '$error': RouteRecordInfo<'$error', '/:error(.*)', { error: ParamValue<true> }, { error: ParamValue<false> }>,
+    '사용자 관리user-list': RouteRecordInfo<'사용자 관리user-list', '/사용자 관리/user-list', Record<never, never>, Record<never, never>>,
     'branch-management': RouteRecordInfo<'branch-management', '/branch-management', Record<never, never>, Record<never, never>>,
     'login': RouteRecordInfo<'login', '/login', Record<never, never>, Record<never, never>>,
     'parts-request': RouteRecordInfo<'parts-request', '/parts-request', Record<never, never>, Record<never, never>>,
     'register': RouteRecordInfo<'register', '/register', Record<never, never>, Record<never, never>>,
     'second-page': RouteRecordInfo<'second-page', '/second-page', Record<never, never>, Record<never, never>>,
+    'stock-list': RouteRecordInfo<'stock-list', '/stock-list', Record<never, never>, Record<never, never>>,
     'user-list': RouteRecordInfo<'user-list', '/user-list', Record<never, never>, Record<never, never>>,
   }
 }

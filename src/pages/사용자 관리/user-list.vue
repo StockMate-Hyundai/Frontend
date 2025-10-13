@@ -81,7 +81,8 @@ const fetchUsers = async () => {
       businessNumber: u.businessNumber,
       storeName: u.storeName,
       role: u.role,
-      status: u.verified,
+      currentPlan: 'basic',
+      status: '활성',
       raw: u,
     }))
 
@@ -120,13 +121,18 @@ const fetchUsers = async () => {
     // 총 개수
     // const totalFromServer  = Number(dto?.totalElements ?? 0)
     const totalFromServer = Number(dto?.totalElements ?? content.length)
-    const active = Number(dto?.active)
-    const inactive = Number(dto?.disabled)
-    const pending = Number(dto?.pending)
     const totalAfterFilter = list.length
     const totalUsersCalc = (q || role || plan || stat) ? totalAfterFilter : totalFromServer
 
-
+        
+    // 🔹 통계 집계
+    let active = 0, inactive = 0, pending = 0
+    for (const u of content) {
+      const s = classifyStatus(u)
+      if (s === 'active') active++
+      else if (s === 'inactive') inactive++
+      else pending++
+    }
     stats.value = { total: totalFromServer, active, inactive, pending }
     
     usersData.value = { users: list, totalUsers: totalUsersCalc }
@@ -172,22 +178,16 @@ const plans = [
 ]
 
 const status = [
-  { title: '활성',   value: 'ACTIVE' },
-  { title: '대기',  value: 'PENDING' },
-  { title: '비활성', value: 'DISABLED' },
+  { title: '활성',   value: '활성' },
+  { title: '대기',  value: '대기' },
+  { title: '비활성', value: '비활성' },
 ]
-
-const STATUS_LABELS = {
-  ACTIVE: '활성',
-  DISABLED: '비활성',
-  PENDING: '대기',
-}
 
 const resolveUserRoleVariant = role => {
   const r = String(role || '').toLowerCase()
-  if (r === 'user')        return { color: 'primary', icon: 'bx-user' }         // or 'bx-user-circle'
-  if (r === 'admin')       return { color: 'warning', icon: 'bx-badge-check' }       // or 'bx-badge-check'
-  if (r === 'super_admin') return { color: 'error',   icon: 'bx-crown' } 
+  if (r === 'user') return { color: 'primary',  icon: 'bx-user' }
+  if (r === 'super_admin') return { color: 'error',     icon: 'bx-pie-chart-alt' }
+  if (r === 'admin')      return { color: 'warning',  icon: 'bx-crown' }
 
   // if (r === '지점장')     return { color: 'warning',  icon: 'bx-edit' }
   // if (r === '매니저')     return { color: 'error',    icon: 'bx-desktop' }
@@ -196,10 +196,10 @@ const resolveUserRoleVariant = role => {
 }
 
 const resolveUserStatusVariant = stat => {
-  const s = String(stat || '').toUpperCase()
-  if (s === 'PENDING')  return 'warning'
-  if (s === 'ACTIVE')   return 'success'
-  if (s === 'DISABLED') return 'secondary'
+  const s = String(stat || '').toLowerCase()
+  if (s === '대기')  return 'warning'
+  if (s === '활성')   return 'success'
+  if (s === '비활성') return 'secondary'
   
   return 'primary'
 }
@@ -465,7 +465,7 @@ const widgetData = computed(() => [
             label
             class="text-capitalize"
           >
-            {{ STATUS_LABELS[item.status] }}
+            {{ item.status }}
           </VChip>
         </template>
 

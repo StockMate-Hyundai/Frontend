@@ -81,16 +81,6 @@ export default defineConfig({
     }),
     svgLoader(),
   ],
-  server: {
-    proxy: {
-      '/api': {
-        target: 'https://api.stockmate.site',
-        changeOrigin: true,
-
-      // secure: false, // SSL 인증서 이슈 있으면 이 줄 주석 해제
-      },
-    },
-  },
   define: { 'process.env': {} },
   resolve: {
     alias: {

@@ -1,5 +1,55 @@
 <script setup>
-import avatar1 from '@images/avatars/avatar-1.png'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+
+const LS = { role: 'sm_role', email: 'sm_email', isLogin: 'isLogin', avatar: 'sm_avatar' }
+const raw = ref(null)
+
+function readUser () {
+  if (typeof window === 'undefined') return
+  const role = localStorage.getItem(LS.role) || null
+  const email = localStorage.getItem(LS.email) || null
+  const isLoginStr = localStorage.getItem(LS.isLogin)
+  const isLogin = isLoginStr === true || isLoginStr === 'true'
+  const avatarUrl = localStorage.getItem(LS.avatar) || null
+
+  raw.value = { role, email, isLogin, avatarUrl }
+}
+
+const onStorage = e => {
+  if (!e || e.storageArea !== localStorage) return
+  if ([LS.role, LS.email, LS.isLogin, LS.avatar].includes(e.key)) readUser()
+}
+
+onMounted(() => { readUser(); window.addEventListener('storage', onStorage) })
+onBeforeUnmount(() => window.removeEventListener('storage', onStorage))
+
+const displayRole  = computed(() => (raw.value?.role || 'USER').toUpperCase())
+const displayEmail = computed(() => raw.value?.email || '')
+const avatarSrc    = computed(() => raw.value?.avatarUrl || '')   // URL 있으면 이미지 사용
+const badgeColor   = computed(() => (raw.value?.isLogin ? 'success' : 'grey'))
+
+/** 앞 두 글자(한글 포함) 안전 추출 */
+function toInitials(source, email) {
+  // 1) 기준 문자열: 닉네임/이름 → 이메일 로컬파트 → GUEST
+  const base = (source || (email ? email.split('@')[0] : '') || 'GUEST')
+    .replace(/\s+/g, '')                       // 공백 제거
+    .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '') // 이모지 제거
+
+  const chars = Array.from(base)               // 그래핀 기준 분리(한글/이모지 안전)
+  const firstTwo = chars.slice(0, 2).join('')
+  
+  return firstTwo.toUpperCase()
+}
+const initials = computed(() => toInitials(displayEmail.value, displayEmail.value))
+
+/** 역할별 아바타 칼라 그대로 사용하고 싶으면 여기 매핑 */
+function roleColor(role) {
+  const r = String(role || '').toLowerCase()
+  if (r === 'super_admin') return 'error'
+  if (r === 'admin')       return 'warning'
+  
+  return 'primary'
+}
 </script>
 
 <template>
@@ -9,16 +59,23 @@ import avatar1 from '@images/avatars/avatar-1.png'
     location="bottom right"
     offset-x="3"
     offset-y="3"
-    color="success"
+    :color="badgeColor"
   >
     <VAvatar
       class="cursor-pointer"
-      color="primary"
+      :color="roleColor(displayRole)"
       variant="tonal"
     >
-      <VImg :src="avatar1" />
+      <!-- 이미지가 있으면 이미지, 없으면 앞 두 글자 -->
+      <VImg
+        v-if="avatarSrc"
+        :src="avatarSrc"
+      />
+      <span
+        v-else
+        class="text-subtitle-2 font-weight-medium"
+      >{{ initials }}</span>
 
-      <!-- SECTION Menu -->
       <VMenu
         activator="parent"
         width="230"
@@ -26,7 +83,6 @@ import avatar1 from '@images/avatars/avatar-1.png'
         offset="14px"
       >
         <VList>
-          <!-- 👉 User Avatar & Name -->
           <VListItem>
             <template #prepend>
               <VListItemAction start>
@@ -35,27 +91,35 @@ import avatar1 from '@images/avatars/avatar-1.png'
                   location="bottom right"
                   offset-x="3"
                   offset-y="3"
-                  color="success"
+                  :color="badgeColor"
                 >
                   <VAvatar
-                    color="primary"
+                    :color="roleColor(displayRole)"
                     variant="tonal"
                   >
-                    <VImg :src="avatar1" />
+                    <VImg
+                      v-if="avatarSrc"
+                      :src="avatarSrc"
+                    />
+                    <span
+                      v-else
+                      class="text-subtitle-2 font-weight-medium"
+                    >{{ initials }}</span>
                   </VAvatar>
                 </VBadge>
               </VListItemAction>
             </template>
 
             <VListItemTitle class="font-weight-semibold">
-              John Doe
+              {{ displayEmail }}
             </VListItemTitle>
-            <VListItemSubtitle>Admin</VListItemSubtitle>
+            <VListItemSubtitle>
+              {{ displayRole }}
+            </VListItemSubtitle>
           </VListItem>
 
           <VDivider class="my-2" />
 
-          <!-- 👉 Profile -->
           <VListItem link>
             <template #prepend>
               <VIcon
@@ -64,11 +128,9 @@ import avatar1 from '@images/avatars/avatar-1.png'
                 size="22"
               />
             </template>
-
             <VListItemTitle>Profile</VListItemTitle>
           </VListItem>
 
-          <!-- 👉 Settings -->
           <VListItem link>
             <template #prepend>
               <VIcon
@@ -77,11 +139,9 @@ import avatar1 from '@images/avatars/avatar-1.png'
                 size="22"
               />
             </template>
-
             <VListItemTitle>Settings</VListItemTitle>
           </VListItem>
 
-          <!-- 👉 Pricing -->
           <VListItem link>
             <template #prepend>
               <VIcon
@@ -90,11 +150,9 @@ import avatar1 from '@images/avatars/avatar-1.png'
                 size="22"
               />
             </template>
-
             <VListItemTitle>Pricing</VListItemTitle>
           </VListItem>
 
-          <!-- 👉 FAQ -->
           <VListItem link>
             <template #prepend>
               <VIcon
@@ -103,14 +161,11 @@ import avatar1 from '@images/avatars/avatar-1.png'
                 size="22"
               />
             </template>
-
             <VListItemTitle>FAQ</VListItemTitle>
           </VListItem>
 
-          <!-- Divider -->
           <VDivider class="my-2" />
 
-          <!-- 👉 Logout -->
           <VListItem to="/login">
             <template #prepend>
               <VIcon
@@ -119,12 +174,10 @@ import avatar1 from '@images/avatars/avatar-1.png'
                 size="22"
               />
             </template>
-
             <VListItemTitle>Logout</VListItemTitle>
           </VListItem>
         </VList>
       </VMenu>
-      <!-- !SECTION -->
     </VAvatar>
   </VBadge>
 </template>

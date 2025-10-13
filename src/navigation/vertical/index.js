@@ -16,7 +16,7 @@ export default [
   },
   {
     title: '재고 관리',
-    to: { name: 'second-page' },
+    to: { name: 'stock-list' },
     icon: { icon: 'bx-file-blank' },
   },
   {
