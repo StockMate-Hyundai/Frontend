@@ -36,16 +36,22 @@ jobs:
           node-version: '20'
           cache: 'pnpm'
           cache-dependency-path: pnpm-lock.yaml
+        
+      - name: Enable pnpm via Corepack
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.12.0 --activate   # package.json에 packageManager가 있으면 생략 가능
+          pnpm -v
+          which pnpm
 
-      - name: Use pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-          run_install: false
-
+      - name: Check pnpm
+        run: |
+          which pnpm
+          pnpm -v
+      
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
+      
       - name: Build production bundle
         run: pnpm run build
 
