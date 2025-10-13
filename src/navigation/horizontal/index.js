@@ -1,10 +1,12 @@
-import apps from './apps'
-import charts from './charts'
-import dashboard from './dashboard'
-import forms from './forms'
-import misc from './misc'
-import pages from './pages'
-import tables from './tables'
-import uiElements from './ui-elements'
-
-export default [...dashboard, ...apps, ...pages, ...uiElements, ...forms, ...tables, ...charts, ...misc]
+export default [
+  {
+    title: 'Home',
+    to: { name: 'root' },
+    icon: { icon: 'bx-home-alt' },
+  },
+  {
+    title: '부품 요청',
+    to: { name: 'second-page' },
+    icon: { icon: 'bx-file-blank' },
+  },
+]

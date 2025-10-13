@@ -15,14 +15,14 @@ definePage({
     <ErrorHeader
       status-code="404"
       title="Page Not Found ⚠️"
-      description="We couldn't find the page you are looking for."
+      description="해당 페이지를 찾을 수 없습니다"
     />
 
     <VBtn
       to="/"
       class="mb-6"
     >
-      Back to Home
+      메인페이지로 이동
     </VBtn>
 
     <!-- 👉 Image -->

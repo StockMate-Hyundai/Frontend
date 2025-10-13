@@ -1,7 +1,6 @@
-import { fileURLToPath } from 'node:url'
-import VueI18nPlugin from '@intlify/unplugin-vue-i18n/vite'
 import vue from '@vitejs/plugin-vue'
 import vueJsx from '@vitejs/plugin-vue-jsx'
+import { fileURLToPath } from 'node:url'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { VueRouterAutoImports, getPascalCaseRouteName } from 'unplugin-vue-router'
@@ -23,10 +22,6 @@ export default defineConfig({
         return getPascalCaseRouteName(routeNode)
           .replace(/([a-z\d])([A-Z])/g, '$1-$2')
           .toLowerCase()
-      },
-      beforeWriteFiles: root => {
-        root.insert('/apps/email/:filter', '/src/pages/apps/email/index.vue')
-        root.insert('/apps/email/:label', '/src/pages/apps/email/index.vue')
       },
     }),
     vue({
@@ -84,17 +79,18 @@ export default defineConfig({
         filepath: './.eslintrc-auto-import.json',
       },
     }),
-
-    // Docs: https://github.com/intlify/bundle-tools/tree/main/packages/unplugin-vue-i18n#intlifyunplugin-vue-i18n
-    VueI18nPlugin({
-      runtimeOnly: true,
-      compositionOnly: true,
-      include: [
-        fileURLToPath(new URL('./src/plugins/i18n/locales/**', import.meta.url)),
-      ],
-    }),
     svgLoader(),
   ],
+  server: {
+    proxy: {
+      '/api': {
+        target: 'https://api.stockmate.site',
+        changeOrigin: true,
+
+      // secure: false, // SSL 인증서 이슈 있으면 이 줄 주석 해제
+      },
+    },
+  },
   define: { 'process.env': {} },
   resolve: {
     alias: {

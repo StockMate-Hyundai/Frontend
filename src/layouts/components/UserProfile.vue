@@ -1,209 +1,127 @@
 <script setup>
-import { PerfectScrollbar } from 'vue3-perfect-scrollbar'
-
-const router = useRouter()
-const ability = useAbility()
-
-// TODO: Get type from backend
-const userData = useCookie('userData')
-
-const logout = async () => {
-
-  // Remove "accessToken" from cookie
-  useCookie('accessToken').value = null
-
-  // Remove "userData" from cookie
-  userData.value = null
-
-  // Remove "userData" from cookie
-  userData.value = null
-
-  // Redirect to login page
-  await router.push('/login')
-
-  // ℹ️ We had to remove abilities in then block because if we don't nav menu items mutation is visible while redirecting user to login page
-
-  // Remove "userAbilities" from cookie
-  useCookie('userAbilityRules').value = null
-
-  // Redirect to login page
-  await router.push('/login')
-
-  // ℹ️ We had to remove abilities in then block because if we don't nav menu items mutation is visible while redirecting user to login page
-
-  // Remove "userAbilities" from cookie
-  useCookie('userAbilityRules').value = null
-
-  // Reset ability to initial ability
-  ability.update([])
-}
-
-const userProfileList = [
-  { type: 'divider' },
-  {
-    type: 'navItem',
-    icon: 'bx-user',
-    title: 'Profile',
-    to: {
-      name: 'apps-user-view-id',
-      params: { id: 21 },
-    },
-  },
-  {
-    type: 'navItem',
-    icon: 'bx-cog',
-    title: 'Settings',
-    to: {
-      name: 'pages-account-settings-tab',
-      params: { tab: 'account' },
-    },
-  },
-  {
-    type: 'navItem',
-    icon: 'bx-credit-card',
-    title: 'Billing Plan',
-    to: {
-      name: 'pages-account-settings-tab',
-      params: { tab: 'billing-plans' },
-    },
-    badgeProps: {
-      color: 'error',
-      content: '4',
-    },
-  },
-  { type: 'divider' },
-  {
-    type: 'navItem',
-    icon: 'bx-dollar',
-    title: 'Pricing',
-    to: { name: 'pages-pricing' },
-  },
-  {
-    type: 'navItem',
-    icon: 'bx-help-circle',
-    title: 'FAQ',
-    to: { name: 'pages-faq' },
-  },
-]
+import avatar1 from '@images/avatars/avatar-1.png'
 </script>
 
 <template>
   <VBadge
-    v-if="userData"
     dot
     bordered
     location="bottom right"
-    offset-x="1"
-    offset-y="2"
+    offset-x="3"
+    offset-y="3"
     color="success"
   >
     <VAvatar
-      size="38"
       class="cursor-pointer"
-      :color="!(userData && userData.avatar) ? 'primary' : undefined"
-      :variant="!(userData && userData.avatar) ? 'tonal' : undefined"
+      color="primary"
+      variant="tonal"
     >
-      <VImg
-        v-if="userData && userData.avatar"
-        :src="userData.avatar"
-      />
-      <VIcon
-        v-else
-        icon="bx-user"
-      />
+      <VImg :src="avatar1" />
 
       <!-- SECTION Menu -->
       <VMenu
         activator="parent"
-        width="240"
+        width="230"
         location="bottom end"
-        offset="20px"
+        offset="14px"
       >
         <VList>
+          <!-- 👉 User Avatar & Name -->
           <VListItem>
-            <div class="d-flex gap-2 align-center">
-              <VListItemAction>
+            <template #prepend>
+              <VListItemAction start>
                 <VBadge
                   dot
                   location="bottom right"
                   offset-x="3"
                   offset-y="3"
                   color="success"
-                  bordered
                 >
                   <VAvatar
-                    :color="
-                      !(userData && userData.avatar) ? 'primary' : undefined
-                    "
-                    :variant="
-                      !(userData && userData.avatar) ? 'tonal' : undefined
-                    "
+                    color="primary"
+                    variant="tonal"
                   >
-                    <VImg
-                      v-if="userData && userData.avatar"
-                      :src="userData.avatar"
-                    />
-                    <VIcon
-                      v-else
-                      icon="bx-user"
-                    />
+                    <VImg :src="avatar1" />
                   </VAvatar>
                 </VBadge>
               </VListItemAction>
-              <div>
-                <VListItemTitle class="font-weight-medium">
-                  {{ userData.fullName || userData.username }}
-                </VListItemTitle>
-                <VListItemSubtitle class="text-disabled text-capitalize">
-                  {{ userData.role }}
-                </VListItemSubtitle>
-              </div>
-            </div>
+            </template>
+
+            <VListItemTitle class="font-weight-semibold">
+              John Doe
+            </VListItemTitle>
+            <VListItemSubtitle>Admin</VListItemSubtitle>
           </VListItem>
 
-          <PerfectScrollbar :options="{ wheelPropagation: false }">
-            <template
-              v-for="item in userProfileList"
-              :key="item.title"
-            >
-              <VListItem
-                v-if="item.type === 'navItem'"
-                :to="item.to"
-              >
-                <template #prepend>
-                  <VIcon
-                    :icon="item.icon"
-                    size="22"
-                  />
-                </template>
+          <VDivider class="my-2" />
 
-                <VListItemTitle>{{ item.title }}</VListItemTitle>
-
-                <template
-                  v-if="item.badgeProps"
-                  #append
-                >
-                  <VBadge
-                    rounded
-                    class="me-3"
-                    v-bind="item.badgeProps"
-                  />
-                </template>
-              </VListItem>
-
-              <VDivider
-                v-else
-                class="my-1"
+          <!-- 👉 Profile -->
+          <VListItem link>
+            <template #prepend>
+              <VIcon
+                class="me-2"
+                icon="bx-user"
+                size="22"
               />
             </template>
-            <VDivider class="my-1" />
-            <VListItem
-              prepend-icon="bx-power-off"
-              @click="logout"
-            >
-              Logout
-            </VListItem>
-          </PerfectScrollbar>
+
+            <VListItemTitle>Profile</VListItemTitle>
+          </VListItem>
+
+          <!-- 👉 Settings -->
+          <VListItem link>
+            <template #prepend>
+              <VIcon
+                class="me-2"
+                icon="bx-cog"
+                size="22"
+              />
+            </template>
+
+            <VListItemTitle>Settings</VListItemTitle>
+          </VListItem>
+
+          <!-- 👉 Pricing -->
+          <VListItem link>
+            <template #prepend>
+              <VIcon
+                class="me-2"
+                icon="bx-dollar"
+                size="22"
+              />
+            </template>
+
+            <VListItemTitle>Pricing</VListItemTitle>
+          </VListItem>
+
+          <!-- 👉 FAQ -->
+          <VListItem link>
+            <template #prepend>
+              <VIcon
+                class="me-2"
+                icon="bx-help-circle"
+                size="22"
+              />
+            </template>
+
+            <VListItemTitle>FAQ</VListItemTitle>
+          </VListItem>
+
+          <!-- Divider -->
+          <VDivider class="my-2" />
+
+          <!-- 👉 Logout -->
+          <VListItem to="/login">
+            <template #prepend>
+              <VIcon
+                class="me-2"
+                icon="bx-log-out"
+                size="22"
+              />
+            </template>
+
+            <VListItemTitle>Logout</VListItemTitle>
+          </VListItem>
         </VList>
       </VMenu>
       <!-- !SECTION -->
