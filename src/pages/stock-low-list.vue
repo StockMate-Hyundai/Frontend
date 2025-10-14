@@ -1,8 +1,8 @@
 <script setup>
-import { searchParts } from '@/api/parts' // ✅ 변경
+import { getLackStock } from '@/api/parts'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 
-import AppPartsFilters from '@/components/common/AppPartsFilters.vue' // ✅ 멀티칩 버전 사용
+import AppPartsFilters from '@/components/common/AppPartsFilters.vue'
 import AppExportButton from '@/components/common/ExportToExcel.vue'
 
 /* 엑셀 설정 (동일) */
@@ -10,7 +10,7 @@ const exportFilename = computed(() => {
   const d = new Date()
   const pad = n => String(n).padStart(2, '0')
   
-  return `부품목록_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}.xlsx`
+  return `부족_부품목록_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}.xlsx`
 })
 
 const exportFields = [
@@ -47,9 +47,8 @@ const exportTransform = row => {
 
 const exportItemsCurrent = computed(() => products.value)
 
-/* ✅ 동일 필터로 전 페이지 수집 (searchParts 사용) */
 async function fetchAllForExport() {
-  const first = await searchParts({
+  const first = await getLackStock({
     page: 0,
     size: 100,
     categoryName: filters.categoryName?.length ? filters.categoryName : undefined,
@@ -61,7 +60,7 @@ async function fetchAllForExport() {
   let all = [...(first.content ?? [])]
 
   for (let p = 1; p < totalPages; p++) {
-    const next = await searchParts({
+    const next = await getLackStock({
       page: p,
       size: 100,
       categoryName: filters.categoryName?.length ? filters.categoryName : undefined,
@@ -130,7 +129,7 @@ const rawPage = ref({ content: [], page: 0, size: 10, totalElements: 0, totalPag
 async function loadParts() {
   tableLoading.value = true
   try {
-    const pageData = await searchParts({
+    const pageData = await getLackStock({
       page: page.value - 1, // UI 1-base → 서버 0-base
       size: itemsPerPage.value,
       categoryName: filters.categoryName?.length ? filters.categoryName : undefined,

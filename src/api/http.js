@@ -48,7 +48,6 @@ export const http = axios.create({
 
 // 요청 인터셉터: Authorization 주입
 http.interceptors.request.use(config => {
-  console.log(accessToken)
   if (accessToken) {
     config.headers = config.headers || {}
     config.headers.Authorization = `Bearer ${accessToken}`

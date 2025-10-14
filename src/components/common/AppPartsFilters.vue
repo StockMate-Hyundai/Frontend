@@ -1,4 +1,3 @@
-<!-- AppPartsFiltersMulti.vue : JS버전 (카테고리 + 트림 다중선택 + 모델 항상 펼침) -->
 <script setup>
 import { computed, reactive, ref } from 'vue'
 
@@ -8,7 +7,10 @@ const props = defineProps({
   loading: { type: Boolean, default: false },
 })
 
-/* ===== vehicles (내장) ===== */
+/* ✅ 검색/초기화 이벤트 추가 */
+const emit = defineEmits(['search'])
+
+/* vehicles (내장) */
 const vehicles = [
   { trim: '준중형/소형', model: '아반떼MD' },
   { trim: '준중형/소형', model: '아반떼AD' },
@@ -58,7 +60,7 @@ const vehicles = [
   { trim: '수소/전기', model: '넥쏘NH2' },
 ]
 
-/* ===== 데이터 가공 ===== */
+/* 데이터 가공 */
 const trims = computed(() => Array.from(new Set(vehicles.map(v => v.trim))))
 
 const modelsByTrim = computed(() => {
@@ -71,7 +73,7 @@ const modelsByTrim = computed(() => {
   return map
 })
 
-/* ===== UI 상태 ===== */
+/* UI 상태 */
 const selectedCategories = ref([])
 const selectedTrims = ref([])
 const selectedModels = reactive({})
@@ -109,6 +111,27 @@ const isModelSelected = (t, m) => (selectedModels[t] || []).includes(m)
 
 const selectAllModelsOfTrim = t => { selectedModels[t] = [...(modelsByTrim.value[t] || [])] }
 const clearAllModelsOfTrim = t => { selectedModels[t] = [] }
+
+/* 🔗 페이로드 생성 + emit */
+function buildPayload() {
+  // 모델은 트림별 선택을 합쳐서 하나의 배열로
+  const allModels = Object.values(selectedModels).flatMap(arr => arr || [])
+  
+  return {
+    categoryName: selectedCategories.value.length ? [...selectedCategories.value] : undefined,
+    trim: selectedTrims.value.length ? [...selectedTrims.value] : undefined,
+    model: allModels.length ? Array.from(new Set(allModels)) : undefined,
+  }
+}
+function onApply() {
+  emit('search', buildPayload())
+}
+function onReset() {
+  selectedCategories.value = []
+  selectedTrims.value = []
+  Object.keys(selectedModels).forEach(k => selectedModels[k] = [])
+  emit('search', buildPayload())
+}
 </script>
 
 <template>
@@ -276,12 +299,21 @@ const clearAllModelsOfTrim = t => { selectedModels[t] = [] }
           variant="flat"
           :loading="props.loading"
           :disabled="props.loading"
+          @click="onApply"
         >
           검색
         </VBtn>
-        <VBtn variant="tonal">
+        <VBtn
+          variant="tonal"
+          :disabled="props.loading"
+          @click="onReset"
+        >
           초기화
         </VBtn>
+        <VSpacer />
+
+        <!-- ✅ 부모에서 넘긴 right 슬롯이 여기 표시됩니다 -->
+        <slot name="right" />
       </div>
     </VCardText>
   </VCard>
@@ -291,7 +323,5 @@ const clearAllModelsOfTrim = t => { selectedModels[t] = [] }
 .label-col { inline-size: 90px; padding-block-start: 4px; }
 .flex-1 { flex: 1 1 auto; }
 .chip-wrap { display: flex; flex-wrap: wrap; }
-.chip-wrap--models {
-  max-inline-size: 95%;  /* 원하는 픽셀로 변경 */
-}
+.chip-wrap--models { max-inline-size: 95%; }
 </style>

@@ -27,6 +27,7 @@ declare module 'vue-router/auto-routes' {
     'register': RouteRecordInfo<'register', '/register', Record<never, never>, Record<never, never>>,
     'second-page': RouteRecordInfo<'second-page', '/second-page', Record<never, never>, Record<never, never>>,
     'stock-list': RouteRecordInfo<'stock-list', '/stock-list', Record<never, never>, Record<never, never>>,
+    'stock-low-list': RouteRecordInfo<'stock-low-list', '/stock-low-list', Record<never, never>, Record<never, never>>,
     'user-list': RouteRecordInfo<'user-list', '/user-list', Record<never, never>, Record<never, never>>,
   }
 }
