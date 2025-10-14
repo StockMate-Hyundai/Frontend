@@ -1,7 +1,6 @@
 import { http } from './http'
 
 // GET /api/v1/user/all?page={0-base}&size={n}
-// 서버가 공개로 열어둔 엔드포인트 → 헤더 없이 호출
 export async function apiGetUsersPublic({ page = 0, size = 20 } = {}) {
   const { data } = await http.get('/api/v1/user/all', { params: { page, size } })
   

@@ -17,7 +17,7 @@ export default [
   {
     title: '재고 관리',
     to: { name: 'stock-list' },
-    icon: { icon: 'bx-file-blank' },
+    icon: { icon: 'bx-package' },
   },
   {
     title: '사용자 관리',
