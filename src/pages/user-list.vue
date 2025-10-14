@@ -1,5 +1,6 @@
 <script setup>
-import { apiGetUsersPublic } from '@/api/user'
+import { apiChangeUserRole, apiChangeUserStatus, apiGetUsersPublic } from '@/api/user'
+import RoleStatusEditDialog from '@/components/dialogs/RoleStatusEditDialog.vue'
 import AddNewUserDrawer from '@/views/user/list/AddNewUserDrawer.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 
@@ -13,6 +14,8 @@ const searchQuery = ref('')
 const selectedRole = ref()
 const selectedPlan = ref()
 const selectedStatus = ref()
+const isEditDialogVisible = ref(false)
+const editingUser = ref(null)
 
 // Data table options
 const itemsPerPage = ref(10)   // 서버 size
@@ -24,6 +27,12 @@ const selectedRows = ref([])
 const tableLoading = ref(false)
 const usersData = ref({ users: [], totalUsers: 0 })
 const stats = ref({ total: 0, active: 0, inactive: 0, pending: 0 })
+
+const openEdit = user => {
+  editingUser.value = user
+  isEditDialogVisible.value = true
+}
+
 
 /* ==========================
    테이블 헤더
@@ -60,6 +69,31 @@ const updateOptions = options => {
 /* ==========================
    서버 호출 + 클라 필터/정렬
 ========================== */
+const submitEdit = async ({ role, status }) => {
+  if (!editingUser.value) return
+  try {
+    const prevRole = editingUser.value.role
+    const prevStatus = editingUser.value.status
+
+    const memberId =
+      editingUser.value?.raw?.memberId ??
+      editingUser.value?.memberId ??
+      editingUser.value?.id
+
+    // 변경된 값만 호출
+    if (role && role !== prevRole)
+      await apiChangeUserRole({ memberId, role })
+
+    if (status && status !== prevStatus)
+      await apiChangeUserStatus({ memberId, status })
+
+    isEditDialogVisible.value = false
+    await fetchUsers()
+  } catch (err) {
+    console.error('[submitEdit] 실패:', err)
+  }
+}
+
 const fetchUsers = async () => {
   tableLoading.value = true
   try {
@@ -479,6 +513,14 @@ const widgetData = computed(() => [
             <VIcon icon="bx-show" />
           </IconBtn>
 
+          <!-- 🔹 수정 아이콘: 모달 오픈 -->
+          <IconBtn
+            title="역할/상태 수정"
+            @click="openEdit(item)"
+          >
+            <VIcon icon="bx-pencil" />
+          </IconBtn>
+
           <VBtn
             icon
             variant="text"
@@ -494,7 +536,11 @@ const widgetData = computed(() => [
                   <VListItemTitle>View</VListItemTitle>
                 </VListItem>
 
-                <VListItem link>
+                <!-- 메뉴에서도 수정 가능 -->
+                <VListItem
+                  link
+                  @click="openEdit(item)"
+                >
                   <template #prepend>
                     <VIcon icon="bx-pencil" />
                   </template>
@@ -523,4 +569,12 @@ const widgetData = computed(() => [
       @user-data="addNewUser"
     />
   </section>
+  <RoleStatusEditDialog
+    v-if="editingUser"
+    v-model:is-dialog-visible="isEditDialogVisible"
+    :user="editingUser"
+    :roles="roles"
+    :statuses="status"
+    @submit="submitEdit"
+  />
 </template>
