@@ -1,14 +1,11 @@
-<!-- src/pages/parts-list.vue (예시) -->
 <script setup>
-import { getPartsList } from '@/api/parts'
+import { searchParts } from '@/api/parts' // ✅ 변경
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 
-import AppPartsFilters from '@/components/common/AppPartsFilters.vue'
+import AppPartsFilters from '@/components/common/AppPartsFilters.vue' // ✅ 멀티칩 버전 사용
 import AppExportButton from '@/components/common/ExportToExcel.vue'
 
-/* ==========================
-   엑셀 내보내기 설정
-========================== */
+/* 엑셀 설정 (동일) */
 const exportFilename = computed(() => {
   const d = new Date()
   const pad = n => String(n).padStart(2, '0')
@@ -48,65 +45,44 @@ const exportTransform = row => {
   }
 }
 
-/* 화면에 보이는 데이터(필터 적용 후) */
 const exportItemsCurrent = computed(() => products.value)
 
-/* 전체 페이지 수집 + 동일 필터 재적용 (엑셀용) */
+/* ✅ 동일 필터로 전 페이지 수집 (searchParts 사용) */
 async function fetchAllForExport() {
-  const first = await getPartsList({ page: 0, size: 100,
-    categoryName: filters.categoryName || undefined,
-    trim: filters.trim || undefined,
-    model: filters.model || undefined,
+  const first = await searchParts({
+    page: 0,
+    size: 100,
+    categoryName: filters.categoryName?.length ? filters.categoryName : undefined,
+    trim: filters.trim?.length ? filters.trim : undefined,
+    model: filters.model?.length ? filters.model : undefined,
   })
 
   const totalPages = first.totalPages ?? 1
   let all = [...(first.content ?? [])]
 
   for (let p = 1; p < totalPages; p++) {
-    const next = await getPartsList({ page: p, size: 100,
-      categoryName: filters.categoryName || undefined,
-      trim: filters.trim || undefined,
-      model: filters.model || undefined,
+    const next = await searchParts({
+      page: p,
+      size: 100,
+      categoryName: filters.categoryName?.length ? filters.categoryName : undefined,
+      trim: filters.trim?.length ? filters.trim : undefined,
+      model: filters.model?.length ? filters.model : undefined,
     })
 
     all = all.concat(next.content || [])
   }
 
-  // 화면과 동일한 가공/검색 재적용
-  const rows = all.map(p => {
+  return all.map(p => {
     const kor = p.korName || ''
     const eng = p.engName || ''
     const displayName = kor || eng || p.name || '이름없음'
     const modelTrim = [p.model, p.trim].filter(Boolean).join(' / ')
     
-    return {
-      ...p,
-      productName: displayName,
-      productBrand: modelTrim,
-      inStock: (p.amount ?? 0) > 0,
-    }
+    return { ...p, productName: displayName, productBrand: modelTrim, inStock: (p.amount ?? 0) > 0 }
   })
-
-  let filtered = rows
-
-  // 검색(클라이언트 검색)
-  if (filters.search?.trim()) {
-    const q = filters.search.trim().toLowerCase()
-
-    filtered = filtered.filter(r =>
-      (r.productName || '').toLowerCase().includes(q) ||
-      (r.engName || '').toLowerCase().includes(q) ||
-      (r.model || '').toLowerCase().includes(q) ||
-      (r.trim  || '').toLowerCase().includes(q),
-    )
-  }
-
-  return filtered
 }
 
-/* ==========================
-   테이블 헤더
-========================== */
+/* 테이블 헤더 */
 const headers = [
   { title: 'id',         key: 'id' },
   { title: '제품',       key: 'product' },
@@ -116,28 +92,27 @@ const headers = [
   { title: '비고',       key: 'actions', sortable: false },
 ]
 
-/* ==========================
-   필터 상태 (공통 컴포넌트에서 emit)
-========================== */
+/* ✅ 필터 상태: 배열 기반 */
 const filters = reactive({
-  categoryName: undefined,
-  trim: undefined,
-  model: undefined,
-  search: '',
+  categoryName: [],   // string[]
+  trim: [],           // string[]
+  model: [],          // string[]
+  search: '',         // (지금은 서버 미사용, 필요시 쿼리추가)
 })
 
-/* 카테고리 선택지 (필요 시 API에서 유니크 추출로 교체) */
+/* 카테고리 선택지 */
 const categories = ref(['전기/램프', '엔진/미션', '하체/바디', '내장/외장', '기타소모품'])
 
 function onSearch(payload) {
-  Object.assign(filters, payload)
+  // payload: { categoryName?: string[], trim?: string[], model?: string[] }
+  filters.categoryName = payload.categoryName || []
+  filters.trim         = payload.trim || []
+  filters.model        = payload.model || []
   page.value = 1
   loadParts()
 }
 
-/* ==========================
-   서버 페이지네이션/정렬
-========================== */
+/* 페이지네이션/정렬 */
 const itemsPerPage = ref(10)
 const page = ref(1)
 const sortBy = ref()
@@ -148,21 +123,19 @@ const updateOptions = options => {
   orderBy.value = options.sortBy[0]?.order
 }
 
-/* ==========================
-   API 호출 결과
-========================== */
+/* API 결과 */
 const tableLoading = ref(false)
 const rawPage = ref({ content: [], page: 0, size: 10, totalElements: 0, totalPages: 0 })
 
 async function loadParts() {
   tableLoading.value = true
   try {
-    const pageData = await getPartsList({
-      page: page.value - 1,        // UI 1-base → 서버 0-base
+    const pageData = await searchParts({
+      page: page.value - 1, // UI 1-base → 서버 0-base
       size: itemsPerPage.value,
-      categoryName: filters.categoryName || undefined,
-      trim: filters.trim || undefined,   // 백엔드가 지원하면 사용됨 (미지원이어도 무해)
-      model: filters.model || undefined,
+      categoryName: filters.categoryName?.length ? filters.categoryName : undefined,
+      trim: filters.trim?.length ? filters.trim : undefined,
+      model: filters.model?.length ? filters.model : undefined,
     })
 
     rawPage.value = {
@@ -181,13 +154,9 @@ async function loadParts() {
 }
 
 onMounted(loadParts)
-
-/* 페이지/사이즈 변경 시 재조회 */
 watch([page, itemsPerPage], loadParts)
 
-/* ==========================
-   화면 표시용 가공/정렬/검색
-========================== */
+/* 화면 가공 */
 const products = computed(() => {
   const rows = rawPage.value.content.map(p => {
     const kor = p.korName || ''
@@ -195,34 +164,11 @@ const products = computed(() => {
     const displayName = kor || eng || p.name || '이름없음'
     const modelTrim = [p.model, p.trim].filter(Boolean).join(' / ')
     
-    return {
-      ...p,
-      productName: displayName,
-      productBrand: modelTrim,
-      image: p.image,
-      categoryName: p.categoryName,
-    }
+    return { ...p, productName: displayName, productBrand: modelTrim, image: p.image, categoryName: p.categoryName }
   })
 
-  let filtered = rows
-
-  // 카테고리 (백엔드 + 안전망)
-  // if (filters.categoryName)
-  //   filtered = filtered.filter(r => r.categoryName === filters.categoryName)
-
-  // 검색
-  // if (filters.search?.trim()) {
-  //   const q = filters.search.trim().toLowerCase()
-
-  //   filtered = filtered.filter(r =>
-  //     (r.productName || '').toLowerCase().includes(q) ||
-  //     (r.engName || '').toLowerCase().includes(q) ||
-  //     (r.model || '').toLowerCase().includes(q) ||
-  //     (r.trim  || '').toLowerCase().includes(q),
-  //   )
-  // }
-
   // 로컬 정렬
+  let filtered = rows
   if (sortBy.value) {
     const key = sortBy.value
     const dir = orderBy.value === 'desc' ? -1 : 1
@@ -237,13 +183,11 @@ const products = computed(() => {
       return String(va).localeCompare(String(vb)) * dir
     })
   }
-
+  
   return filtered
 })
 
-/* ==========================
-   유틸
-========================== */
+/* 유틸 */
 const formatKRW = val => {
   const n = Number(val)
   if (!Number.isFinite(n)) return '—'
@@ -252,10 +196,7 @@ const formatKRW = val => {
 }
 
 const totalProduct = computed(() => rawPage.value.totalElements)
-
-const deleteProduct = async id => {
-  console.warn('Delete is not provided by /api/v1/parts/list. Skipped. id=', id)
-}
+const deleteProduct = async id => console.warn('Delete not provided. id=', id)
 
 const resolveCategory = category => {
   if (!category) return { color: 'secondary', icon: 'bx-package' }
@@ -267,24 +208,44 @@ const resolveCategory = category => {
   
   return { color: 'secondary', icon: 'bx-package' }
 }
+
+// 이미지 상세보기
+const previewImage = ref({
+  open: false,
+  url: '',
+  title: '',
+})
+
+function openImagePreview(url, title = '') {
+  if (!url) return
+  previewImage.value.open = true
+  previewImage.value.url = url
+  previewImage.value.title = title
+}
+function closeImagePreview() {
+  previewImage.value.open = false
+  previewImage.value.url = ''
+  previewImage.value.title = ''
+}
 </script>
 
 <template>
   <div>
-    <!-- 🔹 공통 필터 (VCard 포함 컴포넌트: 중복 카드 제거) -->
+    <!-- ✅ 공통 필터 (멀티칩) -->
     <AppPartsFilters
       page-type="parts"
       :categories="categories"
-      :initial="{ categoryName: filters.categoryName, trim: filters.trim, model: filters.model, search: filters.search }"
       :loading="tableLoading"
       @search="onSearch"
     >
-      <!-- 우측 슬롯: 페이지당 개수 + 엑셀 내보내기 버튼 -->
       <template #right>
-        <AppSelect
-          v-model="itemsPerPage"
-          :items="[5,10,20,25,50]"
-        />
+        <div style="inline-size: 120px;">
+          <AppSelect 
+            v-model="itemsPerPage"
+            :items="[5,10,20,25,50]"
+          />
+        </div>
+
         <AppExportButton
           :items="exportItemsCurrent"
           :fields="exportFields"
@@ -296,7 +257,7 @@ const resolveCategory = category => {
       </template>
     </AppPartsFilters>
 
-    <!-- 🔹 Datatable -->
+    <!-- 데이터 테이블 -->
     <VDataTableServer
       v-model:items-per-page="itemsPerPage"
       v-model:page="page"
@@ -307,7 +268,6 @@ const resolveCategory = category => {
       class="text-no-wrap"
       @update:options="updateOptions"
     >
-      <!-- product -->
       <template #item.product="{ item }">
         <div class="d-flex align-center gap-x-4">
           <VAvatar
@@ -316,6 +276,9 @@ const resolveCategory = category => {
             variant="tonal"
             rounded
             :image="item.image"
+            class="cursor-pointer"
+            :title="item.productName || '이미지 보기'"
+            @click="openImagePreview(item.image, item.productName)"
           />
           <div class="d-flex flex-column">
             <span class="text-body-1 font-weight-medium text-high-emphasis">{{ item.productName }}</span>
@@ -324,7 +287,7 @@ const resolveCategory = category => {
         </div>
       </template>
 
-      <!-- category -->
+
       <template #item.categoryName="{ item }">
         <VAvatar
           size="30"
@@ -340,17 +303,13 @@ const resolveCategory = category => {
         <span class="text-body-1 text-high-emphasis">{{ item.categoryName || '—' }}</span>
       </template>
 
-      <!-- price -->
       <template #item.price="{ item }">
         <span
           class="text-end d-inline-block"
           style="min-width: 90px;"
-        >
-          {{ formatKRW(item.price) }}
-        </span>
+        >{{ formatKRW(item.price) }}</span>
       </template>
 
-      <!-- actions -->
       <template #item.actions="{ item }">
         <IconBtn><VIcon icon="bx-edit" /></IconBtn>
         <IconBtn>
@@ -381,7 +340,6 @@ const resolveCategory = category => {
         </IconBtn>
       </template>
 
-      <!-- pagination -->
       <template #bottom>
         <TablePagination
           v-model:page="page"
@@ -391,4 +349,47 @@ const resolveCategory = category => {
       </template>
     </VDataTableServer>
   </div>
+  <!-- 🖼 이미지 프리뷰 다이얼로그 -->
+  <VDialog
+    v-model="previewImage.open"
+    max-width="800"
+    persistent
+  >
+    <VCard class="pa-2">
+      <div class="d-flex align-center px-3 pt-2 pb-1">
+        <div class="text-subtitle-2 text-medium-emphasis">
+          {{ previewImage.title || '이미지 미리보기' }}
+        </div>
+        <VSpacer />
+        <VBtn
+          icon="bx-x"
+          variant="text"
+          @click="closeImagePreview"
+        />
+      </div>
+
+      <VCardText class="pt-1">
+        <VImg
+          :src="previewImage.url"
+          :alt="previewImage.title || '이미지'"
+          contain
+          class="rounded-lg"
+          style="max-block-size: 50vh;"
+        />
+      </VCardText>
+
+      <VCardActions class="justify-end">
+        <VBtn
+          variant="tonal"
+          @click="closeImagePreview"
+        >
+          닫기
+        </VBtn>
+      </VCardActions>
+    </VCard>
+  </VDialog>
 </template>
+
+<style scoped>
+.cursor-pointer { cursor: pointer; }
+</style>

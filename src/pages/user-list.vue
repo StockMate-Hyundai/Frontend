@@ -525,6 +525,7 @@ const widgetData = computed(() => [
             icon
             variant="text"
             color="medium-emphasis"
+            hidden
           >
             <VIcon icon="bx-dots-vertical-rounded" />
             <VMenu activator="parent">
