@@ -89,7 +89,7 @@ export async function getPartsList({
  * - amount(기본 5), page, size
  */
 export async function getLackStock({
-  amount = 5,
+  amount = 10,
   page = 0,
   size = 20,
 } = {}) {
