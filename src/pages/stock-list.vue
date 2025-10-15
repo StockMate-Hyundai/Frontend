@@ -113,7 +113,7 @@ function onSearch(payload) {
 }
 
 /* 페이지네이션/정렬 */
-const itemsPerPage = ref(10)
+const itemsPerPage = ref(20)
 const page = ref(1)
 const sortBy = ref()
 const orderBy = ref()
@@ -265,9 +265,19 @@ function closeImagePreview() {
       :loading="tableLoading"
       :items="products"
       :items-length="totalProduct"
-      class="text-no-wrap"
+      class="text-no-wrap table-fixed center-others"
       @update:options="updateOptions"
     >
+      <!-- 열 순서에 맞춰 width 지정 (합계 100%) -->
+      <template #colgroup>
+        <col style="width: 5%">
+        <col style="width: 45%">  
+        <col style="width: 15%">
+        <col style="width: 12%">
+        <col style="width: 8%">
+        <col style="width: 15%">
+      </template>
+
       <template #item.product="{ item }">
         <div class="d-flex align-center gap-x-4">
           <VAvatar
@@ -286,8 +296,6 @@ function closeImagePreview() {
           </div>
         </div>
       </template>
-
-
       <template #item.categoryName="{ item }">
         <VAvatar
           size="30"
@@ -303,41 +311,20 @@ function closeImagePreview() {
         <span class="text-body-1 text-high-emphasis">{{ item.categoryName || '—' }}</span>
       </template>
 
+      <!-- 가격도 중앙 정렬해야 하므로 text-end 제거 -->
       <template #item.price="{ item }">
         <span
-          class="text-end d-inline-block"
+          class="d-inline-block"
           style="min-width: 90px;"
-        >{{ formatKRW(item.price) }}</span>
+        >
+          {{ formatKRW(item.price) }}
+        </span>
       </template>
 
       <template #item.actions="{ item }">
         <IconBtn><VIcon icon="bx-edit" /></IconBtn>
-        <IconBtn>
-          <VIcon icon="bx-dots-vertical-rounded" />
-          <VMenu activator="parent">
-            <VList>
-              <VListItem
-                value="download"
-                prepend-icon="bx-download"
-              >
-                Download
-              </VListItem>
-              <VListItem
-                value="delete"
-                prepend-icon="bx-trash"
-                @click="deleteProduct(item.id)"
-              >
-                Delete
-              </VListItem>
-              <VListItem
-                value="duplicate"
-                prepend-icon="bx-copy"
-              >
-                Duplicate
-              </VListItem>
-            </VList>
-          </VMenu>
-        </IconBtn>
+        <IconBtn><VIcon icon="bx-download" /></IconBtn>
+        <IconBtn><VIcon icon="bx-trash" /></IconBtn>
       </template>
 
       <template #bottom>

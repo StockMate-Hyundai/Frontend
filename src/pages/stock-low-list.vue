@@ -112,7 +112,7 @@ function onSearch(payload) {
 }
 
 /* 페이지네이션/정렬 */
-const itemsPerPage = ref(10)
+const itemsPerPage = ref(20)
 const page = ref(1)
 const sortBy = ref()
 const orderBy = ref()
@@ -267,6 +267,14 @@ function closeImagePreview() {
       class="text-no-wrap"
       @update:options="updateOptions"
     >
+      <template #colgroup>
+        <col style="width: 5%">
+        <col style="width: 45%">  
+        <col style="width: 15%">
+        <col style="width: 12%">
+        <col style="width: 8%">
+        <col style="width: 15%">
+      </template>
       <template #item.product="{ item }">
         <div class="d-flex align-center gap-x-4">
           <VAvatar
