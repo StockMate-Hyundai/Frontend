@@ -101,12 +101,12 @@ const login = async () => {
     >
       <VCard
         flat
-        :max-width="500"
+        :max-width="440"
         class="mt-12 mt-sm-0 pa-6"
       >
         <VCardText>
           <h4 class="text-h4 mb-1">
-            <span class="text-capitalize mr-1">
+            <span class="text-capitalize">
               <VNodeRenderer :nodes="themeConfig.app.title" />
             </span>에 어서오세요 !
           </h4>

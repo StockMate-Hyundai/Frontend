@@ -1,8 +1,8 @@
 <script setup>
-import { searchParts } from '@/api/parts' // ✅ 변경
+import { searchParts } from '@/api/parts'; // ✅ 변경
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 
-import AppPartsFilters from '@/components/common/AppPartsFilters.vue' // ✅ 멀티칩 버전 사용
+import AppPartsFilters from '@/components/common/AppPartsFilters.vue'; // ✅ 멀티칩 버전 사용
 import AppExportButton from '@/components/common/ExportToExcel.vue'
 
 /* 엑셀 설정 (동일) */
@@ -113,7 +113,7 @@ function onSearch(payload) {
 }
 
 /* 페이지네이션/정렬 */
-const itemsPerPage = ref(10)
+const itemsPerPage = ref(20)
 const page = ref(1)
 const sortBy = ref()
 const orderBy = ref()
@@ -265,11 +265,22 @@ function closeImagePreview() {
       :loading="tableLoading"
       :items="products"
       :items-length="totalProduct"
-      class="text-no-wrap"
+      class="text-no-wrap table-fixed center-others"
       @update:options="updateOptions"
     >
+      <!-- 열 순서에 맞춰 width 지정 (합계 100%) -->
+      <template #colgroup>
+        <col style="width: 5%">
+        <col style="width: 45%">  
+        <col style="width: 15%">
+        <col style="width: 12%">
+        <col style="width: 8%">
+        <col style="width: 15%">
+      </template>
+
+      <!-- product 셀 -->
       <template #item.product="{ item }">
-        <div class="d-flex align-center gap-x-4">
+        <div class="d-flex align-center gap-x-4 product-cell">
           <VAvatar
             v-if="item.image"
             size="38"
@@ -280,13 +291,15 @@ function closeImagePreview() {
             :title="item.productName || '이미지 보기'"
             @click="openImagePreview(item.image, item.productName)"
           />
-          <div class="d-flex flex-column">
-            <span class="text-body-1 font-weight-medium text-high-emphasis">{{ item.productName }}</span>
+          <!-- 텍스트 컨테이너: 줄바꿈 허용을 위해 min-width:0 -->
+          <div class="d-flex flex-column product-text">
+            <span class="text-body-1 font-weight-medium text-high-emphasis">
+              {{ item.productName }}
+            </span>
             <span class="text-body-2">{{ item.productBrand }}</span>
           </div>
         </div>
       </template>
-
 
       <template #item.categoryName="{ item }">
         <VAvatar
@@ -303,41 +316,20 @@ function closeImagePreview() {
         <span class="text-body-1 text-high-emphasis">{{ item.categoryName || '—' }}</span>
       </template>
 
+      <!-- 가격도 중앙 정렬해야 하므로 text-end 제거 -->
       <template #item.price="{ item }">
         <span
-          class="text-end d-inline-block"
+          class="d-inline-block"
           style="min-width: 90px;"
-        >{{ formatKRW(item.price) }}</span>
+        >
+          {{ formatKRW(item.price) }}
+        </span>
       </template>
 
       <template #item.actions="{ item }">
         <IconBtn><VIcon icon="bx-edit" /></IconBtn>
-        <IconBtn>
-          <VIcon icon="bx-dots-vertical-rounded" />
-          <VMenu activator="parent">
-            <VList>
-              <VListItem
-                value="download"
-                prepend-icon="bx-download"
-              >
-                Download
-              </VListItem>
-              <VListItem
-                value="delete"
-                prepend-icon="bx-trash"
-                @click="deleteProduct(item.id)"
-              >
-                Delete
-              </VListItem>
-              <VListItem
-                value="duplicate"
-                prepend-icon="bx-copy"
-              >
-                Duplicate
-              </VListItem>
-            </VList>
-          </VMenu>
-        </IconBtn>
+        <IconBtn><VIcon icon="bx-download" /></IconBtn>
+        <IconBtn><VIcon icon="bx-trash" /></IconBtn>
       </template>
 
       <template #bottom>
@@ -392,4 +384,16 @@ function closeImagePreview() {
 
 <style scoped>
 .cursor-pointer { cursor: pointer; }
+/* scoped 가능 */
+.table-fixed :deep(.product-cell) {
+  /* 테이블에 걸린 text-no-wrap을 무시하고 이 칸만 줄바꿈 */
+  white-space: normal !important;
+}
+
+/* 긴 단어/연속 문자도 강제로 줄바꿈 */
+.table-fixed :deep(.product-text) {
+  min-width: 0;                 /* flex 항목이 줄바꿈 가능하도록 */
+  overflow-wrap: anywhere;      /* 긴 연속 문자열 강제 개행 */
+  word-break: break-word;       /* 구형 브라우저 대응 */
+}
 </style>
