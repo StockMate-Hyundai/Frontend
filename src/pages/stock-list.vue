@@ -396,14 +396,4 @@ function closeImagePreview() {
   overflow-wrap: anywhere;      /* 긴 연속 문자열 강제 개행 */
   word-break: break-word;       /* 구형 브라우저 대응 */
 }
-
-/* (선택) 두 줄까지만 보이고 넘치면 말줄임 처리하고 싶다면 */
-.table-fixed :deep(.product-text .text-body-1) {
-  /* 원하면 주석 해제
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  */
-}
 </style>
