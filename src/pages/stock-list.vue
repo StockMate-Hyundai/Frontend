@@ -1,8 +1,8 @@
 <script setup>
-import { searchParts } from '@/api/parts'; // ✅ 변경
+import { searchParts } from '@/api/parts' // ✅ 변경
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 
-import AppPartsFilters from '@/components/common/AppPartsFilters.vue'; // ✅ 멀티칩 버전 사용
+import AppPartsFilters from '@/components/common/AppPartsFilters.vue' // ✅ 멀티칩 버전 사용
 import AppExportButton from '@/components/common/ExportToExcel.vue'
 
 /* 엑셀 설정 (동일) */

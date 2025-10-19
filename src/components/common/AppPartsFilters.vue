@@ -147,10 +147,10 @@ function onReset() {
           <div class="d-flex align-center flex-wrap gap-2 mb-2">
             <VBtn
               size="x-small"
-              variant="tonal"
+              variant="flat"
               @click="selectAllCategories"
             >
-              ALL
+              전체선택
             </VBtn>
             <VBtn
               size="x-small"
@@ -158,7 +158,7 @@ function onReset() {
               class="ms-1 me-2"
               @click="clearAllCategories"
             >
-              [ 전체해제 ]
+              전체해제
             </VBtn>
           </div>
           <div class="chip-wrap">
@@ -189,10 +189,10 @@ function onReset() {
           <div class="d-flex align-center flex-wrap gap-2 mb-2">
             <VBtn
               size="x-small"
-              variant="tonal"
+              variant="flat"
               @click="selectedTrims = [...trims]; trims.forEach(t => selectedModels[t] ||= [])"
             >
-              ALL
+              전체선택
             </VBtn>
             <VBtn
               size="x-small"
@@ -200,7 +200,7 @@ function onReset() {
               class="ms-1 me-2"
               @click="selectedTrims = []; Object.keys(selectedModels).forEach(k => selectedModels[k] = [])"
             >
-              [ 전체해제 ]
+              전체해제
             </VBtn>
           </div>
 
@@ -241,7 +241,7 @@ function onReset() {
 
               <VBtn
                 size="x-small"
-                variant="tonal"
+                variant="flat"
                 class="me-1"
                 @click="selectAllModelsOfTrim(t)"
               >
