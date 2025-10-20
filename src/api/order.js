@@ -162,3 +162,26 @@ export async function fetchOrdersForTable({ page = 1, itemsPerPage = 10, filters
     page, // 그대로 1-base
   }
 }
+
+export async function getOrderListByMemberId({
+  memberId,
+  page = 1,
+  size = 10,
+  status,
+  partId,
+  startDate,
+  endDate,
+} = {}) {
+  if (memberId == null) throw new Error('memberId is required')
+
+  // 기존 정규화 로직을 가진 getOrderList를 재사용
+  return await getOrderList({
+    memberId,
+    page,
+    size,
+    status,
+    partId,
+    startDate,
+    endDate,
+  })
+}

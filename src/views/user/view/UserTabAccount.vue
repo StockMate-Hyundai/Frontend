@@ -163,7 +163,7 @@ const moreList = [
 
 <template>
   <VRow>
-    <VCol cols="12">
+    <VCol cols="12" hidden>
       <VCard title="Projects List">
         <VCardItem class="pt-0">
           <div class="d-flex justify-space-between align-center flex-wrap gap-4">
@@ -288,7 +288,7 @@ const moreList = [
       </VCard>
     </VCol>
 
-    <VCol cols="12">
+    <VCol cols="12" hidden>
       <!-- 👉 User Activity timeline -->
       <VCard title="User Activity Timeline">
         <VCardText>

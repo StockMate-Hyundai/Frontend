@@ -3,6 +3,7 @@ import { apiChangeUserRole, apiChangeUserStatus, apiGetUsersPublic } from '@/api
 import RoleStatusEditDialog from '@/components/dialogs/RoleStatusEditDialog.vue'
 import AddNewUserDrawer from '@/views/user/list/AddNewUserDrawer.vue'
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 
 // 페이지 메타(비로그인 접근 허용)
 definePage({ meta: { public: true } })
@@ -33,6 +34,15 @@ const openEdit = user => {
   isEditDialogVisible.value = true
 }
 
+const router = useRouter()
+
+// memberId 우선 → 없으면 id fallback
+const getMemberId = u => u?.raw?.memberId ?? u?.memberId ?? u?.id
+const goUserDetail = (item) => {
+  const id = getMemberId(item)
+  if (id == null) return
+  router.push({ name: 'user-detail-id', params: { id: String(id) } })
+}
 
 /* ==========================
    테이블 헤더
@@ -447,6 +457,8 @@ const widgetData = computed(() => [
               size="34"
               :variant="!item.avatar ? 'tonal' : undefined"
               :color="!item.avatar ? resolveUserRoleVariant(item.role).color : undefined"
+              class="cursor-pointer"
+              @click="goUserDetail(item)"
             >
               <VImg
                 v-if="item.avatar"
@@ -457,11 +469,11 @@ const widgetData = computed(() => [
             <div class="d-flex flex-column">
               <h6 class="text-base">
                 <RouterLink
-                  :to="{ name: 'second-page' }"
+                  :to="{ name: 'user-detail-id', params: { id: String(getMemberId(item)) } }"
                   class="font-weight-medium text-link"
-                >
-                  {{ item.fullName }}
-                </RouterLink>
+                  @click.stop
+                >{{ item.fullName }}
+              </RouterLink>
               </h6>
               <div class="text-sm">
                 {{ item.email }}
@@ -509,7 +521,7 @@ const widgetData = computed(() => [
             <VIcon icon="bx-trash" />
           </IconBtn>
 
-          <IconBtn>
+          <IconBtn title="상세 보기" @click="goUserDetail(item)">
             <VIcon icon="bx-show" />
           </IconBtn>
 

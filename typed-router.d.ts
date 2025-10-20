@@ -29,6 +29,7 @@ declare module 'vue-router/auto-routes' {
     'second-page': RouteRecordInfo<'second-page', '/second-page', Record<never, never>, Record<never, never>>,
     'stock-list': RouteRecordInfo<'stock-list', '/stock-list', Record<never, never>, Record<never, never>>,
     'stock-low-list': RouteRecordInfo<'stock-low-list', '/stock-low-list', Record<never, never>, Record<never, never>>,
+    'user-detail-id': RouteRecordInfo<'user-detail-id', '/user-detail/:id', { id: ParamValue<true> }, { id: ParamValue<false> }>,
     'user-list': RouteRecordInfo<'user-list', '/user-list', Record<never, never>, Record<never, never>>,
   }
 }
