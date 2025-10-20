@@ -1,4 +1,6 @@
 <script setup>
+import { ref } from 'vue'
+
 const props = defineProps({
   userData: {
     type: Object,
@@ -6,60 +8,59 @@ const props = defineProps({
   },
 })
 
+/* ==========================
+   헬퍼 & 매핑
+========================== */
+const USER_ROLE_LABEL = {
+  USER: '일반',
+  ADMIN: '관리자',
+  SUPER_ADMIN: '최고관리자',
+}
+
+const USER_STATUS_LABEL = {
+  ACTIVE: '활성',
+  PENDING: '대기',
+  DISABLED: '비활성',
+}
+
+const resolveUserRoleVariant = role => {
+  const r = String(role || '').toUpperCase()
+  if (r === 'SUPER_ADMIN') return { color: 'error',   icon: 'bx-crown',        text: USER_ROLE_LABEL[r] }
+  if (r === 'ADMIN')       return { color: 'warning', icon: 'bx-badge-check',  text: USER_ROLE_LABEL[r] }
+  return { color: 'primary', icon: 'bx-user', text: USER_ROLE_LABEL[r] || '일반' }
+}
+
+const resolveUserStatusVariant = stat => {
+  const s = String(stat || '').toUpperCase()
+  if (s === 'ACTIVE')   return { color: 'success',   text: USER_STATUS_LABEL[s] }
+  if (s === 'PENDING')  return { color: 'warning',   text: USER_STATUS_LABEL[s] }
+  if (s === 'DISABLED') return { color: 'secondary', text: USER_STATUS_LABEL[s] }
+  return { color: 'default', text: s || '-' }
+}
+
+const avatarText = name => (name || '').trim().slice(0, 2).toUpperCase()
+const formatDate = s => (s ? new Date(s).toLocaleString() : '-')
+
+/* ==========================
+   데모용 플랜(텍스트만 한글화)
+========================== */
 const standardPlan = {
   plan: 'Standard',
   price: 99,
-  benefits: [
-    '10 Users',
-    'Up to 10GB storage',
-    'Basic Support',
-  ],
+  benefits: ['10명 사용자', '최대 10GB 저장공간', '기본 지원'],
 }
 
 const isUserInfoEditDialogVisible = ref(false)
 const isUpgradePlanDialogVisible = ref(false)
-
-const resolveUserRoleVariant = role => {
-  if (role === 'subscriber')
-    return {
-      color: 'warning',
-      icon: 'bx-user',
-    }
-  if (role === 'author')
-    return {
-      color: 'success',
-      icon: 'bx-check-circle',
-    }
-  if (role === 'maintainer')
-    return {
-      color: 'primary',
-      icon: 'bx-pie-chart-alt',
-    }
-  if (role === 'editor')
-    return {
-      color: 'info',
-      icon: 'bx-pencil',
-    }
-  if (role === 'admin')
-    return {
-      color: 'secondary',
-      icon: 'bx-server',
-    }
-  
-  return {
-    color: 'primary',
-    icon: 'bx-user',
-  }
-}
 </script>
 
 <template>
   <VRow>
-    <!-- SECTION User Details -->
+    <!-- SECTION 사용자 상세 -->
     <VCol cols="12">
       <VCard v-if="props.userData">
         <VCardText class="text-center pt-12">
-          <!-- 👉 Avatar -->
+          <!-- 아바타 -->
           <VAvatar
             rounded
             :size="120"
@@ -70,94 +71,54 @@ const resolveUserRoleVariant = role => {
               v-if="props.userData.avatar"
               :src="props.userData.avatar"
             />
-            <span
-              v-else
-              class="text-5xl font-weight-medium"
-            >
-              {{ avatarText(props.userData.fullName) }}
+            <span v-else class="text-5xl font-weight-medium">
+              {{ avatarText(props.userData.owner) }}
             </span>
           </VAvatar>
 
-          <!-- 👉 User fullName -->
+          <!-- 이름 -->
           <h5 class="text-h5 mt-4">
-            {{ props.userData.fullName }}
+            {{ props.userData.owner }}
           </h5>
 
-          <!-- 👉 Role chip -->
-          <VChip
-            label
-            :color="resolveUserRoleVariant(props.userData.role).color"
-            size="small"
-            class="text-capitalize mt-4"
-          >
-            {{ props.userData.role }}
-          </VChip>
+          <!-- 역할 칩 -->
+          <div class="d-flex justify-center gap-2 mt-4">
+            <VChip
+              label
+              size="small"
+              class="text-capitalize"
+              :color="resolveUserRoleVariant(props.userData.role).color"
+            >
+              <VIcon
+                :icon="resolveUserRoleVariant(props.userData.role).icon"
+                size="18"
+                class="me-1"
+              />
+              {{ resolveUserRoleVariant(props.userData.role).text }}
+            </VChip>
+
+            <!-- 상태 칩 -->
+            <VChip
+              label
+              size="small"
+              :color="resolveUserStatusVariant(props.userData.verified).color"
+            >
+              {{ resolveUserStatusVariant(props.userData.verified).text }}
+            </VChip>
+          </div>
         </VCardText>
 
         <VCardText>
-          <div class="d-flex justify-space-around gap-x-6 gap-y-2 flex-wrap mb-6">
-            <!-- 👉 Done task -->
-            <div class="d-flex align-center me-8">
-              <VAvatar
-                :size="40"
-                rounded
-                color="primary"
-                variant="tonal"
-                class="me-4"
-              >
-                <VIcon
-                  icon="bx-check"
-                  size="24"
-                />
-              </VAvatar>
-              <div>
-                <h5 class="text-h5">
-                  {{ `${(props.userData.taskDone / 1000).toFixed(2)}k` }}
-                </h5>
-
-                <span class="text-body-1 d-inline-block">Task Done</span>
-              </div>
-            </div>
-
-            <!-- 👉 Done Project -->
-            <div class="d-flex align-center me-4">
-              <VAvatar
-                :size="38"
-                rounded
-                color="primary"
-                variant="tonal"
-                class="me-4"
-              >
-                <VIcon
-                  icon="bx-customize"
-                  size="24"
-                />
-              </VAvatar>
-              <div>
-                <h5 class="text-h5">
-                  {{ kFormatter(props.userData.projectDone) }}
-                </h5>
-                <span class="text-body-1 d-inline-block">Project Done</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- 👉 Details -->
-          <h5 class="text-h5">
-            Details
-          </h5>
-
+          <!-- 세부 정보 -->
+          <h5 class="text-h5">기본 정보</h5>
           <VDivider class="my-4" />
 
-          <!-- 👉 User Details list -->
           <VList class="card-list mt-2">
             <VListItem>
               <VListItemTitle>
                 <h6 class="text-h6">
-                  Username:
-                  <div class="d-inline-block text-body-1">
-                    {{ props.userData.fullName }}
-                  </div>
+                  사용자명:
+                  <span class="text-body-1 d-inline-block">{{ props.userData.owner }}</span>
                 </h6>
               </VListItemTitle>
             </VListItem>
@@ -165,9 +126,45 @@ const resolveUserRoleVariant = role => {
             <VListItem>
               <VListItemTitle>
                 <h6 class="text-h6">
-                  Billing Email:
+                  이메일:
+                  <span class="text-body-1 d-inline-block">{{ props.userData.email }}</span>
+                </h6>
+              </VListItemTitle>
+            </VListItem>
+
+            <VListItem>
+              <VListItemTitle>
+                <h6 class="text-h6">
+                  지점:
+                  <span class="text-body-1 d-inline-block">{{ props.userData.storeName || '-' }}</span>
+                </h6>
+              </VListItemTitle>
+            </VListItem>
+
+            <VListItem>
+              <VListItemTitle>
+                <h6 class="text-h6">
+                  사업자번호:
+                  <span class="text-body-1 d-inline-block">{{ props.userData.businessNumber || '-' }}</span>
+                </h6>
+              </VListItemTitle>
+            </VListItem>
+
+            <VListItem>
+              <VListItemTitle>
+                <h6 class="text-h6">
+                  주소:
+                  <span class="text-body-1 d-inline-block">{{ props.userData.address || '-' }}</span>
+                </h6>
+              </VListItemTitle>
+            </VListItem>
+
+            <VListItem>
+              <VListItemTitle>
+                <h6 class="text-h6">
+                  역할:
                   <span class="text-body-1 d-inline-block">
-                    {{ props.userData.email }}
+                    {{ resolveUserRoleVariant(props.userData.role).text }}
                   </span>
                 </h6>
               </VListItemTitle>
@@ -176,10 +173,10 @@ const resolveUserRoleVariant = role => {
             <VListItem>
               <VListItemTitle>
                 <h6 class="text-h6">
-                  Status:
-                  <div class="d-inline-block text-body-1 text-capitalize">
-                    {{ props.userData.status }}
-                  </div>
+                  상태:
+                  <span class="text-body-1 d-inline-block">
+                    {{ resolveUserStatusVariant(props.userData.verified).text }}
+                  </span>
                 </h6>
               </VListItemTitle>
             </VListItem>
@@ -187,10 +184,8 @@ const resolveUserRoleVariant = role => {
             <VListItem>
               <VListItemTitle>
                 <h6 class="text-h6">
-                  Role:
-                  <div class="d-inline-block text-capitalize text-body-1">
-                    {{ props.userData.role }}
-                  </div>
+                  회원번호:
+                  <span class="text-body-1 d-inline-block">#{{ props.userData.memberId }}</span>
                 </h6>
               </VListItemTitle>
             </VListItem>
@@ -198,10 +193,8 @@ const resolveUserRoleVariant = role => {
             <VListItem>
               <VListItemTitle>
                 <h6 class="text-h6">
-                  Tax ID:
-                  <div class="d-inline-block text-body-1">
-                    {{ props.userData.taxId }}
-                  </div>
+                  생성일:
+                  <span class="text-body-1 d-inline-block">{{ formatDate(props.userData.createdAt) }}</span>
                 </h6>
               </VListItemTitle>
             </VListItem>
@@ -209,136 +202,57 @@ const resolveUserRoleVariant = role => {
             <VListItem>
               <VListItemTitle>
                 <h6 class="text-h6">
-                  Contact:
-                  <div class="d-inline-block text-body-1">
-                    {{ props.userData.contact }}
-                  </div>
-                </h6>
-              </VListItemTitle>
-            </VListItem>
-
-            <VListItem>
-              <VListItemTitle>
-                <h6 class="text-h6">
-                  Language:
-                  <div class="d-inline-block text-body-1">
-                    {{ props.userData.language }}
-                  </div>
-                </h6>
-              </VListItemTitle>
-            </VListItem>
-
-            <VListItem>
-              <VListItemTitle>
-                <h6 class="text-h6">
-                  Country:
-                  <div class="d-inline-block text-body-1">
-                    {{ props.userData.country }}
-                  </div>
+                  수정일:
+                  <span class="text-body-1 d-inline-block">{{ formatDate(props.userData.updatedAt) }}</span>
                 </h6>
               </VListItemTitle>
             </VListItem>
           </VList>
         </VCardText>
 
-        <!-- 👉 Edit and Suspend button -->
+        <!-- 버튼 -->
         <VCardText class="d-flex justify-center gap-x-4">
-          <VBtn
-            variant="elevated"
-            @click="isUserInfoEditDialogVisible = true"
-          >
-            Edit
-          </VBtn>
-
-          <VBtn
-            variant="tonal"
-            color="error"
-          >
-            Suspend
-          </VBtn>
+          <VBtn variant="elevated" @click="isUserInfoEditDialogVisible = true">정보 수정</VBtn>
+          <VBtn variant="tonal" color="error">계정 중지</VBtn>
         </VCardText>
       </VCard>
     </VCol>
     <!-- !SECTION -->
 
-    <!-- SECTION Current Plan -->
-    <VCol cols="12">
+    <!-- SECTION 현재 플랜(데모) -->
+    <VCol cols="12" hidden>
       <VCard class="current-plan">
         <VCardText class="d-flex">
-          <!-- 👉 Standard Chip -->
-          <VChip
-            label
-            color="primary"
-            size="small"
-            class="font-weight-medium"
-          >
-            Popular
-          </VChip>
-
+          <VChip label color="primary" size="small" class="font-weight-medium">인기</VChip>
           <VSpacer />
-
-          <!-- 👉 Current Price  -->
           <div class="d-flex align-center">
-            <sup class="text-h5 text-primary mt-1">$</sup>
-            <h1 class="text-h1 text-primary">
-              99
-            </h1>
-            <sub class="mt-3"><h6 class="text-h6 font-weight-regular mb-n1">/ month</h6></sub>
+            <sup class="text-h5 text-primary mt-1">₩</sup>
+            <h1 class="text-h1 text-primary">{{ standardPlan.price }}</h1>
+            <sub class="mt-3"><h6 class="text-h6 font-weight-regular mb-n1">/ 월</h6></sub>
           </div>
         </VCardText>
 
         <VCardText>
-          <!-- 👉 Price Benefits -->
           <VList class="card-list">
-            <VListItem
-              v-for="benefit in standardPlan.benefits"
-              :key="benefit"
-            >
+            <VListItem v-for="benefit in standardPlan.benefits" :key="benefit">
               <div class="d-flex align-center gap-x-2">
-                <VIcon
-                  size="6"
-                  color="secondary"
-                  icon="bx-bxs-circle"
-                />
-                <div class="text-medium-emphasis">
-                  {{ benefit }}
-                </div>
+                <VIcon size="6" color="secondary" icon="bx-bxs-circle" />
+                <div class="text-medium-emphasis">{{ benefit }}</div>
               </div>
             </VListItem>
           </VList>
 
-          <!-- 👉 Days -->
           <div class="my-6">
             <div class="d-flex justify-space-between mb-1">
-              <h6 class="text-h6">
-                Days
-              </h6>
-              <h6 class="text-h6">
-                26 of 30 Days
-              </h6>
+              <h6 class="text-h6">이용 일수</h6>
+              <h6 class="text-h6">30일 중 26일</h6>
             </div>
-
-            <!-- 👉 Progress -->
-            <VProgressLinear
-              rounded
-              rounded-bar
-              :model-value="65"
-              color="primary"
-            />
-
-            <p class="mt-1 text-body-2 mb-0">
-              4 days remaining
-            </p>
+            <VProgressLinear rounded rounded-bar :model-value="65" color="primary" />
+            <p class="mt-1 text-body-2 mb-0">4일 남음</p>
           </div>
 
-          <!-- 👉 Upgrade Plan -->
           <div class="d-flex gap-4">
-            <VBtn
-              block
-              @click="isUpgradePlanDialogVisible = true"
-            >
-              Upgrade Plan
-            </VBtn>
+            <VBtn block @click="isUpgradePlanDialogVisible = true">플랜 업그레이드</VBtn>
           </div>
         </VCardText>
       </VCard>
@@ -346,30 +260,25 @@ const resolveUserRoleVariant = role => {
     <!-- !SECTION -->
   </VRow>
 
-  <!-- 👉 Edit user info dialog -->
+  <!-- 수정 다이얼로그 -->
   <UserInfoEditDialog
     v-model:is-dialog-visible="isUserInfoEditDialogVisible"
     :user-data="props.userData"
   />
 
-  <!-- 👉 Upgrade plan dialog -->
+  <!-- 업그레이드 다이얼로그 -->
   <UserUpgradePlanDialog v-model:is-dialog-visible="isUpgradePlanDialogVisible" />
 </template>
 
 <style lang="scss" scoped>
 @use "@core/scss/template/mixins" as templateMixins;
 
-.card-list {
-  --v-card-list-gap: 0.5rem;
-}
+.card-list { --v-card-list-gap: 0.5rem; }
 
 .current-plan {
   border: 2px solid rgb(var(--v-theme-primary));
-
   @include templateMixins.custom-elevation(var(--v-theme-primary), "sm");
 }
 
-.text-capitalize {
-  text-transform: capitalize !important;
-}
+.text-capitalize { text-transform: capitalize !important; }
 </style>

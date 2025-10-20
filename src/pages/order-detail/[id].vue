@@ -91,8 +91,6 @@ async function loadDetail() {
     lineItems.value = items.map(x => {
       const pd = x?.partDetail ?? {}
 
-      console.log(pd?.image || null)
-
       const name = pd?.korName || pd?.name || pd?.engName || `#${x?.partId}`
       const trimTxt  = pd?.trim  ? ` / ${pd.trim}`  : ''
       const modelTxt = pd?.model ? ` / ${pd.model}` : ''
@@ -128,6 +126,7 @@ async function onCancel() {
     alert('주문이 취소되었습니다.')
     await loadDetail()
   } catch (e) {
+    console.log(e)
     alert(e?.message || '취소 중 오류가 발생했습니다.')
   } finally {
     loadingAction.value = false

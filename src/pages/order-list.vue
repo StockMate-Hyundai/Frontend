@@ -4,19 +4,18 @@ import { computed, onMounted, ref, watch } from 'vue'
 
 /* ========== 위젯 (그대로) ========== */
 const widgetData = ref([
-  { title: 'Pending Shipping', value: 56, icon: 'bx-calendar' },
-  { title: 'Delivered',        value: 12689, icon: 'bx-check-double' },
-  { title: 'Rejected',         value: 124, icon: 'bx-wallet' },
-  { title: 'Cancelled',        value: 32, icon: 'bx-error-alt' },
+  { title: '총 주문', value: 56, icon: 'bx-calendar' },
+  { title: '새로운 주문', value: 12689, icon: 'bx-check-double' },
+  { title: '배송중', value: 124, icon: 'bx-wallet' },
+  { title: '취소', value: 32, icon: 'bx-error-alt' },
 ])
 
 /* ========== 테이블 상태 ========== */
-const searchQuery   = ref('')   // (백엔드 스펙 미정)
 const itemsPerPage  = ref(10)
-const page          = ref(1)    // UI 1-base
+const page          = ref(1)
 const sortBy        = ref()
 const orderBy       = ref()
-const selectedRows  = ref([])   // 선택된 orderId 배열
+const selectedRows  = ref([])
 const tableLoading  = ref(false)
 
 const updateOptions = options => {
@@ -24,11 +23,11 @@ const updateOptions = options => {
   orderBy.value = options.sortBy[0]?.order
 }
 
-/* ========== 헤더: 요청하신 5개 + Action ========== */
+/* ========== 헤더 ========== */
 const headers = [
-  { title: 'No.',       key: 'orderNumber' },      // 클릭 시 상세로
+  { title: 'No.',       key: 'orderNumber' },
   { title: '주문일자',  key: 'createdAt' },
-  { title: '고객',      key: 'customers' },        // 기존 Customers UI 유지
+  { title: '고객',      key: 'customers' },
   { title: '상태',      key: 'orderStatus' },
   { title: '총가격',    key: 'totalPrice' },
   { title: 'Action',    key: 'actions', sortable: false },
@@ -48,6 +47,11 @@ const resolveOrderStatus = s => {
   }
 }
 
+/* ========== 공통 필터 → API 필터 상태 ========== */
+/** AppPartsFilters가 enableStatus/enableDate를 기준으로
+ *  { status?, startDate?, endDate? } 형태만 보내줌 */
+const currentFilters = ref({}) // { status, startDate, endDate } (필요 시 memberId/partId 추가)
+
 /* ========== 데이터 로딩 ========== */
 const ordersData = ref({ rows: [], total: 0, page: 1 })
 
@@ -57,11 +61,10 @@ async function loadOrders () {
     const res = await fetchOrdersForTable({
       page: page.value,
       itemsPerPage: itemsPerPage.value,
-      filters: {
-        // 필요 시 status / startDate / endDate / memberId / partId 등 주입
-      },
+      filters: currentFilters.value,
     })
 
+    console.log(res)
     ordersData.value = res
   } finally {
     tableLoading.value = false
@@ -71,15 +74,9 @@ async function loadOrders () {
 onMounted(loadOrders)
 watch([page, itemsPerPage], loadOrders)
 
-/* ========== 표시 매핑 (Customers 칼럼 유지) ========== */
+/* ========== 표시 매핑 ========== */
 const avatarText = name =>
-  (name ?? '?')
-    .trim()
-    .split(/\s+/)
-    .map(s => s[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase()
+  (name ?? '?').trim().split(/\s+/).map(s => s[0]).join('').slice(0, 2).toUpperCase()
 
 const orders = computed(() =>
   (ordersData.value.rows ?? []).map(it => {
@@ -87,19 +84,14 @@ const orders = computed(() =>
     const displayName = u.storeName || u.owner || u.email || '-'
     
     return {
-      // 테이블 바인딩
       orderId: it.orderId,
       orderNumber: it.orderNumber || `#${it.orderId}`,
       createdAt: it.createdAt,
       orderStatus: it.orderStatus,
       totalPrice: it.totalPrice,
-
-      // Customers 칼럼용
       customer: displayName,
       email: u.email || '',
-      avatar: null, // 이미지 없으므로 이니셜
-
-      // 원본
+      avatar: null,
       __raw: it,
     }
   }),
@@ -124,71 +116,100 @@ const cancelOrder = async orderId => {
 /* ========== 포맷터 ========== */
 const fmtDate = d => !d ? '-' : new Date(d).toLocaleDateString()
 const fmtCurrency = v => (v ?? v === 0) ? new Intl.NumberFormat().format(v) : '-'
+
+/* ========== 필터 핸들러 (공통 → 주문 API) ========== */
+function handleSearch(payload) {
+  // payload: { status?, memberId?, partId?, startDate?, endDate? } 중 켜진 것만 옴
+  currentFilters.value = { ...payload }
+  page.value = 1
+  loadOrders()
+}
 </script>
 
 <template>
   <div>
     <!-- 위젯 -->
-    <VCard class="mb-6">
+    <!--
+      <VCard class="mb-6">
       <VCardText class="px-3">
-        <VRow>
-          <template
-            v-for="(data, id) in widgetData"
-            :key="id"
-          >
-            <VCol
-              cols="12"
-              sm="6"
-              md="3"
-              class="px-6"
-            >
-              <div
-                class="d-flex justify-space-between"
-                :class="$vuetify.display.xs
-                  ? id !== widgetData.length - 1 ? 'border-b pb-4' : ''
-                  : $vuetify.display.sm
-                    ? id < (widgetData.length / 2) ? 'border-b pb-4' : ''
-                    : ''"
-              >
-                <div class="d-flex flex-column">
-                  <h4 class="text-h4">
-                    {{ data.value }}
-                  </h4>
-                  <div class="text-body-1">
-                    {{ data.title }}
-                  </div>
-                </div>
-                <VAvatar
-                  variant="tonal"
-                  rounded
-                  size="42"
-                >
-                  <VIcon
-                    :icon="data.icon"
-                    size="24"
-                    class="text-high-emphasis"
-                  />
-                </VAvatar>
-              </div>
-            </VCol>
+      <VRow>
+      <template
+      v-for="(data, id) in widgetData"
+      :key="id"
+      >
+      <VCol
+      cols="12"
+      sm="6"
+      md="3"
+      class="px-6"
+      >
+      <div
+      class="d-flex justify-space-between"
+      :class="$vuetify.display.xs
+      ? id !== widgetData.length - 1 ? 'border-b pb-4' : ''
+      : $vuetify.display.sm
+      ? id < (widgetData.length / 2) ? 'border-b pb-4' : ''
+      : ''"
+      >
+      <div class="d-flex flex-column">
+      <h4 class="text-h4">
+      {{ data.value }}
+      </h4>
+      <div class="text-body-1">
+      {{ data.title }}
+      </div>
+      </div>
+      <VAvatar
+      variant="tonal"
+      rounded
+      size="42"
+      >
+      <VIcon
+      :icon="data.icon"
+      size="24"
+      class="text-high-emphasis"
+      />
+      </VAvatar>
+      </div>
+      </VCol>
 
-            <VDivider
-              v-if="$vuetify.display.mdAndUp ? id !== widgetData.length - 1
-                : $vuetify.display.smAndUp ? id % 2 === 0
-                  : false"
-              vertical
-              inset
-              length="60"
-            />
-          </template>
-        </VRow>
+      <VDivider
+      v-if="$vuetify.display.mdAndUp ? id !== widgetData.length - 1
+      : $vuetify.display.smAndUp ? id % 2 === 0
+      : false"
+      vertical
+      inset
+      length="60"
+      />
+      </template>
+      </VRow>
       </VCardText>
-    </VCard>
+      </VCard> 
+    -->
 
-    <!-- 주문 테이블 -->
-    <VCard>
-      <!-- 👉 Filters -->
-      <VCardText>
+    <!-- ✅ 공통 필터: 주문 페이지용으로 필요한 것만 ON -->
+    <AppPartsFilters
+      page-type="orders"
+      :loading="tableLoading"
+      :enable-categories="false"
+      :enable-trim="false"
+      :enable-model="false"
+      :enable-member="false"
+      :enable-part="false"
+      :enable-status="true"
+      :enable-date="true"
+      :status-options="[
+        { label: '주문 완료', value: 'ORDER_COMPLETED' },
+        { label: '출고 대기', value: 'PENDING_SHIPPING' },
+        { label: '배송중', value: 'SHIPPING' },
+        { label: '출고 반려', value: 'REJECTED' },
+        { label: '배송 완료', value: 'DELIVERED' },
+        { label: '입고 완료', value: 'RECEIVED' },
+        { label: '주문 취소', value: 'CANCELLED' },
+      ]"
+      @search="handleSearch"
+    >
+      <template #right>
         <div class="d-flex justify-sm-space-between justify-start flex-wrap gap-4">
           <div class="d-flex gap-x-4 align-center">
             <AppSelect
@@ -204,11 +225,34 @@ const fmtCurrency = v => (v ?? v === 0) ? new Intl.NumberFormat().format(v) : '-
             />
           </div>
         </div>
-      </VCardText>
+      </template>
+    </AppPartsFilters>
+    <!-- 주문 테이블 -->
+    <VCard>
+      <!-- 상단 도구 -->
+      <!--
+        <VCardText>
+        <div class="d-flex justify-sm-space-between justify-start flex-wrap gap-4">
+        <div class="d-flex gap-x-4 align-center">
+        <AppSelect
+        v-model="itemsPerPage"
+        style="min-inline-size: 6.25rem;"
+        :items="[5, 10, 20, 50, 100]"
+        />
+        <VBtn
+        variant="tonal"
+        color="secondary"
+        prepend-icon="bx-export"
+        text="Export"
+        />
+        </div>
+        </div>
+        </VCardText> 
+      -->
 
       <VDivider />
 
-      <!-- 👉 Order Table -->
+      <!-- 테이블 -->
       <VDataTableServer
         v-model:items-per-page="itemsPerPage"
         v-model:model-value="selectedRows"
@@ -221,19 +265,16 @@ const fmtCurrency = v => (v ?? v === 0) ? new Intl.NumberFormat().format(v) : '-
         class="text-no-wrap"
         @update:options="updateOptions"
       >
-        <!-- No. (orderNumber) : 클릭 시 상세로 (id=orderId) -->
         <template #item.orderNumber="{ item }">
           <RouterLink :to="{ name: 'order-detail-id', params: { id: item.orderId } }">
             #{{ item.orderNumber }}
           </RouterLink>
         </template>
 
-        <!-- 주문일자 -->
         <template #item.createdAt="{ item }">
           {{ fmtDate(item.createdAt) }}
         </template>
 
-        <!-- 고객 (기존 Customers UI 유지) -->
         <template #item.customers="{ item }">
           <div class="d-flex align-center gap-x-3">
             <VAvatar
@@ -250,7 +291,6 @@ const fmtCurrency = v => (v ?? v === 0) ? new Intl.NumberFormat().format(v) : '-
                 class="font-weight-medium"
               >{{ avatarText(item.customer) }}</span>
             </VAvatar>
-
             <div class="d-flex flex-column">
               <div class="text-body-1 font-weight-medium">
                 {{ item.customer }}
@@ -262,7 +302,6 @@ const fmtCurrency = v => (v ?? v === 0) ? new Intl.NumberFormat().format(v) : '-
           </div>
         </template>
 
-        <!-- 상태 -->
         <template #item.orderStatus="{ item }">
           <VChip
             v-bind="resolveOrderStatus(item.orderStatus)"
@@ -271,15 +310,12 @@ const fmtCurrency = v => (v ?? v === 0) ? new Intl.NumberFormat().format(v) : '-
           />
         </template>
 
-        <!-- 총가격 -->
         <template #item.totalPrice="{ item }">
           ₩ {{ fmtCurrency(item.totalPrice) }}원
         </template>
 
-        <!-- ✅ Action: Detail / Delete 아이콘 2개 -->
         <template #item.actions="{ item }">
           <div class="d-flex align-center gap-1">
-            <!-- Detail -->
             <VTooltip text="Detail">
               <template #activator="{ props }">
                 <VBtn
@@ -294,7 +330,6 @@ const fmtCurrency = v => (v ?? v === 0) ? new Intl.NumberFormat().format(v) : '-
               </template>
             </VTooltip>
 
-            <!-- Delete -->
             <VTooltip text="Delete">
               <template #activator="{ props }">
                 <VBtn
@@ -312,7 +347,6 @@ const fmtCurrency = v => (v ?? v === 0) ? new Intl.NumberFormat().format(v) : '-
           </div>
         </template>
 
-        <!-- pagination -->
         <template #bottom>
           <TablePagination
             v-model:page="page"
@@ -326,11 +360,6 @@ const fmtCurrency = v => (v ?? v === 0) ? new Intl.NumberFormat().format(v) : '-
 </template>
 
 <style lang="scss" scoped>
-.customer-title:hover {
-  color: rgba(var(--v-theme-primary)) !important;
-}
-.product-widget {
-  border-block-end: 1px solid rgba(var(--v-theme-on-surface), var(--v-border-opacity));
-  padding-block-end: 1rem;
-}
+.customer-title:hover { color: rgba(var(--v-theme-primary)) !important; }
+.product-widget { border-block-end: 1px solid rgba(var(--v-theme-on-surface), var(--v-border-opacity)); padding-block-end: 1rem; }
 </style>
