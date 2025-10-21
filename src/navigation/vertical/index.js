@@ -7,6 +7,11 @@ export default [
     to: { name: 'root' },
     icon: { icon: 'bx-home-alt' },
   },
+  {
+    title: '리포트',
+    to: { name: 'report' },
+    icon: { icon: 'bx-home-alt' },
+  },
   ...stock,
   ...user,
 

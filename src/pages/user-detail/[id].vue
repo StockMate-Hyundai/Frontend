@@ -24,10 +24,10 @@ const errorMsg = ref('')
 
 const tabs = [
   { icon: 'bx-user',     title: '주문내역' },
-  { icon: 'bx-lock-alt', title: 'Security' },
-  { icon: 'bx-detail',   title: 'Billing & Plan' },
-  { icon: 'bx-bell',     title: 'Notifications' },
-  { icon: 'bx-link',     title: 'Connections' },
+  // { icon: 'bx-lock-alt', title: 'Security' },
+  // { icon: 'bx-detail',   title: 'Billing & Plan' },
+  // { icon: 'bx-bell',     title: 'Notifications' },
+  // { icon: 'bx-link',     title: 'Connections' },
 ]
 
 async function fetchUser() {
@@ -36,13 +36,11 @@ async function fetchUser() {
     errorMsg.value = ''
 
     const id = Number(route.params.id)
-    console.log(id)
     if (!Number.isFinite(id)) throw new Error('잘못된 사용자 ID 입니다.')
 
     const raw = await apiGetUserByMemberIdPublic(id)
     if (!raw) throw new Error('해당 사용자를 찾을 수 없습니다.')
 
-    console.log(raw)
     const u = normalizeUser(raw)
 
     // 컴포넌트에서 기대하는 최소 필드 셰이핑
