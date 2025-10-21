@@ -1,6 +1,7 @@
-import { createApp } from 'vue'
 import App from '@/App.vue'
 import { registerPlugins } from '@core/utils/plugins'
+import { createApp } from 'vue'
+import VueApexCharts from 'vue3-apexcharts'
 
 // Styles
 import '@core/scss/template/index.scss'
@@ -15,3 +16,4 @@ registerPlugins(app)
 
 // Mount vue app
 app.mount('#app')
+app.use(VueApexCharts)

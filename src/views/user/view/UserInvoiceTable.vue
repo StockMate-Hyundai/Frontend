@@ -69,10 +69,6 @@ const fetchInvoices = async () => {
     // })
 
     const dto = await getOrderListByMemberId({ memberId: memberId.value, page: serverPage, size: serverSize })
-
-
-    console.log('[orders dto]', dto)
-
     const content = Array.isArray(dto?.content) ? dto.content : []
     const total   = Number(dto?.totalElements ?? content.length)
 

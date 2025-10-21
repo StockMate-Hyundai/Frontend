@@ -26,6 +26,7 @@ declare module 'vue-router/auto-routes' {
     'order-list': RouteRecordInfo<'order-list', '/order-list', Record<never, never>, Record<never, never>>,
     'parts-request': RouteRecordInfo<'parts-request', '/parts-request', Record<never, never>, Record<never, never>>,
     'register': RouteRecordInfo<'register', '/register', Record<never, never>, Record<never, never>>,
+    'report': RouteRecordInfo<'report', '/report', Record<never, never>, Record<never, never>>,
     'second-page': RouteRecordInfo<'second-page', '/second-page', Record<never, never>, Record<never, never>>,
     'stock-list': RouteRecordInfo<'stock-list', '/stock-list', Record<never, never>, Record<never, never>>,
     'stock-low-list': RouteRecordInfo<'stock-low-list', '/stock-low-list', Record<never, never>, Record<never, never>>,
