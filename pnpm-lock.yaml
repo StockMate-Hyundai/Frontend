@@ -94,6 +94,9 @@ importers:
       swiper:
         specifier: 11.2.6
         version: 11.2.6
+      three:
+        specifier: ^0.180.0
+        version: 0.180.0
       ufo:
         specifier: 1.6.1
         version: 1.6.1
@@ -4213,6 +4216,9 @@ packages:
 
   text-table@0.2.0:
     resolution: {integrity: sha512-N+8UisAXDGk8PFXP4HAzVR9nbfmVJ3zYLAWiTIoqC5v5isinhr+r5uaO8+7r3BMfuNIufIsA7RdpVgacC2cSpw==}
+
+  three@0.180.0:
+    resolution: {integrity: sha512-o+qycAMZrh+TsE01GqWUxUIKR1AL0S8pq7zDkYOQw8GqfX8b8VoCKYUoHbhiX5j+7hr8XsuHDVU6+gkQJQKg9w==}
 
   tiny-lru@11.3.1:
     resolution: {integrity: sha512-18e6DmpCUtUub2rbBQgtV/COvo2XtaqG5ECvguDRO3Cv7sm0CD9w09zJcRLvoQc3Mgn9ejAHZUX6Y2ZQII4fLw==}
@@ -9193,6 +9199,8 @@ snapshots:
       yallist: 4.0.0
 
   text-table@0.2.0: {}
+
+  three@0.180.0: {}
 
   tiny-lru@11.3.1: {}
 

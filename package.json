@@ -40,6 +40,7 @@
     "roboto-fontface": "0.10.0",
     "shepherd.js": "13.0.3",
     "swiper": "11.2.6",
+    "three": "^0.180.0",
     "ufo": "1.6.1",
     "unplugin-vue-define-options": "1.5.5",
     "vue": "3.5.14",

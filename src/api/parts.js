@@ -116,3 +116,32 @@ export async function partsHealthCheck() {
     raw: payload,
   }
 }
+
+
+/**
+ * 📄 부품 상세 조회 (여러 개)
+ * POST /api/v1/parts/detail
+ * @param {Array<number|string>} ids - 부품 ID 배열
+ * @returns {Array<PartsDto>}
+ */
+export async function getPartDetail(ids = []) {
+  // 방어: 배열화 + 숫자/문자 모두 허용
+  const arr = Array.isArray(ids) ? ids : [ids]
+  if (!arr.length) return []
+
+  const res = await http.post('/api/v1/parts/detail', arr)
+  // 응답 스펙: ApiResponseListPartsDto -> data: PartsDto[]
+  const payload = res?.data?.data ?? res?.data ?? []
+  return Array.isArray(payload) ? payload : []
+}
+
+/**
+ * 📄 부품 단건 상세 조회
+ * 내부적으로 /parts/detail에 [id]로 요청
+ * @param {number|string} id
+ * @returns {PartsDto|null}
+ */
+export async function getPartById(id) {
+  const list = await getPartDetail([id])
+  return list?.[0] ?? null
+}
