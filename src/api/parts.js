@@ -102,8 +102,8 @@ export async function getLackStock({
 }
 
 /**
- * ✅ 헬스체크 (선택)
- * GET /api/v1/parts/health-check
+ * Perform a health check against the parts service.
+ * @returns {{ok: boolean, raw: Object}} `ok` is true if the service reports success (`payload.success === true`) or the HTTP status is 200; `raw` is the response payload.
  */
 export async function partsHealthCheck() {
   const res = await http.get('/api/v1/parts/health-check')
@@ -119,10 +119,9 @@ export async function partsHealthCheck() {
 
 
 /**
- * 📄 부품 상세 조회 (여러 개)
- * POST /api/v1/parts/detail
- * @param {Array<number|string>} ids - 부품 ID 배열
- * @returns {Array<PartsDto>}
+ * Fetches details for one or more parts by their IDs.
+ * @param {Array<number|string>|number|string} ids - One or more part IDs (number or string). A single ID may be passed instead of an array.
+ * @returns {Array<PartsDto>} An array of part detail objects; an empty array if no details are returned.
  */
 export async function getPartDetail(ids = []) {
   // 방어: 배열화 + 숫자/문자 모두 허용
@@ -136,10 +135,9 @@ export async function getPartDetail(ids = []) {
 }
 
 /**
- * 📄 부품 단건 상세 조회
- * 내부적으로 /parts/detail에 [id]로 요청
- * @param {number|string} id
- * @returns {PartsDto|null}
+ * Fetches the detail for a single part by its identifier.
+ * @param {number|string} id - The part identifier.
+ * @returns {PartsDto|null} The part detail object, or `null` if not found.
  */
 export async function getPartById(id) {
   const list = await getPartDetail([id])
