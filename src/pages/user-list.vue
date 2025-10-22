@@ -201,6 +201,7 @@ onMounted(fetchUsers)
 ========================== */
 const roles = [
   { title: '슈퍼어드민',     value: 'SUPER_ADMIN' },
+  { title: '창고관리자',     value: 'WAREHOUSE' },
   { title: '어드민', value: 'ADMIN' },
   { title: '유저',      value: 'USER' },
 
@@ -232,6 +233,7 @@ const resolveUserRoleVariant = role => {
   if (r === 'user')        return { color: 'primary', icon: 'bx-user' }         // or 'bx-user-circle'
   if (r === 'admin')       return { color: 'warning', icon: 'bx-badge-check' }       // or 'bx-badge-check'
   if (r === 'super_admin') return { color: 'error',   icon: 'bx-crown' } 
+  if (r === 'warehouse') return { color: 'info', icon: 'bx-home-alt' }
 
   // if (r === '지점장')     return { color: 'warning',  icon: 'bx-edit' }
   // if (r === '매니저')     return { color: 'error',    icon: 'bx-desktop' }

@@ -85,9 +85,11 @@ async function fetchAllForExport() {
 const headers = [
   { title: 'id',         key: 'id' },
   { title: '제품',       key: 'product' },
+  { title: '제품코드',       key: 'amount' },
   { title: '카테고리',   key: 'categoryName' },
   { title: '가격',       key: 'price' },
   { title: '개수',       key: 'amount' },
+  { title: '위치',       key: 'amount' },
   { title: '비고',       key: 'actions', sortable: false },
 ]
 
@@ -268,12 +270,14 @@ function closeImagePreview() {
       @update:options="updateOptions"
     >
       <template #colgroup>
-        <col style="width: 5%">
-        <col style="width: 45%">  
-        <col style="width: 15%">
-        <col style="width: 12%">
-        <col style="width: 8%">
-        <col style="width: 15%">
+        <col style="width: 2.5%">
+        <col style="width: 40%">  
+        <col style="width: 10%">
+        <col style="width: 12.5%">
+        <col style="width: 10%">
+        <col style="width: 2.5%">
+        <col style="width: 10%">
+        <col style="width: 12.5%">
       </template>
       <template #item.product="{ item }">
         <div class="d-flex align-center gap-x-4">
@@ -287,7 +291,10 @@ function closeImagePreview() {
             :title="item.productName || '이미지 보기'"
             @click="openImagePreview(item.image, item.productName)"
           />
-          <div class="d-flex flex-column">
+          <div
+            class="d-flex flex-column cursor-pointer"
+            @click="$router.push({ name: 'part-detail-id', params: { id: item.id } })"
+          >
             <span class="text-body-1 font-weight-medium text-high-emphasis">{{ item.productName }}</span>
             <span class="text-body-2">{{ item.productBrand }}</span>
           </div>

@@ -1,9 +1,9 @@
 <script setup>
-import { searchParts } from '@/api/parts' // ✅ 변경
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { searchParts } from '@/api/parts'; // ✅ 변경
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 
-import AppPartsFilters from '@/components/common/AppPartsFilters.vue' // ✅ 멀티칩 버전 사용
-import AppExportButton from '@/components/common/ExportToExcel.vue'
+import AppPartsFilters from '@/components/common/AppPartsFilters.vue'; // ✅ 멀티칩 버전 사용
+import AppExportButton from '@/components/common/ExportToExcel.vue';
 
 /* 엑셀 설정 (동일) */
 const exportFilename = computed(() => {
@@ -86,9 +86,11 @@ async function fetchAllForExport() {
 const headers = [
   { title: 'id',         key: 'id' },
   { title: '제품',       key: 'product' },
+  { title: '제품코드',       key: 'amount' },
   { title: '카테고리',   key: 'categoryName' },
   { title: '가격',       key: 'price' },
   { title: '개수',       key: 'amount' },
+  { title: '위치',       key: 'amount' },
   { title: '비고',       key: 'actions', sortable: false },
 ]
 
@@ -270,12 +272,14 @@ function closeImagePreview() {
     >
       <!-- 열 순서에 맞춰 width 지정 (합계 100%) -->
       <template #colgroup>
-        <col style="width: 5%">
-        <col style="width: 45%">  
-        <col style="width: 15%">
-        <col style="width: 12%">
-        <col style="width: 8%">
-        <col style="width: 15%">
+        <col style="width: 2.5%">
+        <col style="width: 40%">  
+        <col style="width: 10%">
+        <col style="width: 12.5%">
+        <col style="width: 10%">
+        <col style="width: 2.5%">
+        <col style="width: 10%">
+        <col style="width: 12.5%">
       </template>
 
       <!-- product 셀 -->
@@ -292,7 +296,7 @@ function closeImagePreview() {
             @click="openImagePreview(item.image, item.productName)"
           />
           <!-- 텍스트 컨테이너: 줄바꿈 허용을 위해 min-width:0 -->
-          <div class="d-flex flex-column product-text">
+          <div class="d-flex flex-column product-text cursor-pointer"  @click="$router.push({ name: 'part-detail-id', params: { id: item.id } })">
             <span class="text-body-1 font-weight-medium text-high-emphasis">
               {{ item.productName }}
             </span>

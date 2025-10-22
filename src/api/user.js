@@ -5,7 +5,7 @@ import { http } from './http'
  * 공통: enum/가드
  * ======================================================= */
 export const VALID_STATUSES = ['ACTIVE', 'PENDING', 'DISABLED']
-export const VALID_ROLES = ['USER', 'ADMIN', 'SUPER_ADMIN']
+export const VALID_ROLES = ['USER', 'ADMIN', 'SUPER_ADMIN', 'WAREHOUSE']
 
 function assertNumber(n, name = 'value') {
   if (!Number.isFinite(n)) throw new Error(`${name}는 숫자여야 합니다.`)
@@ -113,6 +113,7 @@ export const USER_ROLE_LABEL = {
   USER: '일반',
   ADMIN: '관리자',
   SUPER_ADMIN: '최고관리자',
+  WAREHOUSE: '창고관리자',
 }
 
 // Vuetify VChip color helper

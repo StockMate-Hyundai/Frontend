@@ -15,6 +15,7 @@ const USER_ROLE_LABEL = {
   USER: '일반',
   ADMIN: '관리자',
   SUPER_ADMIN: '최고관리자',
+  WAREHOUSE: '창고관리자',
 }
 
 const USER_STATUS_LABEL = {
@@ -27,6 +28,7 @@ const resolveUserRoleVariant = role => {
   const r = String(role || '').toUpperCase()
   if (r === 'SUPER_ADMIN') return { color: 'error',   icon: 'bx-crown',        text: USER_ROLE_LABEL[r] }
   if (r === 'ADMIN')       return { color: 'warning', icon: 'bx-badge-check',  text: USER_ROLE_LABEL[r] }
+  if (r === 'WAREHOUSE')       return { color: 'info', icon: 'bx-home-alt',  text: USER_ROLE_LABEL[r] }
   return { color: 'primary', icon: 'bx-user', text: USER_ROLE_LABEL[r] || '일반' }
 }
 
