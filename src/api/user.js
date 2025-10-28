@@ -7,6 +7,13 @@ import { http } from './http'
 export const VALID_STATUSES = ['ACTIVE', 'PENDING', 'DISABLED']
 export const VALID_ROLES = ['USER', 'ADMIN', 'SUPER_ADMIN', 'WAREHOUSE']
 
+/**
+ * Ensure a value is a finite number and throw an error otherwise.
+ *
+ * @param {*} n - The value to validate as a finite number.
+ * @param {string} [name='value'] - Label used in the thrown error message when validation fails.
+ * @throws {Error} Throws an Error with message "<name>는 숫자여야 합니다." if `n` is not a finite number.
+ */
 function assertNumber(n, name = 'value') {
   if (!Number.isFinite(n)) throw new Error(`${name}는 숫자여야 합니다.`)
 }
