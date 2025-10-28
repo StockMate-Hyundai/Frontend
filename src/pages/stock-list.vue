@@ -1,9 +1,8 @@
 <script setup>
-import { searchParts } from '@/api/parts'; // ✅ 변경
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { searchParts } from '@/api/parts' // ✅ 변경
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 
-import AppPartsFilters from '@/components/common/AppPartsFilters.vue'; // ✅ 멀티칩 버전 사용
-import AppExportButton from '@/components/common/ExportToExcel.vue';
+import AppExportButton from '@/components/common/ExportToExcel.vue'
 
 /* 엑셀 설정 (동일) */
 const exportFilename = computed(() => {
@@ -86,12 +85,14 @@ async function fetchAllForExport() {
 const headers = [
   { title: 'id',         key: 'id' },
   { title: '제품',       key: 'product' },
-  { title: '제품코드',       key: 'amount' },
+  { title: '제품코드',       key: 'code' },
   { title: '카테고리',   key: 'categoryName' },
-  { title: '가격',       key: 'price' },
+  { title: '원가',       key: 'cost' },
+  { title: '판매가',       key: 'price' },
   { title: '개수',       key: 'amount' },
-  { title: '위치',       key: 'amount' },
-  { title: '비고',       key: 'actions', sortable: false },
+  { title: '위치',       key: 'location' },
+
+  // { title: '비고',       key: 'actions', sortable: false },
 ]
 
 /* ✅ 필터 상태: 배열 기반 */
@@ -102,15 +103,126 @@ const filters = reactive({
   search: '',         // (지금은 서버 미사용, 필요시 쿼리추가)
 })
 
+/* 선택된 모델들 (트림별로 관리) */
+const selectedModels = reactive({})
+
+/* 필터 토글 상태 */
+const isFilterExpanded = ref(true)
+
 /* 카테고리 선택지 */
 const categories = ref(['전기/램프', '엔진/미션', '하체/바디', '내장/외장', '기타소모품'])
 
-function onSearch(payload) {
-  // payload: { categoryName?: string[], trim?: string[], model?: string[] }
-  filters.categoryName = payload.categoryName || []
-  filters.trim         = payload.trim || []
-  filters.model        = payload.model || []
+/* 트림과 모델 관계 정의 */
+const vehicles = ref([
+  { trim: '준중형/소형', model: '아반떼MD' },
+  { trim: '준중형/소형', model: '아반떼AD' },
+  { trim: '준중형/소형', model: '아반떼CN7' },
+  { trim: '준중형/소형', model: 'I30' },
+  { trim: '준중형/소형', model: '엑센트' },
+  { trim: '준중형/소형', model: '아이오닉' },
+  { trim: '준중형/소형', model: '벨로스터' },
+  { trim: '준중형/소형', model: '캐스퍼' },
+  { trim: '중형', model: 'NF소나타' },
+  { trim: '중형', model: 'YF소나타' },
+  { trim: '중형', model: 'LF소나타' },
+  { trim: '중형', model: 'DN8소나타' },
+  { trim: '중형', model: '그랜저TG' },
+  { trim: '중형', model: '그랜저HG' },
+  { trim: '중형', model: '그랜저IG' },
+  { trim: '중형', model: '그랜저GN7' },
+  { trim: '중형', model: 'I40' },
+  { trim: '대형', model: '제네시스BH' },
+  { trim: '대형', model: '에쿠스' },
+  { trim: 'SUV', model: '베뉴' },
+  { trim: 'SUV', model: '코나OS' },
+  { trim: 'SUV', model: '코나SX2' },
+  { trim: 'SUV', model: '투싼IX' },
+  { trim: 'SUV', model: '투싼TL' },
+  { trim: 'SUV', model: '투싼NX4' },
+  { trim: 'SUV', model: '싼타페CM' },
+  { trim: 'SUV', model: '싼타페DM' },
+  { trim: 'SUV', model: '싼타페TM' },
+  { trim: 'SUV', model: '싼타페MX5' },
+  { trim: 'SUV', model: '맥스크루즈' },
+  { trim: 'SUV', model: '베라크루즈' },
+  { trim: 'SUV', model: '팰리세이드LX2' },
+  { trim: 'SUV', model: '팰리세이드LX3' },
+  { trim: '화물/트럭/승합', model: '스타렉스' },
+  { trim: '화물/트럭/승합', model: '그랜드스타렉스' },
+  { trim: '화물/트럭/승합', model: '스타리아' },
+  { trim: '화물/트럭/승합', model: '포터2' },
+  { trim: '화물/트럭/승합', model: '쏠라티' },
+  { trim: '화물/트럭/승합', model: '마이티' },
+  { trim: '화물/트럭/승합', model: '메가트럭' },
+  { trim: '화물/트럭/승합', model: '카운티' },
+  { trim: '수소/전기', model: '아이오닉5' },
+  { trim: '수소/전기', model: '아이오닉6' },
+  { trim: '수소/전기', model: '아이오닉9' },
+  { trim: '수소/전기', model: '넥쏘FE' },
+  { trim: '수소/전기', model: '넥쏘NH2' },
+])
+
+/* 트림 선택지 */
+const trims = computed(() => Array.from(new Set(vehicles.value.map(v => v.trim))))
+
+/* 선택된 트림의 모델들 */
+const modelsByTrim = computed(() => {
+  const map = {}
+  for (const v of vehicles.value) {
+    if (!map[v.trim]) map[v.trim] = []
+    map[v.trim].push(v.model)
+  }
+  
+  return map
+})
+
+function onSearch() {
+  // 선택된 모델들을 하나의 배열로 합치기
+  const allModels = Object.values(selectedModels).flatMap(arr => arr || [])
+
+  filters.model = Array.from(new Set(allModels))
+  
+  // 필터 토글 닫기
+  isFilterExpanded.value = false
+  
   page.value = 1
+  loadParts()
+}
+
+// 필터 토글 함수들
+function toggleCategory(c) {
+  const i = filters.categoryName.indexOf(c)
+  if (i >= 0) filters.categoryName.splice(i, 1)
+  else filters.categoryName.push(c)
+}
+
+function toggleTrim(t) {
+  const i = filters.trim.indexOf(t)
+  if (i >= 0) {
+    filters.trim.splice(i, 1)
+    selectedModels[t] = [] // 트림 해제 시 해당 모델들도 초기화
+  } else {
+    filters.trim.push(t)
+    if (!selectedModels[t]) selectedModels[t] = []
+  }
+}
+
+function toggleModel(t, m) {
+  if (!selectedModels[t]) selectedModels[t] = []
+  const i = selectedModels[t].indexOf(m)
+  if (i >= 0) selectedModels[t].splice(i, 1)
+  else selectedModels[t].push(m)
+}
+
+const isModelSelected = (t, m) => (selectedModels[t] || []).includes(m)
+
+function onReset() {
+  filters.categoryName = []
+  filters.trim = []
+  filters.model = []
+  Object.keys(selectedModels).forEach(k => selectedModels[k] = [])
+  page.value = 1
+  isFilterExpanded.value = true // 초기화 시 필터 토글 열기
   loadParts()
 }
 
@@ -140,6 +252,7 @@ async function loadParts() {
       model: filters.model?.length ? filters.model : undefined,
     })
 
+    console.log(pageData)
     rawPage.value = {
       content: pageData.content,
       page: pageData.page,
@@ -232,118 +345,263 @@ function closeImagePreview() {
 </script>
 
 <template>
-  <div>
-    <!-- ✅ 공통 필터 (멀티칩) -->
-    <AppPartsFilters
-      page-type="parts"
-      :categories="categories"
-      :loading="tableLoading"
-      @search="onSearch"
-    >
-      <template #right>
-        <div style="inline-size: 120px;">
-          <AppSelect 
-            v-model="itemsPerPage"
-            :items="[5,10,20,25,50]"
+  <div class="page-container table-page">
+    <!-- 필터 섹션 (고정) -->
+    <div class="filter-section">
+      <div class="d-flex align-center justify-space-between mb-0">
+        <div class="d-flex align-center gap-3">
+          <h6 class="text-h6 text-high-emphasis mb-0">
+            부품 목록
+          </h6>
+          <VBtn
+            size="small"
+            variant="text"
+            :icon="isFilterExpanded ? 'bx-chevron-up' : 'bx-chevron-down'"
+            @click="isFilterExpanded = !isFilterExpanded"
           />
         </div>
-
-        <AppExportButton
-          :items="exportItemsCurrent"
-          :fields="exportFields"
-          :filename="exportFilename"
-          sheet-name="Parts"
-          :fetch-all="fetchAllForExport"
-          :transform="exportTransform"
-        />
-      </template>
-    </AppPartsFilters>
-
-    <!-- 데이터 테이블 -->
-    <VDataTableServer
-      v-model:items-per-page="itemsPerPage"
-      v-model:page="page"
-      :headers="headers"
-      :loading="tableLoading"
-      :items="products"
-      :items-length="totalProduct"
-      class="text-no-wrap table-fixed center-others"
-      @update:options="updateOptions"
-    >
-      <!-- 열 순서에 맞춰 width 지정 (합계 100%) -->
-      <template #colgroup>
-        <col style="width: 2.5%">
-        <col style="width: 40%">  
-        <col style="width: 10%">
-        <col style="width: 12.5%">
-        <col style="width: 10%">
-        <col style="width: 2.5%">
-        <col style="width: 10%">
-        <col style="width: 12.5%">
-      </template>
-
-      <!-- product 셀 -->
-      <template #item.product="{ item }">
-        <div class="d-flex align-center gap-x-4 product-cell">
-          <VAvatar
-            v-if="item.image"
-            size="38"
-            variant="tonal"
-            rounded
-            :image="item.image"
-            class="cursor-pointer"
-            :title="item.productName || '이미지 보기'"
-            @click="openImagePreview(item.image, item.productName)"
-          />
-          <!-- 텍스트 컨테이너: 줄바꿈 허용을 위해 min-width:0 -->
-          <div class="d-flex flex-column product-text cursor-pointer"  @click="$router.push({ name: 'part-detail-id', params: { id: item.id } })">
-            <span class="text-body-1 font-weight-medium text-high-emphasis">
-              {{ item.productName }}
-            </span>
-            <span class="text-body-2">{{ item.productBrand }}</span>
+        <div class="d-flex align-center gap-3">
+          <!-- 내보내기 버튼은 테이블 헤더로 이동 -->
+        </div>
+      </div>
+      
+      <!-- 필터 내용 (토글 가능) -->
+      <VExpandTransition>
+        <div
+          v-show="isFilterExpanded"
+          class="filter-content"
+        >
+          <div class="d-flex align-center gap-4 flex-wrap mb-3">
+            <!-- 카테고리 필터 -->
+            <div class="d-flex align-center gap-2">
+              <span class="text-body-2 text-medium-emphasis">카테고리:</span>
+              <div class="d-flex gap-1">
+                <VChip
+                  v-for="c in categories"
+                  :key="c"
+                  size="small"
+                  variant="tonal"
+                  :color="filters.categoryName.includes(c) ? 'primary' : undefined"
+                  @click="toggleCategory(c)"
+                >
+                  {{ c }}
+                </VChip>
+              </div>
+            </div>
+            
+            <!-- 트림 필터 -->
+            <div class="d-flex align-center gap-2">
+              <span class="text-body-2 text-medium-emphasis">분류:</span>
+              <div class="d-flex gap-1 flex-wrap">
+                <VChip
+                  v-for="t in (trims || [])"
+                  :key="t"
+                  size="small"
+                  variant="tonal"
+                  :color="filters.trim.includes(t) ? 'primary' : undefined"
+                  @click="toggleTrim(t)"
+                >
+                  {{ t }}
+                </VChip>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 모델 필터 (선택된 트림이 있을 때만 표시) -->
+          <div
+            v-if="filters.trim.length > 0"
+            class="d-flex align-start gap-2 mb-1"
+          >
+            <span class="text-body-2 text-medium-emphasis">모델:</span>
+            <div class="d-flex flex-column gap-2">
+              <div
+                v-for="t in filters.trim"
+                :key="`${t}-models`"
+                class="d-flex flex-column gap-1"
+              >
+                <div class="d-flex align-center gap-2">
+                  <span class="text-caption font-weight-medium">{{ t }}</span>
+                  <VChip
+                    size="x-small"
+                    variant="outlined"
+                    class="opacity-70"
+                  >
+                    {{ (selectedModels[t] || []).length }} / {{ (modelsByTrim[t] || []).length }}
+                  </VChip>
+                </div>
+                <div class="d-flex gap-1 flex-wrap">
+                  <VChip
+                    v-for="m in (modelsByTrim[t] || [])"
+                    :key="`${t}-${m}`"
+                    size="small"
+                    variant="tonal"
+                    :color="isModelSelected(t, m) ? 'primary' : undefined"
+                    @click="toggleModel(t, m)"
+                  >
+                    {{ m }}
+                  </VChip>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      </template>
-
-      <template #item.categoryName="{ item }">
-        <VAvatar
-          size="30"
+      </VExpandTransition>
+      
+      <!-- 고정 버튼 영역 -->
+      <div class="filter-actions">
+        <VBtn
+          color="primary"
+          variant="flat"
+          size="small"
+          :loading="tableLoading"
+          @click="onSearch"
+        >
+          검색
+        </VBtn>
+        
+        <VBtn
           variant="tonal"
-          :color="resolveCategory(item.categoryName)?.color"
-          class="me-4"
+          size="small"
+          @click="onReset"
         >
-          <VIcon
-            :icon="resolveCategory(item.categoryName)?.icon"
-            size="18"
-          />
-        </VAvatar>
-        <span class="text-body-1 text-high-emphasis">{{ item.categoryName || '—' }}</span>
-      </template>
+          초기화
+        </VBtn>
+      </div>
+    </div>
 
-      <!-- 가격도 중앙 정렬해야 하므로 text-end 제거 -->
-      <template #item.price="{ item }">
-        <span
-          class="d-inline-block"
-          style="min-width: 90px;"
-        >
-          {{ formatKRW(item.price) }}
-        </span>
-      </template>
-
-      <template #item.actions="{ item }">
-        <IconBtn><VIcon icon="bx-edit" /></IconBtn>
-        <IconBtn><VIcon icon="bx-download" /></IconBtn>
-        <IconBtn><VIcon icon="bx-trash" /></IconBtn>
-      </template>
-
-      <template #bottom>
-        <TablePagination
+    <!-- 테이블 컨테이너 -->
+    <div class="table-container">
+      <!-- 테이블 헤더 -->
+      <div class="table-header">
+        <div class="d-flex align-center justify-space-between">
+          <span>전체 {{ totalProduct }}건</span>
+          <div class="d-flex align-center gap-2">
+            <AppExportButton
+              :items="exportItemsCurrent"
+              :fields="exportFields"
+              :filename="exportFilename"
+              sheet-name="Parts"
+              :fetch-all="fetchAllForExport"
+              :transform="exportTransform"
+              size="small"
+              variant="flat"
+            />
+            <VIcon
+              icon="bx-refresh"
+              size="16"
+              class="cursor-pointer"
+              @click="loadParts"
+            />
+          </div>
+        </div>
+      </div>
+      
+      <!-- 테이블 본체 -->
+      <div class="table-body">
+        <VDataTableServer
+          v-model:items-per-page="itemsPerPage"
           v-model:page="page"
-          :items-per-page="itemsPerPage"
-          :total-items="totalProduct"
-        />
-      </template>
-    </VDataTableServer>
+          :headers="headers"
+          :loading="tableLoading"
+          :items="products"
+          :items-length="totalProduct"
+          class="erp-table"
+          @update:options="updateOptions"
+        >
+          <!-- 열 순서에 맞춰 width 지정 (합계 100%) -->
+          <template #colgroup>
+            <col style="width: 2%">
+            <col style="width: 30%">
+            <col style="width: 10%">
+            <col style="width: 10%">
+            <col style="width: 8%">
+            <col style="width: 8%">
+            <col style="width: 5%">
+            <col style="width: 7%">
+          </template>
+
+          <!-- product 셀 -->
+          <template #item.product="{ item }">
+            <div class="d-flex align-center gap-x-3 product-cell">
+              <VAvatar
+                v-if="item.image"
+                size="32"
+                variant="tonal"
+                rounded
+                :image="item.image"
+                class="cursor-pointer"
+                :title="item.productName || '이미지 보기'"
+                @click="openImagePreview(item.image, item.productName)"
+              />
+              <div
+                class="d-flex flex-column product-text cursor-pointer"
+                @click="$router.push({ name: 'part-detail-id', params: { id: item.id } })"
+              >
+                <span class="text-body-2 font-weight-medium text-high-emphasis">
+                  {{ item.productName }}
+                </span>
+                <span class="text-caption text-medium-emphasis">{{ item.productBrand }}</span>
+              </div>
+            </div>
+          </template>
+
+          <template #item.categoryName="{ item }">
+            <div class="d-flex align-center gap-2">
+              <VAvatar
+                size="24"
+                variant="tonal"
+                :color="resolveCategory(item.categoryName)?.color"
+              >
+                <VIcon
+                  :icon="resolveCategory(item.categoryName)?.icon"
+                  size="14"
+                />
+              </VAvatar>
+              <span class="text-body-2 text-high-emphasis">{{ item.categoryName || '—' }}</span>
+            </div>
+          </template>
+          
+          <template #item.cost="{ item }">
+            <span class="text-body-2">{{ formatKRW(item.cost) }}</span>
+          </template>
+
+          <template #item.price="{ item }">
+            <span class="text-body-2 font-weight-medium">{{ formatKRW(item.price) }}</span>
+          </template>
+
+          <template #item.amount="{ item }">
+            <VChip
+              size="small"
+              variant="tonal"
+              :color="item.amount > 10 ? 'success' : item.amount > 0 ? 'warning' : 'error'"
+            >
+              {{ item.amount }}
+            </VChip>
+          </template>
+
+          <template #item.location="{ item }">
+            <span class="text-body-2 text-medium-emphasis">{{ item.location || '—' }}</span>
+          </template>
+        </VDataTableServer>
+      </div>
+      
+      <!-- 페이지네이션 (하단 고정) -->
+      <div class="table-footer">
+        <div class="d-flex align-center justify-space-between">
+          <div class="text-body-2 text-medium-emphasis">
+            총 {{ totalProduct }}건 중 {{ (page - 1) * itemsPerPage + 1 }}-{{ Math.min(page * itemsPerPage, totalProduct) }}건 표시
+          </div>
+          <TablePagination
+            v-model:page="page"
+            :items-per-page="itemsPerPage"
+            :total-items="totalProduct"
+          />
+        </div>
+      </div>
+    </div>
+    
+    <!-- 페이지 하단 마진 -->
+    <div class="page-bottom-margin" />
   </div>
   <!-- 🖼 이미지 프리뷰 다이얼로그 -->
   <VDialog
@@ -387,17 +645,121 @@ function closeImagePreview() {
 </template>
 
 <style scoped>
-.cursor-pointer { cursor: pointer; }
-/* scoped 가능 */
-.table-fixed :deep(.product-cell) {
-  /* 테이블에 걸린 text-no-wrap을 무시하고 이 칸만 줄바꿈 */
+.cursor-pointer { 
+  cursor: pointer; 
+}
+
+/* ERP 테이블 스타일 */
+.erp-table {
+  height: 100% !important;
+  min-height: 400px !important; /* 최소 높이 고정 */
+}
+
+.erp-table :deep(.v-table__wrapper) {
+  height: 100% !important;
+  min-height: 400px !important;
+}
+
+.erp-table :deep(.v-table) {
+  height: 100% !important;
+  min-height: 400px !important;
+}
+
+.erp-table :deep(.v-table__body) {
+  height: calc(100% - 48px) !important; /* 헤더 높이 제외 */
+  min-height: 352px !important;
+}
+
+.erp-table :deep(.product-cell) {
   white-space: normal !important;
 }
 
-/* 긴 단어/연속 문자도 강제로 줄바꿈 */
-.table-fixed :deep(.product-text) {
-  min-width: 0;                 /* flex 항목이 줄바꿈 가능하도록 */
-  overflow-wrap: anywhere;      /* 긴 연속 문자열 강제 개행 */
-  word-break: break-word;       /* 구형 브라우저 대응 */
+.erp-table :deep(.product-text) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* 테이블 푸터 고정 */
+.table-footer {
+  flex-shrink: 0;
+  background: var(--erp-bg-secondary);
+  border-top: 1px solid var(--erp-border-light);
+  padding: 12px 24px;
+}
+
+/* 페이지 하단 마진 */
+.page-bottom-margin {
+  height: 24px;
+  background: var(--erp-bg-primary);
+}
+
+/* 필터 섹션 스타일 - 매우 얇게 */
+.filter-section {
+  padding: 14px 24px !important; /* 더 많이 축소 */
+  
+  .v-chip {
+    transition: all 0.2s ease;
+    
+    &:hover {
+      transform: translateY(-1px);
+    }
+  }
+}
+
+/* 필터 액션 버튼 고정 - 매우 얇게 */
+.filter-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 2px; /* 더 많이 축소 */
+  /* margin-bottom: 10px; */
+}
+
+/* 필터 내용 간격 줄이기 */
+.filter-content {
+  margin-bottom: 4px !important; /* 더 많이 축소 */
+}
+
+/* 테이블 행 호버 효과 */
+.erp-table :deep(.v-table__body tr:hover) {
+  background: var(--erp-bg-secondary) !important;
+  transform: none !important;
+}
+
+/* 스크롤바 커스터마이징 */
+.table-body {
+  scrollbar-width: thin;
+  scrollbar-color: var(--erp-border-medium) var(--erp-bg-secondary);
+}
+
+.table-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.table-body::-webkit-scrollbar-track {
+  background: var(--erp-bg-secondary);
+}
+
+.table-body::-webkit-scrollbar-thumb {
+  background: var(--erp-border-medium);
+  border-radius: 3px;
+}
+
+.table-body::-webkit-scrollbar-thumb:hover {
+  background: var(--erp-secondary);
+}
+/* 헤더 고정 */
+.erp-table :deep(.v-table__wrapper) {
+  /* 이미 높이/스크롤 설정이 있으면 유지해도 됨 */
+  overflow-y: auto;           /* 본문 스크롤 */
+}
+
+.erp-table :deep(thead th) {
+  position: sticky;
+  top: 0;                     /* 상단 고정 */
+  z-index: 3;                 /* 본문 셀 위로 */
+  background: var(--erp-bg-primary); /* 스크롤 시 배경 덮개 */
+  /* 필요 시 보더/그라데이션로 구분감 추가 가능 */
 }
 </style>

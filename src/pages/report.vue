@@ -175,7 +175,7 @@ const salesGrowth   = computed(()=> ((salesValues.value[peakIdx.value]-salesValu
 </script>
 
 <template>
-  <div class="report">
+  <div class="page-container report-page">
     <!-- 헤더 -->
     <header class="hdr">
       <div class="l">
@@ -317,7 +317,15 @@ const salesGrowth   = computed(()=> ((salesValues.value[peakIdx.value]-salesValu
 <style scoped>
 :root { --paper:#fff; --ink:#0f172a; --muted:#6b7280; --line:#e6eaf2; --accent:#1a73e8; --bg:#f7f9fc; }
 
-.report{ max-width:1280px; margin:0 auto; padding:16px 12px 64px; color:var(--ink); }
+.page-container.report-page{ 
+  max-width:1280px; 
+  margin:0 auto; 
+  padding:16px 12px 64px; 
+  color:var(--ink); 
+  height: auto !important;
+  min-height: 100vh !important;
+  overflow-y: auto !important;
+}
 .hdr{ display:flex; justify-content:space-between; align-items:center; margin:0 0 18px; }
 .hdr .ttl{ font-size:20px; font-weight:800; letter-spacing:.2px; }
 .hdr .meta{ margin-top:4px; font-size:13px; color:var(--muted); }

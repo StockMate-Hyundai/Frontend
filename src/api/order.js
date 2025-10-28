@@ -95,6 +95,23 @@ export async function deleteOrder(orderId) {
 }
 
 /**
+ * 주문 승인 요청
+ * PUT /api/v1/order/approve?orderId=123
+ */
+export async function approveOrder(orderId) {
+  if (orderId == null) throw new Error('orderId is required')
+  const res = await http.put('/api/v1/order/approve', null, { 
+    params: { orderId } 
+  })
+  
+  return {
+    status: res?.data?.status ?? 200,
+    success: !!(res?.data?.success ?? true),
+    message: res?.data?.message,
+  }
+}
+
+/**
  * 주문 리스트 조회 (관리자용)
  * POST /api/v1/order/list
  */

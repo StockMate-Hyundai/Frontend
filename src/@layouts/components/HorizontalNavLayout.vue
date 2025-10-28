@@ -43,13 +43,6 @@ const configStore = useLayoutConfigStore()
     <main class="layout-page-content">
       <slot />
     </main>
-
-    <!-- 👉 Footer -->
-    <footer class="layout-footer">
-      <div class="footer-content-container">
-        <slot name="footer" />
-      </div>
-    </footer>
   </div>
 </template>
 
