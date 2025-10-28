@@ -1,1 +1,324 @@
-// Write your overrides
+// ERP 스타일 오버라이드
+:root {
+  // 차분한 색상 팔레트
+  --erp-primary: #2563eb;
+  --erp-primary-light: #3b82f6;
+  --erp-primary-dark: #1d4ed8;
+  --erp-secondary: #64748b;
+  --erp-success: #059669;
+  --erp-warning: #d97706;
+  --erp-error: #dc2626;
+  --erp-info: #0891b2;
+  
+  // 배경 색상
+  --erp-bg-primary: #ffffff;
+  --erp-bg-secondary: #f8fafc;
+  --erp-bg-tertiary: #f1f5f9;
+  --erp-bg-sidebar: #1e293b;
+  
+  // 텍스트 색상
+  --erp-text-primary: #0f172a;
+  --erp-text-secondary: #475569;
+  --erp-text-muted: #94a3b8;
+  
+  // 테두리 색상
+  --erp-border-light: #e2e8f0;
+  --erp-border-medium: #cbd5e1;
+  
+  // 그림자
+  --erp-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --erp-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+
+// 전체 레이아웃 고정 높이
+.v-application {
+  height: 100vh !important;
+  overflow: hidden !important;
+}
+
+// 대시보드/리포트/주문상세 페이지에서는 전체 스크롤 허용
+.v-application:has(.page-container.dashboard-page),
+.v-application:has(.page-container.report-page),
+.v-application:has(.page-container.order-detail-page) {
+  overflow: auto !important;
+}
+
+// 메인 콘텐츠 영역 고정
+.layout-wrapper {
+  height: 100vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.layout-content-wrapper {
+  flex: 1 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  margin: 8px 0 !important; /* 위아래 마진 추가 */
+}
+
+// 대시보드/리포트/주문상세 페이지의 경우 스크롤 허용
+.layout-content-wrapper:has(.page-container.dashboard-page),
+.layout-content-wrapper:has(.page-container.report-page),
+.layout-content-wrapper:has(.page-container.order-detail-page) {
+  overflow: visible !important;
+}
+
+// 페이지별 컨테이너 스타일
+.page-container {
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 0 !important;
+}
+
+// 테이블 페이지용 고정 높이 (stock-list, order-list 등)
+.page-container.table-page {
+  height: 100vh !important;
+  overflow: hidden !important;
+}
+
+// 대시보드/리포트 페이지용 스크롤 가능
+.page-container.dashboard-page,
+.page-container.report-page {
+  height: auto !important;
+  min-height: 100vh !important;
+  overflow-y: auto !important;
+}
+
+// 테이블 컨테이너 고정 높이
+.table-container {
+  flex: 1 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  background: var(--erp-bg-primary) !important;
+}
+
+// 테이블 헤더 고정
+.table-header {
+  flex-shrink: 0 !important;
+  background: var(--erp-bg-tertiary) !important;
+  padding: 12px 24px !important;
+  border-bottom: 1px solid var(--erp-border-light) !important;
+  font-weight: 600 !important;
+  color: var(--erp-text-secondary) !important;
+}
+
+// 테이블 본체 스크롤
+.table-body {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+// 테이블 스타일 개선
+.v-data-table {
+  .v-table__wrapper {
+    height: 100% !important;
+  }
+  
+  .v-table {
+    background: transparent !important;
+  }
+  
+  .v-table__head {
+    background: var(--erp-bg-tertiary) !important;
+    
+    th {
+      background: var(--erp-bg-tertiary) !important;
+      color: var(--erp-text-secondary) !important;
+      font-weight: 600 !important;
+      font-size: 0.875rem !important;
+      padding: 12px 16px !important;
+      border-bottom: 1px solid var(--erp-border-light) !important;
+    }
+  }
+  
+  .v-table__body {
+    tr {
+      border-bottom: 1px solid var(--erp-border-light) !important;
+      
+      &:hover {
+        background: var(--erp-bg-secondary) !important;
+      }
+      
+      td {
+        padding: 12px 16px !important;
+        color: var(--erp-text-primary) !important;
+        font-size: 0.875rem !important;
+        vertical-align: middle !important;
+      }
+    }
+  }
+}
+
+// 칩 스타일 개선 (차분한 색상)
+.v-chip {
+  font-weight: 500 !important;
+  font-size: 0.75rem !important;
+  
+  &.status-pending {
+    background: #fef3c7 !important;
+    color: #92400e !important;
+  }
+  
+  &.status-completed {
+    background: #d1fae5 !important;
+    color: #065f46 !important;
+  }
+  
+  &.status-processing {
+    background: #dbeafe !important;
+    color: #1e40af !important;
+  }
+  
+  &.status-rejected {
+    background: #fee2e2 !important;
+    color: #991b1b !important;
+  }
+}
+
+// 버튼 스타일 개선
+.v-btn {
+  font-weight: 500 !important;
+  
+  &.v-btn--variant-flat {
+    box-shadow: var(--erp-shadow-sm) !important;
+  }
+  
+  &.v-btn--variant-tonal {
+    background: var(--erp-bg-tertiary) !important;
+    color: var(--erp-text-secondary) !important;
+  }
+}
+
+// 카드 스타일 개선
+.v-card {
+  box-shadow: var(--erp-shadow-sm) !important;
+  border: 1px solid var(--erp-border-light) !important;
+}
+
+// 입력 필드 스타일 개선
+.v-field {
+  background: var(--erp-bg-primary) !important;
+  border: 1px solid var(--erp-border-light) !important;
+  
+  &:hover {
+    border-color: var(--erp-border-medium) !important;
+  }
+  
+  &.v-field--focused {
+    border-color: var(--erp-primary) !important;
+    box-shadow: 0 0 0 1px var(--erp-primary) !important;
+  }
+}
+
+// 사이드바 스타일 개선 - 모든 텍스트 흰색
+.layout-vertical-nav {
+  background: var(--erp-bg-sidebar) !important;
+  
+  // 모든 텍스트를 흰색으로 설정
+  * {
+    color: white !important;
+  }
+  
+  // 아이콘도 흰색으로 설정
+  .v-icon {
+    color: white !important;
+  }
+  
+  // 활성 상태는 파란색 배경 유지
+  .v-list-item--active,
+  .nav-item-active,
+  .router-link-active {
+    background: var(--erp-primary) !important;
+    color: white !important;
+  }
+  
+  // 호버 효과
+  .v-list-item:hover,
+  .nav-item:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: white !important;
+  }
+}
+
+// navbar-content-container 얇게 만들기
+.navbar-content-container {
+    height: 56px !important;
+    min-height: 56px !important;
+    padding: 4px 16px !important; /* 패딩 줄임 */
+}
+
+
+
+// 로고 크기 조정 - 첫 번째는 기존 사이즈, 두 번째는 세 배 크기
+.app-logo img {
+  &:first-child {
+    width: 28px !important;
+    height: 28px !important;
+  }
+  
+  &:nth-child(2) {
+    width: 125px !important; /* 28px * 3 = 84px */
+  }
+}
+
+
+
+// 네비게이션 접힌 상태에서 텍스트 숨기기
+.layout-vertical-nav.collapsed {
+  .app-title-wrapper .app-logo-title {
+    opacity: 0 !important;
+    transform: translateX(-10px) !important;
+  }
+  
+  .v-list-item-title {
+    opacity: 0 !important;
+    transform: translateX(-10px) !important;
+  }
+  
+  .nav-item-text {
+    opacity: 0 !important;
+    transform: translateX(-10px) !important;
+  }
+}
+
+// 호버 시 텍스트 다시 보이기
+.layout-vertical-nav.collapsed:hover {
+  .app-title-wrapper .app-logo-title {
+    opacity: 1 !important;
+    transform: translateX(0) !important;
+  }
+  
+  .v-list-item-title {
+    opacity: 1 !important;
+    transform: translateX(0) !important;
+  }
+  
+  .nav-item-text {
+    opacity: 1 !important;
+    transform: translateX(0) !important;
+  }
+}
+
+// 스크롤바 스타일 개선
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--erp-bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--erp-border-medium);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--erp-secondary);
+}

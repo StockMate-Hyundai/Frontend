@@ -10,7 +10,7 @@ export default [
   {
     title: '리포트',
     to: { name: 'report' },
-    icon: { icon: 'bx-home-alt' },
+    icon: { icon: 'bx-bar-chart-alt-2' },
   },
   ...stock,
   ...user,

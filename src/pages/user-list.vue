@@ -2,6 +2,7 @@
 import { apiChangeUserRole, apiChangeUserStatus, apiGetUsersPublic } from '@/api/user'
 import RoleStatusEditDialog from '@/components/dialogs/RoleStatusEditDialog.vue'
 import AddNewUserDrawer from '@/views/user/list/AddNewUserDrawer.vue'
+import TablePagination from '@/@core/components/TablePagination.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -17,6 +18,7 @@ const selectedPlan = ref()
 const selectedStatus = ref()
 const isEditDialogVisible = ref(false)
 const editingUser = ref(null)
+const isFilterExpanded = ref(true) // 필터 토글 상태
 
 // Data table options
 const itemsPerPage = ref(10)   // 서버 size
@@ -29,6 +31,32 @@ const tableLoading = ref(false)
 const usersData = ref({ users: [], totalUsers: 0 })
 const stats = ref({ total: 0, active: 0, inactive: 0, pending: 0 })
 
+// 필터 토글 함수들
+const toggleRole = role => {
+  selectedRole.value = selectedRole.value === role ? null : role
+
+  // 즉시 검색하지 않음 - 검색 버튼을 눌러야 검색됨
+}
+
+const toggleStatus = status => {
+  selectedStatus.value = selectedStatus.value === status ? null : status
+
+  // 즉시 검색하지 않음 - 검색 버튼을 눌러야 검색됨
+}
+
+const onSearch = () => {
+  isFilterExpanded.value = false
+  fetchUsers()
+}
+
+const onReset = () => {
+  searchQuery.value = ''
+  selectedRole.value = null
+  selectedStatus.value = null
+  isFilterExpanded.value = true // 초기화 시 필터 토글 열기
+  fetchUsers()
+}
+
 const openEdit = user => {
   editingUser.value = user
   isEditDialogVisible.value = true
@@ -38,7 +66,8 @@ const router = useRouter()
 
 // memberId 우선 → 없으면 id fallback
 const getMemberId = u => u?.raw?.memberId ?? u?.memberId ?? u?.id
-const goUserDetail = (item) => {
+
+const goUserDetail = item => {
   const id = getMemberId(item)
   if (id == null) return
   router.push({ name: 'user-detail-id', params: { id: String(id) } })
@@ -189,7 +218,7 @@ const users = computed(() => usersData.value.users)
 const totalUsers = computed(() => usersData.value.totalUsers)
 
 watch(
-  [searchQuery, selectedRole, selectedPlan, selectedStatus, itemsPerPage, page, sortBy, orderBy],
+  [itemsPerPage, page, sortBy, orderBy],
   fetchUsers,
   { deep: true },
 )
@@ -226,6 +255,13 @@ const STATUS_LABELS = {
   ACTIVE: '활성',
   DISABLED: '비활성',
   PENDING: '대기',
+}
+
+const ROLE_LABELS = {
+  SUPER_ADMIN: '슈퍼어드민',
+  ADMIN: '어드민',
+  WAREHOUSE: '창고관리자',
+  USER: '사용자',
 }
 
 const resolveUserRoleVariant = role => {
@@ -291,299 +327,303 @@ const widgetData = computed(() => [
 </script>
 
 <template>
-  <section>
-    <!-- 👉 Widgets -->
-    <div class="d-flex mb-6">
-      <VRow>
-        <template
-          v-for="(data, id) in widgetData"
-          :key="id"
+  <div class="page-container table-page">
+    <!-- 헤더 섹션 -->
+    <div class="filter-section">
+      <div class="d-flex align-center justify-space-between mb-0">
+        <div class="d-flex align-center gap-3">
+          <h6 class="text-h6 text-high-emphasis mb-0">
+            사용자 관리
+          </h6>
+          <VBtn
+            size="small"
+            variant="text"
+            :icon="isFilterExpanded ? 'bx-chevron-up' : 'bx-chevron-down'"
+            @click="isFilterExpanded = !isFilterExpanded"
+          />
+        </div>
+        <div class="d-flex align-center gap-3">
+          <!-- 내보내기 버튼은 테이블 헤더로 이동 -->
+        </div>
+      </div>
+      
+      <!-- 필터 내용 (토글 가능) -->
+      <VExpandTransition>
+        <div
+          v-show="isFilterExpanded"
+          class="filter-content"
         >
-          <VCol
-            cols="12"
-            md="3"
-            sm="6"
-          >
-            <VCard>
-              <VCardText>
-                <div class="d-flex justify-space-between">
-                  <div class="d-flex flex-column gap-y-1">
-                    <div class="text-body-1 text-high-emphasis">
-                      {{ data.title }}
-                    </div>
-                    <div class="d-flex gap-x-2 align-center">
-                      <h4 class="text-h4">
-                        {{ data.value }}
-                      </h4>
-                      <!--
-                        <div
-                        class="text-base"
-                        :class="data.change > 0 ? 'text-success' : 'text-error'"
-                        >
-                        ({{ prefixWithPlus(data.change) }}%)
-                        </div> 
-                      -->
-                    </div>
-                    <div class="text-sm">
-                      {{ data.desc }}
-                    </div>
-                  </div>
-                  <VAvatar
-                    :color="data.iconColor"
-                    variant="tonal"
-                    rounded
-                    size="40"
-                  >
-                    <VIcon
-                      :icon="data.icon"
-                      size="24"
-                    />
-                  </VAvatar>
-                </div>
-              </VCardText>
-            </VCard>
-          </VCol>
-        </template>
-      </VRow>
-    </div>
-
-    <VCard class="mb-6">
-      <VCardItem class="pb-4">
-        <VCardTitle>Filters</VCardTitle>
-      </VCardItem>
-
-      <VCardText>
-        <VRow>
-          <!-- 👉 Select Role -->
-          <VCol
-            cols="12"
-            sm="4"
-          >
-            <AppSelect
-              v-model="selectedRole"
-              placeholder="역할을 선택하세요"
-              :items="roles"
-              clearable
-              clear-icon="bx-x"
-            />
-          </VCol>
-
-          <!-- 👉 Select Plan -->
-          <VCol
-            cols="12"
-            sm="4"
-          >
-            <AppSelect
-              v-model="selectedPlan"
-              placeholder="지점을 선택하세요"
-              :items="plans"
-              clearable
-              clear-icon="bx-x"
-            />
-          </VCol>
-
-          <!-- 👉 Select Status -->
-          <VCol
-            cols="12"
-            sm="4"
-          >
-            <AppSelect
-              v-model="selectedStatus"
-              placeholder="상태를 선택하세요"
-              :items="status"
-              clearable
-              clear-icon="bx-x"
-            />
-          </VCol>
-        </VRow>
-      </VCardText>
-
-      <VDivider />
-      <VCardText class="d-flex flex-wrap gap-4">
-        <div class="me-3 d-flex gap-3">
-          <!-- 페이지 사이즈 선택 그대로 -->
-          <AppSelect
-            :model-value="itemsPerPage"
-            :items="[
-              { value: 10, title: '10' },
-              { value: 25, title: '25' },
-              { value: 50, title: '50' },
-              { value: 100, title: '100' },
-              { value: -1, title: 'All' },
-            ]"
-            style="inline-size: 6.25rem;"
-            @update:model-value="itemsPerPage = parseInt($event, 10)"
-          />
-        </div>
-        <VSpacer />
-
-        <div class="app-user-search-filter d-flex align-center flex-wrap gap-4">
-          <div style="inline-size: 15.625rem;">
-            <AppTextField
-              v-model="searchQuery"
-              placeholder="유저를 검색하세요"
-            />
-          </div>
-
-          <ExportToExcel
-            :items="users"
-            :fields="excelFields"
-            :transform="transformForExcel"
-            filename="유저리스트.xlsx"
-            sheet-name="Users"
-            @exported="({ filename, count }) => console.log('엑셀 내보내기 완료:', filename, count)"
-            @error="err => console.error('엑셀 내보내기 오류:', err)"
-          />
-        </div>
-      </VCardText>
-      <VDivider />
-
-      <!-- SECTION datatable -->
-      <VDataTableServer
-        v-model:items-per-page="itemsPerPage"
-        v-model:model-value="selectedRows"
-        v-model:page="page"
-        :items="users"
-        item-value="id"
-        :items-length="totalUsers"
-        :headers="headers"
-        class="text-no-wrap"
-        show-select
-        :loading="tableLoading"
-        @update:options="updateOptions"
-      >
-        <!-- User -->
-        <template #item.user="{ item }">
-          <div class="d-flex align-center gap-x-4">
-            <VAvatar
-              size="34"
-              :variant="!item.avatar ? 'tonal' : undefined"
-              :color="!item.avatar ? resolveUserRoleVariant(item.role).color : undefined"
-              class="cursor-pointer"
-              @click="goUserDetail(item)"
-            >
-              <VImg
-                v-if="item.avatar"
-                :src="item.avatar"
-              />
-              <span v-else>{{ avatarText(item.fullName) }}</span>
-            </VAvatar>
-            <div class="d-flex flex-column">
-              <h6 class="text-base">
-                <RouterLink
-                  :to="{ name: 'user-detail-id', params: { id: String(getMemberId(item)) } }"
-                  class="font-weight-medium text-link"
-                  @click.stop
-                >{{ item.fullName }}
-              </RouterLink>
-              </h6>
-              <div class="text-sm">
-                {{ item.email }}
+          <div class="d-flex align-center gap-4 flex-wrap mb-3">
+            <!-- 역할 필터 -->
+            <div class="d-flex align-center gap-2">
+              <span class="text-body-2 text-medium-emphasis filter-label">역할:</span>
+              <div class="d-flex gap-1">
+                <VChip
+                  v-for="role in roles"
+                  :key="role.value"
+                  size="small"
+                  variant="tonal"
+                  :color="selectedRole === role.value ? 'primary' : undefined"
+                  @click="toggleRole(role.value)"
+                >
+                  {{ role.title }}
+                </VChip>
+              </div>
+            </div>
+            
+            <!-- 상태 필터 -->
+            <div class="d-flex align-center gap-2">
+              <span class="text-body-2 text-medium-emphasis filter-label">상태:</span>
+              <div class="d-flex gap-1 flex-wrap">
+                <VChip
+                  v-for="stat in status"
+                  :key="stat.value"
+                  size="small"
+                  variant="tonal"
+                  :color="selectedStatus === stat.value ? 'primary' : undefined"
+                  @click="toggleStatus(stat.value)"
+                >
+                  {{ stat.title }}
+                </VChip>
               </div>
             </div>
           </div>
-        </template>
-
-        <!-- 👉 Role -->
-        <template #item.role="{ item }">
-          <div class="d-flex align-center gap-x-2">
-            <VIcon
-              :size="20"
-              :icon="resolveUserRoleVariant(item.role).icon"
-              :color="resolveUserRoleVariant(item.role).color"
-            />
-            <div class="text-capitalize text-high-emphasis text-body-1">
-              {{ item.role }}
+          
+          <!-- 검색 필터 -->
+          <div class="d-flex align-center gap-4 flex-wrap mb-3">
+            <div class="d-flex align-center gap-2">
+              <span class="text-body-2 text-medium-emphasis filter-label">검색:</span>
+              <VTextField
+                v-model="searchQuery"
+                placeholder="사용자 검색..."
+                density="compact"
+                variant="outlined"
+                prepend-inner-icon="bx-search"
+                style="width: 300px;"
+              />
             </div>
           </div>
-        </template>
+        </div>
+      </VExpandTransition>
+      
+      <!-- 고정 버튼 영역 -->
+      <div class="filter-actions">
+        <VBtn
+          color="primary"
+          variant="flat"
+          size="small"
+          :loading="tableLoading"
+          @click="onSearch"
+        >
+          검색
+        </VBtn>
+        
+        <VBtn
+          variant="tonal"
+          size="small"
+          @click="onReset"
+        >
+          초기화
+        </VBtn>
+      </div>
+    </div>
 
-        <!-- Plan -->
-        <template #item.plan="{ item }">
-          <div class="text-body-1 text-high-emphasis text-capitalize">
-            {{ item.currentPlan }}
+    <!-- 테이블 컨테이너 -->
+    <div class="table-container">
+      <!-- 테이블 헤더 -->
+      <div class="table-header">
+        <div class="d-flex align-center justify-space-between">
+          <span>전체 {{ totalUsers }}명</span>
+          <div class="d-flex align-center gap-2">
+            <ExportToExcel
+              :items="users"
+              :fields="excelFields"
+              :transform="transformForExcel"
+              filename="사용자목록.xlsx"
+              sheet-name="Users"
+              size="small"
+              variant="flat"
+            />
+            <VIcon
+              icon="bx-refresh"
+              size="16"
+              class="cursor-pointer"
+              @click="fetchUsers"
+            />
           </div>
-        </template>
+        </div>
+      </div>
+      
+      <!-- 테이블 본체 -->
+      <div class="table-body">
+        <VDataTableServer
+          v-model:items-per-page="itemsPerPage"
+          v-model:model-value="selectedRows"
+          v-model:page="page"
+          :items="users"
+          item-value="id"
+          :items-length="totalUsers"
+          :headers="headers"
+          class="erp-table"
+          show-select
+          :loading="tableLoading"
+          @update:options="updateOptions"
+        >
+          <!-- 열 폭 -->
+          <template #colgroup>
+            <col style="width: 5%">
+            <col style="width: 20%">
+            <col style="width: 15%">
+            <col style="width: 15%">
+            <col style="width: 10%">
+            <col style="width: 10%">
+            <col style="width: 15%">
+          </template>
+          <!-- User -->
+          <template #item.user="{ item }">
+            <div class="d-flex align-center gap-x-4">
+              <VAvatar
+                size="32"
+                :variant="!item.avatar ? 'tonal' : undefined"
+                :color="!item.avatar ? resolveUserRoleVariant(item.role).color : undefined"
+                class="cursor-pointer"
+                @click="goUserDetail(item)"
+              >
+                <VImg
+                  v-if="item.avatar"
+                  :src="item.avatar"
+                />
+                <span v-else>{{ avatarText(item.fullName) }}</span>
+              </VAvatar>
+               <div class="d-flex flex-column">
+                 <div class="text-body-2 font-weight-medium">
+                   <RouterLink
+                     :to="{ name: 'user-detail-id', params: { id: String(getMemberId(item)) } }"
+                     class="text-link"
+                     @click.stop
+                   >
+                     {{ item.fullName }}
+                   </RouterLink>
+                 </div>
+                 <div class="text-body-2 text-medium-emphasis">
+                   {{ item.email }}
+                 </div>
+               </div>
+            </div>
+          </template>
 
-        <!-- Status -->
-        <template #item.status="{ item }">
-          <VChip
-            :color="resolveUserStatusVariant(item.status)"
-            size="small"
-            label
-            class="text-capitalize"
-          >
-            {{ STATUS_LABELS[item.status] }}
-          </VChip>
-        </template>
+          <!-- 👉 Role -->
+          <template #item.role="{ item }">
+            <div class="d-flex align-center gap-x-2">
+              <VIcon
+                :size="18"
+                :icon="resolveUserRoleVariant(item.role).icon"
+                :color="resolveUserRoleVariant(item.role).color"
+              />
+              <div class="text-capitalize text-high-emphasis text-body-2">
+                {{ ROLE_LABELS[item.role] || item.role }}
+              </div>
+            </div>
+          </template>
 
-        <!-- Actions -->
-        <template #item.actions="{ item }">
-          <IconBtn @click="deleteUser(item.id)">
-            <VIcon icon="bx-trash" />
-          </IconBtn>
+          <!-- Plan -->
+          <template #item.plan="{ item }">
+            <div class="text-body-2 text-high-emphasis text-capitalize">
+              {{ item.currentPlan }}
+            </div>
+          </template>
 
-          <IconBtn title="상세 보기" @click="goUserDetail(item)">
-            <VIcon icon="bx-show" />
-          </IconBtn>
+          <!-- Status -->
+          <template #item.status="{ item }">
+            <VChip
+              :color="resolveUserStatusVariant(item.status)"
+              size="small"
+              variant="tonal"
+              class="text-capitalize"
+            >
+              {{ STATUS_LABELS[item.status] }}
+            </VChip>
+          </template>
 
-          <!-- 🔹 수정 아이콘: 모달 오픈 -->
-          <IconBtn
-            title="역할/상태 수정"
-            @click="openEdit(item)"
-          >
-            <VIcon icon="bx-pencil" />
-          </IconBtn>
+          <!-- Actions -->
+          <template #item.actions="{ item }">
+            <IconBtn @click="deleteUser(item.id)">
+              <VIcon icon="bx-trash" />
+            </IconBtn>
 
-          <VBtn
-            icon
-            variant="text"
-            color="medium-emphasis"
-            hidden
-          >
-            <VIcon icon="bx-dots-vertical-rounded" />
-            <VMenu activator="parent">
-              <VList>
-                <VListItem :to="{ name: 'second-page' }">
-                  <template #prepend>
-                    <VIcon icon="bx-show" />
-                  </template>
-                  <VListItemTitle>View</VListItemTitle>
-                </VListItem>
+            <IconBtn
+              title="상세 보기"
+              @click="goUserDetail(item)"
+            >
+              <VIcon icon="bx-show" />
+            </IconBtn>
 
-                <!-- 메뉴에서도 수정 가능 -->
-                <VListItem
-                  link
-                  @click="openEdit(item)"
-                >
-                  <template #prepend>
-                    <VIcon icon="bx-pencil" />
-                  </template>
-                  <VListItemTitle>Edit</VListItemTitle>
-                </VListItem>
-              </VList>
-            </VMenu>
-          </VBtn>
-        </template>
+            <!-- 🔹 수정 아이콘: 모달 오픈 -->
+            <IconBtn
+              title="역할/상태 수정"
+              @click="openEdit(item)"
+            >
+              <VIcon icon="bx-pencil" />
+            </IconBtn>
 
-        <!-- pagination -->
-        <template #bottom>
+            <VBtn
+              icon
+              variant="text"
+              color="medium-emphasis"
+              hidden
+            >
+              <VIcon icon="bx-dots-vertical-rounded" />
+              <VMenu activator="parent">
+                <VList>
+                  <VListItem :to="{ name: 'second-page' }">
+                    <template #prepend>
+                      <VIcon icon="bx-show" />
+                    </template>
+                    <VListItemTitle>View</VListItemTitle>
+                  </VListItem>
+
+                  <!-- 메뉴에서도 수정 가능 -->
+                  <VListItem
+                    link
+                    @click="openEdit(item)"
+                  >
+                    <template #prepend>
+                      <VIcon icon="bx-pencil" />
+                    </template>
+                    <VListItemTitle>Edit</VListItemTitle>
+                  </VListItem>
+                </VList>
+              </VMenu>
+            </VBtn>
+          </template>
+        </VDataTableServer>
+      </div>
+      
+      <!-- 페이지네이션 (하단 고정) -->
+      <div class="table-footer">
+        <div class="d-flex align-center justify-space-between">
+          <div class="text-body-2 text-medium-emphasis">
+            총 {{ totalUsers }}명 중 {{ (page - 1) * itemsPerPage + 1 }}-{{ Math.min(page * itemsPerPage, totalUsers) }}명 표시
+          </div>
           <TablePagination
             v-model:page="page"
             :items-per-page="itemsPerPage"
             :total-items="totalUsers"
           />
-        </template>
-      </VDataTableServer>
-      <!-- SECTION -->
-    </VCard>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 페이지 하단 마진 -->
+    <div class="page-bottom-margin" />
+  </div>
 
-    <!-- 👉 Add New User -->
-    <AddNewUserDrawer
-      v-model:is-drawer-open="isAddNewUserDrawerVisible"
-      @user-data="addNewUser"
-    />
-  </section>
+  <!-- 👉 Add New User -->
+  <AddNewUserDrawer
+    v-model:is-drawer-open="isAddNewUserDrawerVisible"
+    @user-data="addNewUser"
+  />
+  
   <RoleStatusEditDialog
     v-if="editingUser"
     v-model:is-dialog-visible="isEditDialogVisible"
@@ -593,3 +633,98 @@ const widgetData = computed(() => [
     @submit="submitEdit"
   />
 </template>
+
+<style scoped>
+.cursor-pointer { cursor: pointer; }
+
+/* === 페이지 바깥 스크롤 차단 + 화면 기준 레이아웃 === */
+.page-container.table-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;        /* 뷰포트 기준 */
+  overflow: hidden;     /* 바깥 스크롤 차단 */
+}
+
+/* === 테이블 컨테이너: 헤더(고정) + 본문(스크롤) + 푸터(고정) === */
+.table-container {
+  flex: 1 1 auto;
+  min-height: 0;               /* 자식 스크롤 허용 핵심 */
+  display: flex;
+  flex-direction: column;
+}
+
+/* 헤더 영역(고정) */
+.table-header {
+  flex: 0 0 auto;
+}
+
+/* 본문만 스크롤 */
+.table-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;              /* ← 유일한 스크롤 영역 */
+  scrollbar-width: thin;
+  scrollbar-color: var(--erp-border-medium) var(--erp-bg-secondary);
+}
+.table-body::-webkit-scrollbar { width: 6px; }
+.table-body::-webkit-scrollbar-track { background: var(--erp-bg-secondary); }
+.table-body::-webkit-scrollbar-thumb { background: var(--erp-border-medium); border-radius: 3px; }
+.table-body::-webkit-scrollbar-thumb:hover { background: var(--erp-secondary); }
+
+/* 푸터(페이지네이션) 고정: 테이블 밖 하단 */
+.table-footer {
+  flex: 0 0 auto;
+  background: var(--erp-bg-secondary);
+  border-top: 1px solid var(--erp-border-light);
+  padding: 12px 24px;
+  z-index: 2;
+  position: relative;
+  width: 100%;
+}
+
+/* === 컬럼 헤더 sticky (스크롤 시 상단 고정) === */
+.erp-table :deep(thead th) {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--erp-bg-primary);
+}
+.erp-table :deep(thead) {
+  box-shadow: 0 1px 0 var(--erp-border-light) inset;
+}
+
+/* Vuetify 내부 래퍼의 overflow/강제 높이 제거 → sticky 정상화 */
+.erp-table,
+.erp-table :deep(.v-table__wrapper),
+.erp-table :deep(.v-table),
+.erp-table :deep(.v-table__body) {
+  height: auto !important;
+  min-height: unset !important;
+  overflow: visible !important;
+}
+
+/* 행 호버 */
+.erp-table :deep(.v-table__body tr:hover) {
+  background: var(--erp-bg-secondary) !important;
+  transform: none !important;
+}
+
+/* 필터 섹션 */
+.filter-section {
+  padding: 14px 24px !important;
+}
+.filter-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 2px;
+}
+.filter-content { margin-bottom: 4px !important; }
+.filter-label { width: 60px !important; flex-shrink: 0 !important; }
+
+/* (옵션) 페이지 하단 마진 */
+.page-bottom-margin {
+  height: 24px;
+  background: var(--erp-bg-primary);
+}
+</style>

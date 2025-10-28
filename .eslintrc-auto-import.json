@@ -360,6 +360,9 @@
     "watchThrottled": true,
     "watchTriggerable": true,
     "watchWithFilter": true,
-    "whenever": true
+    "whenever": true,
+    "disposeWarehouse": true,
+    "focusNextPath": true,
+    "initWarehouseScene": true
   }
 }

@@ -65,6 +65,7 @@ function roleColor(role) {
       class="cursor-pointer"
       :color="roleColor(displayRole)"
       variant="tonal"
+      size="small"
     >
       <!-- 이미지가 있으면 이미지, 없으면 앞 두 글자 -->
       <VImg
@@ -96,6 +97,7 @@ function roleColor(role) {
                   <VAvatar
                     :color="roleColor(displayRole)"
                     variant="tonal"
+                    size="x-small"
                   >
                     <VImg
                       v-if="avatarSrc"

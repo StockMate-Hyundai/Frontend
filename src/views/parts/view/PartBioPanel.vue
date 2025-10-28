@@ -26,8 +26,8 @@ const resolveCategory = category => {
   if (!category) return { color: 'secondary', icon: 'bx-package' }
   const name = String(category).toLowerCase()
   if (name.includes('엔진')) return { color: 'primary', icon: 'bx-cog' }
-  if (name.includes('하체')) return { color: 'error',   icon: 'bx-wrench' }
-  if (name.includes('전기')) return { color: 'info',    icon: 'bx-bulb' }
+  if (name.includes('하체')) return { color: 'error', icon: 'bx-wrench' }
+  if (name.includes('전기')) return { color: 'info', icon: 'bx-bulb' }
   if (name.includes('내장')) return { color: 'success', icon: 'bx-chair' }
   return { color: 'secondary', icon: 'bx-package' }
 }
@@ -40,29 +40,29 @@ function copyCode() {
 </script>
 
 <template>
-  <VCard class="overflow-hidden">
-    <VCardText class="pt-5">
-      <!-- 이미지 -->
+  <VCard class="overflow-hidden elevation-1">
+    <!-- 상단: 이미지 + 이름 + 카테고리 -->
+    <div class="d-flex flex-column align-center pa-6 pt-7 pb-10">
       <VImg
-        v-if="hasImage"
+        v-if="hasImage && !imgError"
         :src="part.image"
         :alt="displayName"
-        class="rounded-lg mb-10 mx-auto"
-        aspect-ratio="1"
+        width="200"
+        height="200"
         cover
-        size="1"
-        max-width="220" 
+        eager
+        class="rounded-lg mb-5"
       />
-      <div v-else class="d-flex align-center justify-center py-10 text-medium-emphasis">
+      <div v-else class="d-flex align-center justify-center mb-4 text-medium-emphasis">
         <VIcon icon="bx-image-alt" size="32" class="me-2" />
         이미지가 없습니다
       </div>
 
-      <!-- 타이틀/코드 -->
-      <div class="d-flex align-start justify-space-between gap-2 mb-2">
-        <div class="text-subtitle-1 font-weight-medium">
-          {{ displayName }}
-        </div>
+      <div class="text-h5 text-center mb-4 font-weight-bold">
+        {{ displayName }}
+      </div>
+
+      <div class="d-flex align-center justify-center gap-2 flex-wrap mb-2">
         <VChip
           v-if="part.categoryName"
           size="small"
@@ -72,41 +72,62 @@ function copyCode() {
           <VIcon start :icon="resolveCategory(part.categoryName).icon" size="16" />
           {{ part.categoryName }}
         </VChip>
+
+        <VBtn
+          v-if="part.code"
+          variant="text"
+          size="small"
+          color="primary"
+          prepend-icon="bx-copy"
+          @click="copyCode"
+        >
+          코드 복사
+        </VBtn>
       </div>
-      <div class="text-body-2 text-medium-emphasis mb-2">
+
+      <div class="text-caption text-medium-emphasis">
         ID: {{ part.id }}
         <span v-if="part.code" class="ms-2">· 코드: <strong>{{ part.code }}</strong></span>
       </div>
+    </div>
 
-      <!-- 기본 정보 -->
-      <div class="d-flex flex-column gap-2 mb-4">
+    <VDivider />
+
+    <!-- 주요 수치 -->
+    <VCardText class="pt-4 pb-10">
+      <div class="d-flex flex-column gap-3">
         <div class="d-flex align-center justify-space-between">
-          <span class="text-medium-emphasis">모델/트림</span>
-          <span>{{ modelTrim || '—' }}</span>
+          <span class="text-medium-emphasis ">모델 / 트림</span>
+          <span class="font-weight-regular font-weight-bold">{{ modelTrim || '—' }}</span>
         </div>
+
         <div class="d-flex align-center justify-space-between">
           <span class="text-medium-emphasis">재고 위치</span>
-          <span>{{ part.location || '—' }}</span>
+          <span class="font-weight-bold">{{ part.location || '—' }}</span>
         </div>
+
         <div class="d-flex align-center justify-space-between">
           <span class="text-medium-emphasis">재고 수량</span>
-          <span>{{ part.amount ?? 0 }} 개</span>
+          <span class="font-weight-medium font-weight-bold">{{ part.amount ?? 0 }} 개</span>
         </div>
+
+        <VDivider class="my-2" />
+
         <div class="d-flex align-center justify-space-between">
           <span class="text-medium-emphasis">원가</span>
-          <span>{{ formatKRW(part.cost) }}</span>
+          <span class="font-weight-bold">{{ formatKRW(part.cost) }}</span>
         </div>
         <div class="d-flex align-center justify-space-between">
           <span class="text-medium-emphasis">판매가</span>
-          <span class="font-weight-medium">{{ formatKRW(part.price) }}</span>
+          <span class="text-primary font-weight-bold">{{ formatKRW(part.price) }}</span>
         </div>
-      </div>
-
-      <div class="d-flex gap-2">
-        <VBtn v-if="part.code" variant="tonal" prepend-icon="bx-copy" @click="copyCode">
-          코드 복사
-        </VBtn>
       </div>
     </VCardText>
   </VCard>
 </template>
+
+<style scoped>
+.text-primary {
+  color: rgb(var(--v-theme-primary)) !important;
+}
+</style>

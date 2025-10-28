@@ -128,6 +128,7 @@ async function onExport() {
       color="secondary"
       prepend-icon="bx-export"
       :loading="exporting"
+      height="30"
       @click="onExport"
     >
       내보내기
