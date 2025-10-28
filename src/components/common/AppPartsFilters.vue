@@ -27,7 +27,7 @@ const props = defineProps({
       { label: '주문 완료', value: 'ORDER_COMPLETED' },
       { label: '출고 대기', value: 'PENDING_SHIPPING' },
       { label: '배송중',   value: 'SHIPPING' },
-      { label: '출고 반려', value: 'REJECTED' },
+      { label: '주문 반려', value: 'REJECTED' },
       { label: '배송 완료', value: 'DELIVERED' },
       { label: '입고 완료', value: 'RECEIVED' },
       { label: '주문 취소', value: 'CANCELLED' },

@@ -14,6 +14,7 @@ export default [
     icon: { icon: 'bx-cart' },
     children: [
       { title: '주문 목록 조회', to: 'order-list' },
+      { title: '주문 승인', to: 'order-approval' },
     ],
   },
 ]

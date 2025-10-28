@@ -112,6 +112,28 @@ export async function approveOrder(orderId) {
 }
 
 /**
+ * 주문 반려
+ * PUT /api/v1/order/reject
+ */
+export async function rejectOrder(orderId, reason) {
+  if (orderId == null) throw new Error('orderId is required')
+  if (!reason || reason.trim() === '') throw new Error('반려 사유는 필수입니다')
+  
+  const body = {
+    orderId: Number(orderId),
+    reason: reason.trim(),
+  }
+  
+  const res = await http.put('/api/v1/order/reject', body)
+  
+  return {
+    status: res?.data?.status ?? 200,
+    success: !!(res?.data?.success ?? true),
+    message: res?.data?.message,
+  }
+}
+
+/**
  * 주문 리스트 조회 (관리자용)
  * POST /api/v1/order/list
  */
