@@ -1,6 +1,6 @@
 <!-- File: src/pages/order-detail/[id].vue -->
 <script setup>
-import { cancelOrder as apiCancelOrder, deleteOrder as apiDeleteOrder, approveOrder, getOrderDetail } from '@/api/order'
+import { cancelOrder as apiCancelOrder, deleteOrder as apiDeleteOrder, approveOrder, getOrderDetail, rejectOrder } from '@/api/order'
 import { executeOrderApproval } from '@/api/websocket'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -20,7 +20,7 @@ const STATUS_UI = {
   PENDING_RECEIVING: { key: 'PENDING_RECEIVING', text: '입고 대기',  color: 'warning' },
   DELIVERED: { key: 'DELIVERED',         text: '배송 완료',  color: 'success' },
   RECEIVED: { key: 'RECEIVED',          text: '입고 완료',  color: 'secondary' },
-  REJECTED: { key: 'REJECTED',          text: '출고 반려',  color: 'error' },
+  REJECTED: { key: 'REJECTED',          text: '주문 반려',  color: 'error' },
   CANCELLED: { key: 'CANCELLED',         text: '주문 취소',  color: 'secondary' },
 }
 
@@ -56,6 +56,11 @@ const lineItems = ref([])
 const websocket = ref(null)
 const isApproving = ref(false)
 const approvalMessage = ref('')
+
+/* 반려 관련 상태 */
+const showRejectDialog = ref(false)
+const rejectReason = ref('')
+const isRejecting = ref(false)
 
 /* 유틸 */
 const fmtCurrency = v => (v ?? v === 0) ? new Intl.NumberFormat().format(v) : '-'
@@ -137,18 +142,21 @@ async function onApprove() {
     // 웹소켓을 통한 실시간 승인 처리
     websocket.value = await executeOrderApproval(
       orderId.value,
+
       // 메시지 핸들러
-      (data) => {
+      data => {
         approvalMessage.value = data.message || '처리 중...'
       },
+
       // 에러 핸들러
-      (error) => {
+      error => {
         console.error('Approval error:', error)
         isApproving.value = false
         approvalMessage.value = error.message || '승인 처리 중 오류가 발생했습니다.'
       },
+
       // 완료 핸들러
-      (data) => {
+      data => {
         isApproving.value = false
         approvalMessage.value = '주문 승인이 완료되었습니다.'
         
@@ -156,13 +164,47 @@ async function onApprove() {
         setTimeout(() => {
           loadDetail()
         }, 1000)
-      }
+      },
     )
     
   } catch (e) {
     console.error('Approval failed:', e)
     isApproving.value = false
     approvalMessage.value = e?.message || '승인 요청 중 오류가 발생했습니다.'
+  }
+}
+
+/* 반려 관련 함수들 */
+function openRejectDialog() {
+  showRejectDialog.value = true
+  rejectReason.value = ''
+}
+
+function closeRejectDialog() {
+  showRejectDialog.value = false
+  rejectReason.value = ''
+  isRejecting.value = false
+}
+
+async function onReject() {
+  if (!orderId.value || isRejecting.value || !rejectReason.value.trim()) return
+  
+  try {
+    isRejecting.value = true
+    
+    // 반려 API 호출
+    await rejectOrder(orderId.value, rejectReason.value.trim())
+    
+    // 성공 시 다이얼로그 닫고 페이지 새로고침
+    closeRejectDialog()
+    alert('주문이 반려되었습니다.')
+    loadDetail()
+    
+  } catch (e) {
+    console.error('Reject failed:', e)
+    alert(e?.message || '반려 처리 중 오류가 발생했습니다.')
+  } finally {
+    isRejecting.value = false
   }
 }
 
@@ -217,6 +259,11 @@ const headers = [
 /* 승인 가능한 상태인지 확인 */
 const canApprove = computed(() => {
   return summary.value.status === 'ORDER_COMPLETED' && !isApproving.value
+})
+
+/* 반려 가능한 상태인지 확인 */
+const canReject = computed(() => {
+  return summary.value.status === 'ORDER_COMPLETED' && !isRejecting.value
 })
 
 /* =============== Shipping Activity 타임라인 =============== */
@@ -324,6 +371,21 @@ const timelineSteps = computed(() => {
             주문 승인
           </VBtn>
           <VBtn
+            v-if="canReject"
+            variant="flat"
+            color="error"
+            size="small"
+            :loading="isRejecting"
+            @click="openRejectDialog"
+          >
+            <VIcon
+              start
+              icon="bx-x-circle"
+              size="16"
+            />
+            주문 반려
+          </VBtn>
+          <VBtn
             variant="flat"
             color="warning"
             size="small"
@@ -379,7 +441,7 @@ const timelineSteps = computed(() => {
             :headers="headers"
             :items="lineItems"
             :loading="loading"
-            density="compact"
+            density="default"
             hide-default-footer
             class="erp-table"
             item-value="productName"
@@ -534,7 +596,10 @@ const timelineSteps = computed(() => {
                     class="text-medium-emphasis"
                   > • 진행</span>
                 </div>
-                <div class="text-caption text-medium-emphasis">
+                <div
+                  v-if="st.state === 'current'"
+                  class="text-caption text-medium-emphasis"
+                >
                   {{ st.date ? new Date(st.date).toLocaleString() : '' }}
                 </div>
               </div>
@@ -543,6 +608,60 @@ const timelineSteps = computed(() => {
         </VCardText>
       </VCard>
     </div>
+
+    <!-- 반려 다이얼로그 -->
+    <VDialog
+      v-model="showRejectDialog"
+      max-width="500"
+      persistent
+    >
+      <VCard>
+        <VCardTitle class="text-h6">
+          <VIcon
+            start
+            icon="bx-x-circle"
+            color="error"
+          />
+          주문 반려
+        </VCardTitle>
+        
+        <VCardText>
+          <p class="text-body-2 mb-4">
+            주문을 반려하시겠습니까? 반려 사유를 입력해주세요.
+          </p>
+          
+          <VTextarea
+            v-model="rejectReason"
+            label="반려 사유"
+            placeholder="반려 사유를 입력해주세요..."
+            rows="4"
+            variant="outlined"
+            :disabled="isRejecting"
+            :rules="[v => !!v || '반려 사유는 필수입니다']"
+            required
+          />
+        </VCardText>
+        
+        <VCardActions class="justify-end">
+          <VBtn
+            variant="text"
+            :disabled="isRejecting"
+            @click="closeRejectDialog"
+          >
+            취소
+          </VBtn>
+          <VBtn
+            color="error"
+            variant="flat"
+            :loading="isRejecting"
+            :disabled="!rejectReason.trim()"
+            @click="onReject"
+          >
+            반려하기
+          </VBtn>
+        </VCardActions>
+      </VCard>
+    </VDialog>
   </div>
 </template>
 

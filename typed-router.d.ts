@@ -22,6 +22,7 @@ declare module 'vue-router/auto-routes' {
     '$error': RouteRecordInfo<'$error', '/:error(.*)', { error: ParamValue<true> }, { error: ParamValue<false> }>,
     'branch-management': RouteRecordInfo<'branch-management', '/branch-management', Record<never, never>, Record<never, never>>,
     'login': RouteRecordInfo<'login', '/login', Record<never, never>, Record<never, never>>,
+    'order-approval': RouteRecordInfo<'order-approval', '/order-approval', Record<never, never>, Record<never, never>>,
     'order-detail-id': RouteRecordInfo<'order-detail-id', '/order-detail/:id', { id: ParamValue<true> }, { id: ParamValue<false> }>,
     'order-list': RouteRecordInfo<'order-list', '/order-list', Record<never, never>, Record<never, never>>,
     'part-detail-id': RouteRecordInfo<'part-detail-id', '/part-detail/:id', { id: ParamValue<true> }, { id: ParamValue<false> }>,

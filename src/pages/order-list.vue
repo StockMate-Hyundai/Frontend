@@ -103,7 +103,7 @@ const statusOptions = ref([
   { label: '주문 완료', value: 'ORDER_COMPLETED' },
   { label: '출고 대기', value: 'PENDING_SHIPPING' },
   { label: '배송중', value: 'SHIPPING' },
-  { label: '출고 반려', value: 'REJECTED' },
+  { label: '주문 반려', value: 'REJECTED' },
   { label: '배송 완료', value: 'DELIVERED' },
   { label: '입고 완료', value: 'RECEIVED' },
   { label: '주문 취소', value: 'CANCELLED' },
@@ -221,7 +221,7 @@ const resolveOrderStatus = s => {
   case ORDER_STATUS.ORDER_COMPLETED:  return { text: '주문 완료',  color: 'primary' }
   case ORDER_STATUS.PENDING_SHIPPING: return { text: '출고 대기',  color: 'warning' }
   case ORDER_STATUS.SHIPPING:         return { text: '배송중',    color: 'info' }
-  case ORDER_STATUS.REJECTED:         return { text: '출고 반려',  color: 'error' }
+  case ORDER_STATUS.REJECTED:         return { text: '주문 반려',  color: 'error' }
   case ORDER_STATUS.DELIVERED:        return { text: '배송 완료',  color: 'success' }
   case ORDER_STATUS.RECEIVED:         return { text: '입고 완료',  color: 'secondary' }
   case ORDER_STATUS.CANCELLED:        return { text: '주문 취소',  color: 'error' }
@@ -257,13 +257,28 @@ const getFirstOrderItemName = item => {
   return partDetail.korName || partDetail.engName || partDetail.name || '이름없음'
 }
 
+const getFirstOrderItemImage = item => {
+  const orderItems = item.__raw?.orderItems || []
+  if (orderItems.length === 0) return null
+  
+  const firstItem = orderItems[0]
+  const partDetail = firstItem?.partDetail
+  
+  // 부품 이미지 URL 반환 (실제 API 구조에 맞게 조정 필요)
+  return partDetail?.imageUrl || partDetail?.image || partDetail?.thumbnail || null
+}
+
 const getOrderItemsCount = item => {
   const orderItems = item.__raw?.orderItems || []
-  const totalCount = orderItems.length
   
-  if (totalCount <= 1) return ''
+  return orderItems.length
+}
+
+const getOrderItemsCountText = item => {
+  const count = getOrderItemsCount(item)
+  if (count <= 1) return ''
   
-  return `외 ${totalCount - 1}건`
+  return `외 ${count - 1}건`
 }
 </script>
 
@@ -446,22 +461,37 @@ const getOrderItemsCount = item => {
 
           <template #item.orderItems="{ item }">
             <div class="d-flex align-center gap-2 order-items-cell">
-              <VAvatar
-                size="24"
-                variant="tonal"
-                color="primary"
-              >
-                <VIcon
-                  icon="bx-package"
-                  size="14"
+              <div class="order-items-image-container">
+                <VImg
+                  v-if="getFirstOrderItemImage(item)"
+                  :src="getFirstOrderItemImage(item)"
+                  :alt="getFirstOrderItemName(item)"
+                  class="order-item-image"
                 />
-              </VAvatar>
+                <VAvatar
+                  v-else
+                  size="32"
+                  variant="tonal"
+                  color="primary"
+                >
+                  <VIcon
+                    icon="bx-package"
+                    size="16"
+                  />
+                </VAvatar>
+                <VBadge
+                  v-if="getOrderItemsCount(item) > 1"
+                  :content="`+${getOrderItemsCount(item) - 1}`"
+                  color="primary"
+                  class="order-items-badge"
+                />
+              </div>
               <div class="order-items-content">
                 <span class="text-body-2 font-weight-medium text-high-emphasis order-item-name">
                   {{ getFirstOrderItemName(item) }}
                 </span>
                 <span class="text-caption text-medium-emphasis order-item-count">
-                  {{ getOrderItemsCount(item) }}
+                  {{ getOrderItemsCountText(item) }}
                 </span>
               </div>
             </div>
@@ -652,6 +682,36 @@ const getOrderItemsCount = item => {
 .order-item-count {
   flex-shrink: 0;
   white-space: nowrap;
+}
+
+.order-items-image-container {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
+.order-item-image {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.order-items-badge {
+  position: absolute;
+  bottom: 12px;
+  right: 7px;
+  z-index: 1;
+}
+
+.order-items-badge :deep(.v-badge__badge) {
+  font-size: 10px !important;
+  min-width: 16px !important;
+  height: 16px !important;
+  padding: 0 4px !important;
+  background-color: rgba(60, 60, 60, 0.8) !important;
+  color: white !important;
 }
 
 /* (옵션) 헤더 고정이 필요하면 함께 사용하세요 */

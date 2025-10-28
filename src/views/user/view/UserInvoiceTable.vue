@@ -45,6 +45,7 @@ const tableState = ref({ rows: [], total: 0 })
 
 function formatCurrencyKRW(n) {
   const v = Number(n ?? 0)
+  
   return `₩${v.toLocaleString()}`
 }
 function formatDateTime(s) {
@@ -77,8 +78,9 @@ const fetchInvoices = async () => {
       orderNumber: o.orderNumber ?? o.id ?? o.orderId,
       orderId: o.orderId ?? 0,
       orderStatus: o.orderStatus ?? o.status ?? 'PENDING_SHIPPING',
-      totalPrice:  o.totalPrice ?? o.total ?? o.totalAmount ?? 0,
-      createdAt:   o.createdAt ?? o.orderedAt ?? '',
+      totalPrice: o.totalPrice ?? o.total ?? o.totalAmount ?? 0,
+      createdAt: o.createdAt ?? o.orderedAt ?? '',
+
       // 필요하면 추가: customerName, memo 등
       raw: o,
     }))
@@ -101,7 +103,7 @@ const totalInvoices = computed(() => tableState.value.total)
 watch(
   [searchQuery, selectedStatus, itemsPerPage, page, sortBy, orderBy, memberId],
   fetchInvoices,
-  { deep: true }
+  { deep: true },
 )
 
 await fetchInvoices()
@@ -109,17 +111,17 @@ await fetchInvoices()
 /* ==========================
    표시 유틸 (주문 상태용)
 ========================== */
- const resolveOrderStatus = (s) => {
+const resolveOrderStatus = s => {
   const key = String(s || '').toUpperCase()
   switch (key) {
-    case 'ORDER_COMPLETED':  return { text: '주문 완료',  color: 'primary',   icon: 'bx-purchase-tag' }
-    case 'PENDING_SHIPPING': return { text: '출고 대기',  color: 'warning',   icon: 'bx-time' }
-    case 'SHIPPING':         return { text: '배송중',    color: 'info',      icon: 'bx-package' }
-    case 'REJECTED':         return { text: '출고 반려',  color: 'error',     icon: 'bx-error-circle' }
-    case 'DELIVERED':        return { text: '배송 완료',  color: 'success',   icon: 'bx-check' }
-    case 'RECEIVED':         return { text: '입고 완료',  color: 'secondary', icon: 'bx-archive' }
-    case 'CANCELLED':        return { text: '주문 취소',  color: 'error',     icon: 'bx-error-circle' }
-    default:                 return { text: '연동 대기',  color: 'secondary', icon: 'bx-purchase-tag' }
+  case 'ORDER_COMPLETED':  return { text: '주문 완료',  color: 'primary',   icon: 'bx-purchase-tag' }
+  case 'PENDING_SHIPPING': return { text: '출고 대기',  color: 'warning',   icon: 'bx-time' }
+  case 'SHIPPING':         return { text: '배송중',    color: 'info',      icon: 'bx-package' }
+  case 'REJECTED':         return { text: '주문 반려',  color: 'error',     icon: 'bx-error-circle' }
+  case 'DELIVERED':        return { text: '배송 완료',  color: 'success',   icon: 'bx-check' }
+  case 'RECEIVED':         return { text: '입고 완료',  color: 'secondary', icon: 'bx-archive' }
+  case 'CANCELLED':        return { text: '주문 취소',  color: 'error',     icon: 'bx-error-circle' }
+  default:                 return { text: '연동 대기',  color: 'secondary', icon: 'bx-purchase-tag' }
   }
 }
 
@@ -142,7 +144,9 @@ const deleteInvoice = async id => {
     <VCard id="invoice-list">
       <VCardText>
         <div class="d-flex align-center justify-space-between flex-wrap gap-4">
-          <div class="text-h5">주문 리스트</div>
+          <div class="text-h5">
+            주문 리스트
+          </div>
           <div class="d-flex align-center gap-x-4">
             <AppSelect
               :model-value="itemsPerPage"
@@ -156,7 +160,6 @@ const deleteInvoice = async id => {
               style="inline-size: 6.25rem;"
               @update:model-value="itemsPerPage = parseInt($event, 10)"
             />
-
           </div>
         </div>
       </VCardText>
@@ -192,10 +195,15 @@ const deleteInvoice = async id => {
                 :color="resolveOrderStatus(item.orderStatus).color"
                 variant="tonal"
               >
-                <VIcon :size="16" :icon="resolveOrderStatus(item.orderStatus).icon" />
+                <VIcon
+                  :size="16"
+                  :icon="resolveOrderStatus(item.orderStatus).icon"
+                />
               </VAvatar>
             </template>
-            <p class="mb-0">{{ resolveOrderStatus(item.orderStatus).text }}</p>
+            <p class="mb-0">
+              {{ resolveOrderStatus(item.orderStatus).text }}
+            </p>
           </VTooltip>
         </template>
 
@@ -211,15 +219,21 @@ const deleteInvoice = async id => {
 
         <!-- Actions -->
         <template #item.actions="{ item }">
-          <!-- <IconBtn @click="deleteInvoice(item.orderNumber)">
+          <!--
+            <IconBtn @click="deleteInvoice(item.orderNumber)">
             <VIcon icon="bx-trash" />
-          </IconBtn> -->
+            </IconBtn> 
+          -->
 
           <IconBtn :to="{ name: 'order-detail-id', params: { id: item.orderId } }">
             <VIcon icon="bx-show" />
           </IconBtn>
 
-          <MoreBtn :menu-list="computedMoreList(item.orderNumber)" item-props class="text-medium-emphasis" />
+          <MoreBtn
+            :menu-list="computedMoreList(item.orderNumber)"
+            item-props
+            class="text-medium-emphasis"
+          />
         </template>
 
         <template #bottom>

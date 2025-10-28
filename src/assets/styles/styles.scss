@@ -229,12 +229,26 @@
     color: white !important;
   }
   
-  // 활성 상태는 파란색 배경 유지
+  // 활성 상태는 파란색 배경 유지 (로고 제외)
   .v-list-item--active,
   .nav-item-active,
-  .router-link-active {
+  .router-link-active:not(.app-logo) {
     background: var(--erp-primary) !important;
     color: white !important;
+  }
+  
+  // 로고는 활성 상태 스타일 제거
+  .app-logo {
+    &.router-link-active,
+    &.router-link-exact-active {
+      background: transparent !important;
+      color: white !important;
+    }
+    
+    &:hover {
+      background: rgba(255, 255, 255, 0.1) !important;
+      color: white !important;
+    }
   }
   
   // 호버 효과
