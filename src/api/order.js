@@ -224,3 +224,65 @@ export async function getOrderListByMemberId({
     endDate,
   })
 }
+
+/**
+ * 금일 대시보드 조회
+ * GET /api/v1/order/dashboard/today
+ */
+export async function getTodayDashboard() {
+  try {
+    const res = await http.get('/api/v1/order/dashboard/today')
+    
+    console.log('=== 금일 대시보드 API 응답 ===')
+    console.log('전체 응답:', res?.data)
+    console.log('요약 데이터:', res?.data?.data?.summary)
+    console.log('시간대별 통계:', res?.data?.data?.hourlyStats)
+    
+    // 시간대별 데이터 상세 출력
+    if (res?.data?.data?.hourlyStats) {
+      console.log('=== 시간대별 상세 데이터 ===')
+      res.data.data.hourlyStats.forEach((hour, index) => {
+        console.log(`시간 ${hour.hour}시:`, {
+          '오늘주문': hour.orderCount,
+          '오늘출고': hour.shippingProcessedCount,
+          '이동중': hour.shippingInProgressCount,
+          '금일매출': hour.revenue
+        })
+      })
+    }
+    
+    return {
+      status: res?.data?.status ?? 200,
+      success: !!(res?.data?.success ?? true),
+      message: res?.data?.message,
+      data: res?.data?.data ?? {},
+    }
+  } catch (error) {
+    console.error('대시보드 API 호출 실패:', error)
+    throw error
+  }
+}
+
+/**
+ * 금일 시간대별 입출고 추이
+ * GET /api/v1/order/dashboard/today/inout
+ */
+export async function getTodayInboundOutbound() {
+  try {
+    const res = await http.get('/api/v1/order/dashboard/today/inout')
+    
+    console.log('=== 시간대별 입출고 추이 API 응답 ===')
+    console.log('전체 응답:', res?.data)
+    console.log('시간대별 데이터:', res?.data?.data?.hours)
+    
+    return {
+      status: res?.data?.status ?? 200,
+      success: !!(res?.data?.success ?? true),
+      message: res?.data?.message,
+      data: res?.data?.data ?? {},
+    }
+  } catch (error) {
+    console.error('입출고 추이 API 호출 실패:', error)
+    throw error
+  }
+}

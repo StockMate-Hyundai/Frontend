@@ -82,6 +82,7 @@ export default defineConfig({
     svgLoader(),
   ],
   define: { 'process.env': {} },
+  assetsInclude: ['**/*.dae', '**/*.gltf', '**/*.glb', '**/*.obj', '**/*.fbx'],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

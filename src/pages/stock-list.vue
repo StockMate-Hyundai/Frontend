@@ -1,5 +1,13 @@
 <script setup>
-import { searchParts } from '@/api/parts' // ✅ 변경
+definePage({
+  meta: {
+    title: '부품 목록',
+    icon: 'bx-package',
+    requiresAuth: true,
+  },
+})
+
+import { searchParts } from '@/api/parts'; // ✅ 변경
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 
 import AppExportButton from '@/components/common/ExportToExcel.vue'

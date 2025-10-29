@@ -7,6 +7,7 @@ import Footer from '@/layouts/components/Footer.vue'
 import NavbarThemeSwitcher from '@/layouts/components/NavbarThemeSwitcher.vue'
 import UserProfile from '@/layouts/components/UserProfile.vue'
 import NavBarI18n from '@core/components/I18n.vue'
+import NavigationHistoryTabs from '@core/components/NavigationHistoryTabs.vue'
 import { HorizontalNavLayout } from '@layouts'
 import { VNodeRenderer } from '@layouts/components/VNodeRenderer'
 </script>
@@ -15,25 +16,32 @@ import { VNodeRenderer } from '@layouts/components/VNodeRenderer'
   <HorizontalNavLayout :nav-items="navItems">
     <!-- 👉 navbar -->
     <template #navbar>
-      <RouterLink
-        to="/"
-        class="app-logo d-flex align-center gap-x-2"
-      >
-        <VNodeRenderer :nodes="themeConfig.app.logo" />
+      <div class="navbar-main d-flex h-100 align-center">
+        <RouterLink
+          to="/"
+          class="app-logo d-flex align-center gap-x-2"
+        >
+          <VNodeRenderer :nodes="themeConfig.app.logo" />
 
-        <h1 class="app-logo-title">
-          {{ themeConfig.app.title }}
-        </h1>
-      </RouterLink>
-      <VSpacer />
+          <h1 class="app-logo-title">
+            {{ themeConfig.app.title }}
+          </h1>
+        </RouterLink>
+        <VSpacer />
 
-      <NavBarI18n
-        v-if="themeConfig.app.i18n.enable && themeConfig.app.i18n.langConfig?.length"
-        :languages="themeConfig.app.i18n.langConfig"
-      />
+        <NavBarI18n
+          v-if="themeConfig.app.i18n.enable && themeConfig.app.i18n.langConfig?.length"
+          :languages="themeConfig.app.i18n.langConfig"
+        />
 
-      <NavbarThemeSwitcher class="me-2" />
-      <UserProfile />
+        <NavbarThemeSwitcher class="me-2" />
+        <UserProfile />
+      </div>
+      
+      <!-- 👉 네비게이션 히스토리 탭 -->
+      <div class="navbar-tabs">
+        <NavigationHistoryTabs />
+      </div>
     </template>
 
     <!-- 👉 Pages -->
@@ -55,5 +63,14 @@ import { VNodeRenderer } from '@layouts/components/VNodeRenderer'
   font-weight: 700;
   letter-spacing: 0.15px;
   line-height: 1.75rem;
+}
+
+.navbar-main {
+  flex-shrink: 0;
+}
+
+.navbar-tabs {
+  flex-shrink: 0;
+  border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
 </style>

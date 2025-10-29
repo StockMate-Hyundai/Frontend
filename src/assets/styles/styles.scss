@@ -58,6 +58,16 @@
   margin: 8px 0 !important; /* 위아래 마진 추가 */
 }
 
+// 헤더 고정 - 모든 페이지에서 일관된 크기 유지
+.layout-navbar {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 1000 !important;
+  flex-shrink: 0 !important;
+  height: auto !important;
+  min-height: 56px !important;
+}
+
 // 대시보드/리포트/주문상세 페이지의 경우 스크롤 허용
 .layout-content-wrapper:has(.page-container.dashboard-page),
 .layout-content-wrapper:has(.page-container.report-page),
@@ -65,12 +75,29 @@
   overflow: visible !important;
 }
 
-// 페이지별 컨테이너 스타일
+// 페이지별 컨테이너 스타일 - 일관된 크기 유지
 .page-container {
-  height: 100% !important;
+  min-height: calc(100vh - 120px) !important; // 헤더 높이 고려
   display: flex !important;
   flex-direction: column !important;
   padding: 0 !important;
+  flex: 1 !important;
+}
+
+// 대시보드와 리포트 페이지 특별 처리
+.page-container.dashboard-page,
+.page-container.report-page {
+  min-height: calc(100vh - 120px) !important;
+  height: auto !important;
+}
+
+// 필터 섹션 흰색 배경
+.filter-section {
+  background: var(--erp-bg-primary) !important; // 흰색 배경
+  border-radius: 8px !important; // 둥근 모서리
+  margin-bottom: 16px !important; // 하단 마진
+  box-shadow: var(--erp-shadow-sm) !important; // 미세한 그림자
+  border: 1px solid var(--erp-border-light) !important; // 연한 테두리
 }
 
 // 테이블 페이지용 고정 높이 (stock-list, order-list 등)

@@ -1,5 +1,12 @@
 <!-- File: src/pages/order-detail/[id].vue -->
 <script setup>
+definePage({
+  meta: {
+    title: '주문 상세',
+    icon: 'bx-file-blank',
+    requiresAuth: true,
+  },
+})
 import { cancelOrder as apiCancelOrder, deleteOrder as apiDeleteOrder, approveOrder, getOrderDetail, rejectOrder } from '@/api/order'
 import { executeOrderApproval } from '@/api/websocket'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
@@ -40,6 +47,7 @@ const summary = ref({
   carrier: '-',
   trackingNumber: '-',
   etc: '',
+  rejectedMessage: '',
 })
 
 const customerInfo = ref({
@@ -85,6 +93,7 @@ async function loadDetail() {
       carrier: d?.carrier || '-',
       trackingNumber: d?.trackingNumber || '-',
       etc: d?.etc || '',
+      rejectedMessage: d?.rejectedMessage || '',
     }
 
     // 고객 정보
@@ -197,12 +206,10 @@ async function onReject() {
     
     // 성공 시 다이얼로그 닫고 페이지 새로고침
     closeRejectDialog()
-    alert('주문이 반려되었습니다.')
     loadDetail()
     
   } catch (e) {
     console.error('Reject failed:', e)
-    alert(e?.message || '반려 처리 중 오류가 발생했습니다.')
   } finally {
     isRejecting.value = false
   }
@@ -226,10 +233,8 @@ async function onCancel() {
   loadingAction.value = true
   try {
     await apiCancelOrder(Number(orderId.value))
-    alert('주문이 취소되었습니다.')
     await loadDetail()
   } catch (e) {
-    alert(e?.message || '취소 중 오류가 발생했습니다.')
   } finally {
     loadingAction.value = false
   }
@@ -239,10 +244,8 @@ async function onDelete() {
   loadingAction.value = true
   try {
     await apiDeleteOrder(Number(orderId.value))
-    alert('주문이 삭제되었습니다.')
     router.back()
   } catch (e) {
-    alert(e?.message || '삭제 중 오류가 발생했습니다.')
   } finally {
     loadingAction.value = false
   }
@@ -349,6 +352,21 @@ const timelineSteps = computed(() => {
               size="x-small"
               class="status-chip"
             />
+            <VChip
+              v-if="summary.rejectedMessage"
+              color="error"
+              variant="tonal"
+              label
+              size="x-small"
+              class="reject-message-chip"
+            >
+              <VIcon
+                start
+                icon="bx-x-circle"
+                size="12"
+              />
+              {{ summary.rejectedMessage }}
+            </VChip>
           </div>
           <div class="text-caption text-medium-emphasis">
             {{ summary.createdAt ? new Date(summary.createdAt).toLocaleString() : '-' }}
@@ -428,12 +446,6 @@ const timelineSteps = computed(() => {
             class="me-2"
           /> 주문 상세
           <VSpacer />
-          <div class="text-caption text-medium-emphasis me-2">
-            결제금액
-          </div>
-          <div class="text-body-2 font-weight-medium">
-            ₩{{ fmtCurrency(summary.totalPrice) }}
-          </div>
         </VCardTitle>
 
         <div class="card-scroll">
@@ -445,6 +457,7 @@ const timelineSteps = computed(() => {
             hide-default-footer
             class="erp-table"
             item-value="productName"
+            fixed-header
           >
             <template #item.productName="{ item }">
               <div class="d-flex gap-x-3 align-center">
@@ -776,7 +789,7 @@ const timelineSteps = computed(() => {
 
 /* 테이블: 카드 안에서만 스크롤 */
 .erp-table :deep(.v-table__wrapper) { 
-  max-height: 280px; 
+  max-height: 52vh; 
   overflow: auto; 
   border-radius: 8px;
 }
@@ -831,6 +844,16 @@ const timelineSteps = computed(() => {
   font-weight: 600; 
   font-size: 0.75rem; 
   letter-spacing: 0.025em;
+}
+
+.reject-message-chip {
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.025em;
+  max-width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 테이블 간격 개선 */

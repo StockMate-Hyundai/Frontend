@@ -1,13 +1,19 @@
 <script setup>
+import TablePagination from '@/@core/components/TablePagination.vue'
 import { apiChangeUserRole, apiChangeUserStatus, apiGetUsersPublic } from '@/api/user'
 import RoleStatusEditDialog from '@/components/dialogs/RoleStatusEditDialog.vue'
 import AddNewUserDrawer from '@/views/user/list/AddNewUserDrawer.vue'
-import TablePagination from '@/@core/components/TablePagination.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
-// 페이지 메타(비로그인 접근 허용)
-definePage({ meta: { public: true } })
+// 페이지 메타
+definePage({
+  meta: {
+    title: '사용자 관리',
+    icon: 'bx-group',
+    requiresAuth: true,
+  },
+})
 
 /* ==========================
    상태
@@ -495,20 +501,20 @@ const widgetData = computed(() => [
                 />
                 <span v-else>{{ avatarText(item.fullName) }}</span>
               </VAvatar>
-               <div class="d-flex flex-column">
-                 <div class="text-body-2 font-weight-medium">
-                   <RouterLink
-                     :to="{ name: 'user-detail-id', params: { id: String(getMemberId(item)) } }"
-                     class="text-link"
-                     @click.stop
-                   >
-                     {{ item.fullName }}
-                   </RouterLink>
-                 </div>
-                 <div class="text-body-2 text-medium-emphasis">
-                   {{ item.email }}
-                 </div>
-               </div>
+              <div class="d-flex flex-column">
+                <div class="text-body-2 font-weight-medium">
+                  <RouterLink
+                    :to="{ name: 'user-detail-id', params: { id: String(getMemberId(item)) } }"
+                    class="text-link"
+                    @click.stop
+                  >
+                    {{ item.fullName }}
+                  </RouterLink>
+                </div>
+                <div class="text-body-2 text-medium-emphasis">
+                  {{ item.email }}
+                </div>
+              </div>
             </div>
           </template>
 
@@ -720,7 +726,6 @@ const widgetData = computed(() => [
   padding-top: 2px;
 }
 .filter-content { margin-bottom: 4px !important; }
-.filter-label { width: 60px !important; flex-shrink: 0 !important; }
 
 /* (옵션) 페이지 하단 마진 */
 .page-bottom-margin {

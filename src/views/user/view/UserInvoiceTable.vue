@@ -141,111 +141,80 @@ const deleteInvoice = async id => {
 
 <template>
   <section v-if="invoices">
-    <VCard id="invoice-list">
-      <VCardText>
-        <div class="d-flex align-center justify-space-between flex-wrap gap-4">
-          <div class="text-h5">
-            주문 리스트
-          </div>
-          <div class="d-flex align-center gap-x-4">
-            <AppSelect
-              :model-value="itemsPerPage"
-              :items="[
-                { value: 10, title: '10' },
-                { value: 25, title: '25' },
-                { value: 50, title: '50' },
-                { value: 100, title: '100' },
-                { value: -1, title: 'All' },
-              ]"
-              style="inline-size: 6.25rem;"
-              @update:model-value="itemsPerPage = parseInt($event, 10)"
-            />
-          </div>
-        </div>
-      </VCardText>
-
-      <VDivider />
-
+    <div id="invoice-list">
       <!-- SECTION Datatable -->
-      <VDataTableServer
-        v-model:items-per-page="itemsPerPage"
-        v-model:page="page"
-        :loading="isLoading"
-        :items-length="totalInvoices"
-        :headers="headers"
-        :items="invoices"
-        item-value="orderNumber"
-        class="text-no-wrap text-sm rounded-0"
-        @update:options="updateOptions"
-      >
-        <!-- orderNumber -->
-        <template #item.orderNumber="{ item }">
-          <RouterLink :to="{ name: 'order-detail-id', params: { id: item.orderId } }">
-            #{{ item.orderNumber }}
-          </RouterLink>
-        </template>
+      <div class="table-scroll">
+        <VDataTableServer
+          v-model:items-per-page="itemsPerPage"
+          v-model:page="page"
+          :loading="isLoading"
+          :items-length="totalInvoices"
+          :headers="headers"
+          :items="invoices"
+          item-value="orderNumber"
+          class="text-no-wrap text-sm rounded-0 erp-table"
+          @update:options="updateOptions"
+        >
+          <!-- orderNumber -->
+          <template #item.orderNumber="{ item }">
+            <RouterLink :to="{ name: 'order-detail-id', params: { id: item.orderId } }">
+              #{{ item.orderNumber }}
+            </RouterLink>
+          </template>
 
-        <!-- orderStatus -->
-        <template #item.orderStatus="{ item }">
-          <VTooltip>
-            <template #activator="{ props }">
-              <VAvatar
-                :size="28"
-                v-bind="props"
-                :color="resolveOrderStatus(item.orderStatus).color"
-                variant="tonal"
-              >
-                <VIcon
-                  :size="16"
-                  :icon="resolveOrderStatus(item.orderStatus).icon"
-                />
-              </VAvatar>
-            </template>
-            <p class="mb-0">
-              {{ resolveOrderStatus(item.orderStatus).text }}
-            </p>
-          </VTooltip>
-        </template>
+          <!-- orderStatus -->
+          <template #item.orderStatus="{ item }">
+            <VTooltip>
+              <template #activator="{ props }">
+                <VAvatar
+                  :size="28"
+                  v-bind="props"
+                  :color="resolveOrderStatus(item.orderStatus).color"
+                  variant="tonal"
+                >
+                  <VIcon
+                    :size="16"
+                    :icon="resolveOrderStatus(item.orderStatus).icon"
+                  />
+                </VAvatar>
+              </template>
+              <p class="mb-0">
+                {{ resolveOrderStatus(item.orderStatus).text }}
+              </p>
+            </VTooltip>
+          </template>
 
-        <!-- totalPrice -->
-        <template #item.totalPrice="{ item }">
-          {{ formatCurrencyKRW(item.totalPrice) }}
-        </template>
+          <!-- totalPrice -->
+          <template #item.totalPrice="{ item }">
+            {{ formatCurrencyKRW(item.totalPrice) }}
+          </template>
 
-        <!-- createdAt -->
-        <template #item.createdAt="{ item }">
-          {{ formatDateTime(item.createdAt) }}
-        </template>
+          <!-- createdAt -->
+          <template #item.createdAt="{ item }">
+            {{ formatDateTime(item.createdAt) }}
+          </template>
 
-        <!-- Actions -->
-        <template #item.actions="{ item }">
-          <!--
-            <IconBtn @click="deleteInvoice(item.orderNumber)">
-            <VIcon icon="bx-trash" />
-            </IconBtn> 
-          -->
+          <!-- Actions -->
+          <template #item.actions="{ item }">
+            <!--
+              <IconBtn @click="deleteInvoice(item.orderNumber)">
+              <VIcon icon="bx-trash" />
+              </IconBtn> 
+            -->
 
-          <IconBtn :to="{ name: 'order-detail-id', params: { id: item.orderId } }">
-            <VIcon icon="bx-show" />
-          </IconBtn>
+            <IconBtn :to="{ name: 'order-detail-id', params: { id: item.orderId } }">
+              <VIcon icon="bx-show" />
+            </IconBtn>
 
-          <MoreBtn
-            :menu-list="computedMoreList(item.orderNumber)"
-            item-props
-            class="text-medium-emphasis"
-          />
-        </template>
-
-        <template #bottom>
-          <TablePagination
-            v-model:page="page"
-            :items-per-page="itemsPerPage"
-            :total-items="totalInvoices"
-          />
-        </template>
-      </VDataTableServer>
-      <!-- !SECTION -->
-    </VCard>
+            <MoreBtn
+              :menu-list="computedMoreList(item.orderNumber)"
+              item-props
+              class="text-medium-emphasis"
+            />
+          </template>
+        </VDataTableServer>
+      </div>
+    </div>
   </section>
 </template>
 
@@ -253,5 +222,54 @@ const deleteInvoice = async id => {
 #invoice-list {
   .invoice-list-actions { inline-size: 8rem; }
   .invoice-list-search  { inline-size: 12rem; }
+}
+
+/* 테이블 스크롤 컨테이너 */
+.table-scroll {
+  max-height: 73vh;
+  overflow-y: auto;
+  border-radius: 8px;
+}
+
+/* 테이블 스타일 개선 */
+.erp-table :deep(.v-table__wrapper) { 
+  max-height: none; 
+  overflow: visible; 
+  border-radius: 8px;
+  border: none; /* 외곽 border 제거 */
+}
+
+.erp-table :deep(.v-data-table) {
+  border: none; /* 데이터 테이블 border 제거 */
+}
+
+.erp-table :deep(th), .erp-table :deep(td) { 
+  padding: 8px 12px; 
+  font-size: 0.875rem;
+}
+
+.erp-table :deep(.v-table__head th) {
+  background: var(--erp-bg-tertiary);
+  color: var(--erp-text-secondary);
+  font-weight: 600;
+  border-bottom: 1px solid var(--erp-border-light);
+}
+
+.erp-table :deep(.v-table__body tr:hover) {
+  background: var(--erp-bg-secondary);
+}
+
+/* 테이블 간격 개선 */
+.erp-table :deep(.v-table__body tr) {
+  height: 60px !important;
+}
+
+.erp-table :deep(.v-table__body td) {
+  padding: 12px 16px !important;
+  vertical-align: middle !important;
+}
+
+.erp-table :deep(.v-table__body tr:hover) {
+  background-color: var(--erp-bg-secondary) !important;
 }
 </style>
