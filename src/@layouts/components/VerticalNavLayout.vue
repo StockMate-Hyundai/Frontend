@@ -126,9 +126,13 @@ const verticalNavAttrs = computed(() => {
 
   .layout-navbar {
     z-index: variables.$layout-vertical-nav-layout-navbar-z-index;
+    display: flex;
+    flex-direction: column;
 
     .navbar-content-container {
       block-size: variables.$layout-vertical-nav-navbar-height;
+      display: flex;
+      flex-direction: column;
     }
 
     @at-root {

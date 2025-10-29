@@ -8,7 +8,13 @@ import { useRoute, useRouter } from 'vue-router'
 import PartBioPanel from '@/views/parts/view/PartBioPanel.vue'
 import PartWarehouse3D from '@/views/parts/view/PartWarehouse3D.vue'
 
-definePage({ meta: { public: true } })
+definePage({
+  meta: {
+    title: '부품 상세',
+    icon: 'bx-package',
+    public: true,
+  },
+})
 
 /* 라우팅 */
 const route  = useRoute('part-detail-id') // 파일 경로 기준 자동 생성된 네임

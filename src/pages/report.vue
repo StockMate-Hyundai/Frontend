@@ -1,5 +1,12 @@
 <!-- File: src/pages/MonthlyReportSneat.vue -->
 <script setup lang="ts">
+definePage({
+  meta: {
+    title: '리포트',
+    icon: 'bx-bar-chart-alt-2',
+    requiresAuth: true,
+  },
+})
 import AppExportButton from '@/components/common/ExportToExcel.vue'
 import { computed, ref, watch } from 'vue'
 import VueApexCharts from 'vue3-apexcharts'

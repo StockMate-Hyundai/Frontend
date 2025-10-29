@@ -1,4 +1,12 @@
 <script setup>
+definePage({
+  meta: {
+    title: '부족 부품 목록',
+    icon: 'bx-error-circle',
+    requiresAuth: true,
+  },
+})
+
 import { getLackStock } from '@/api/parts'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 
@@ -506,7 +514,7 @@ function closeImagePreview() {
           class="erp-table"
           @update:options="updateOptions"
         >
-        <template #colgroup>
+          <template #colgroup>
             <col style="width: 2%">
             <col style="width: 30%">
             <col style="width: 10%">
@@ -720,7 +728,6 @@ function closeImagePreview() {
 
 /* 필터 라벨 정렬 */
 .filter-label {
-  width: 60px !important;
   flex-shrink: 0 !important;
 }
 

@@ -1,5 +1,12 @@
 <!-- File: src/pages/order-approval.vue -->
 <script setup>
+definePage({
+  meta: {
+    title: '주문 승인',
+    icon: 'bx-check-circle',
+    requiresAuth: true,
+  },
+})
 import TablePagination from '@/@core/components/TablePagination.vue'
 import { getOrderList } from '@/api/order'
 import { executeOrderApproval } from '@/api/websocket'

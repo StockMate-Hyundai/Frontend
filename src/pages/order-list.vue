@@ -1,4 +1,12 @@
 <script setup>
+definePage({
+  meta: {
+    title: '주문 목록',
+    icon: 'bx-list-ul',
+    requiresAuth: true,
+  },
+})
+
 import { cancelOrder as apiCancelOrder, deleteOrder as apiDeleteOrder, fetchOrdersForTable, ORDER_STATUS } from '@/api/order'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 
@@ -644,7 +652,6 @@ const getOrderItemsCountText = item => {
   padding-top: 2px;
 }
 .filter-content { margin-bottom: 4px !important; }
-.filter-label { width: 60px !important; flex-shrink: 0 !important; }
 
 /* 주문번호 스타일 */
 .order-number-link {

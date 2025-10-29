@@ -1,38 +1,147 @@
 <!-- File: src/pages/DashboardOverview.vue -->
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+definePage({
+  meta: {
+    title: '대시보드',
+    icon: 'bx-home-alt',
+    requiresAuth: true,
+  },
+})
+import { getTodayDashboard, getTodayInboundOutbound } from '@/api/order'
+import { computed, onMounted, ref } from 'vue'
 import VueApexCharts from 'vue3-apexcharts'
+
+/* ===== 로딩 상태 ===== */
+const loading = ref(false)
+const error = ref('')
 
 /* ===== KPI (오늘) ===== */
 const kpi = ref({
-  todayInbound: 18,
-  todayOutbound: 22,
-  inTransit: 7,
-  criticalAlerts: 3,
-  totalRevenue: 158_200_000,
+  todayInbound: 18,    // 오늘 입고 (더미 데이터)
+  todayOutbound: 22,   // 오늘 출고 (더미 데이터)
+  inTransit: 7,        // 이동 중 (더미 데이터)
+  totalRevenue: 158_200_000, // 금일 매출 (더미 데이터)
 })
 
+/* ===== API 데이터 ===== */
+const dashboardData = ref({})
+const hourlyInOutData = ref([])
+const hourlyStatsData = ref([])
+
 /* ===== 실시간 처리량 스파크라인 ===== */
-const sparkSeries = [{ name: '처리량', data: [2,3,4,5,3,6,5,4,7,6,5,8] }]
-const sparkOptions = {
-  chart: { type: 'line', sparkline: { enabled: true } },
-  stroke: { width: 3, curve: 'smooth' },
-  colors: ['#2563eb'],
+const getSparkData = (type) => {
+  if (hourlyStatsData.value.length === 0) {
+    // 더미 데이터 - 각 타입별로 다른 패턴
+    const dummyData = {
+      todayInbound: [2,3,4,5,3,6,5,4,7,6,5,8,3,2,1,0,1,2,3,4,5,6,7,8],
+      todayOutbound: [1,2,3,4,5,6,7,6,5,4,3,2,1,0,1,2,3,4,5,6,7,8,9,10],
+      inTransit: [0,0,1,2,3,4,5,6,7,8,9,8,7,6,5,4,3,2,1,0,1,2,3,4],
+      criticalAlerts: [0,0,0,1,1,2,1,0,0,1,2,3,2,1,0,0,1,1,2,1,0,0,1,2],
+      totalRevenue: [1000,2000,3000,4000,5000,6000,7000,8000,9000,8000,7000,6000,5000,4000,3000,2000,1000,2000,3000,4000,5000,6000,7000,8000]
+    }
+    return dummyData[type] || [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+  }
+  
+  // API 데이터로 24시간 배열 생성
+  const data = new Array(24).fill(0)
+  hourlyStatsData.value.forEach(hour => {
+    if (hour.hour >= 0 && hour.hour < 24) {
+      switch(type) {
+        case 'todayInbound':
+          data[hour.hour] = hour.orderCount || 0
+          break
+        case 'todayOutbound':
+          data[hour.hour] = hour.shippingProcessedCount || 0
+          break
+        case 'inTransit':
+          data[hour.hour] = hour.shippingInProgressCount || 0
+          break
+        case 'criticalAlerts':
+          // 알림은 임시로 주문 수의 10%로 계산
+          data[hour.hour] = Math.floor((hour.orderCount || 0) * 0.1)
+          break
+        case 'totalRevenue':
+          data[hour.hour] = hour.revenue || 0
+          break
+      }
+    }
+  })
+  
+  return data
 }
 
-/* ===== 오늘 입출고 추이 ===== */
-const hours = ['09','10','11','12','13','14','15','16','17']
-const dailySeries = ref([
-  { name:'입고', data:[2,3,4,5,4,5,3,2,1] },
-  { name:'출고', data:[1,2,3,4,5,6,7,6,5] },
-])
+const sparkSeries = computed(() => {
+  return [{ name: '처리량', data: getSparkData('todayInbound') }]
+})
+
+const getSparkOptions = (type) => {
+  const colors = {
+    todayInbound: '#2563eb',    // 파란색
+    todayOutbound: '#06b6d4',   // 하늘색
+    inTransit: '#f59e0b',       // 주황색
+    criticalAlerts: '#ef4444',  // 빨간색
+    totalRevenue: '#10b981'     // 초록색
+  }
+  
+  return {
+    chart: { type: 'line', sparkline: { enabled: true } },
+    stroke: { width: 3, curve: 'smooth' },
+    colors: [colors[type] || '#2563eb'],
+  }
+}
+
+/* ===== 오늘 주문/출고 추이 ===== */
+const hours = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'))
+const dailySeries = computed(() => {
+  // hourlyStats 데이터가 있으면 우선 사용, 없으면 hourlyInOutData 사용
+  const sourceData = hourlyStatsData.value.length > 0 ? hourlyStatsData.value : hourlyInOutData.value
+  
+  if (sourceData.length === 0) {
+    // 더미 데이터
+    return [
+      { name: '주문수', data: [2,3,4,5,4,5,3,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] },
+      { name: '출고수', data: [1,2,3,4,5,6,7,6,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] }
+    ]
+  }
+  
+  // API 데이터로 24시간 배열 생성
+  const orderData = new Array(24).fill(0)
+  const outboundData = new Array(24).fill(0)
+  
+  sourceData.forEach(hour => {
+    if (hour.hour >= 0 && hour.hour < 24) {
+      if (hourlyStatsData.value.length > 0) {
+        // hourlyStats 데이터 사용
+        orderData[hour.hour] = hour.orderCount || 0
+        outboundData[hour.hour] = hour.shippingProcessedCount || 0
+      } else {
+        // hourlyInOutData 사용
+        orderData[hour.hour] = hour.inboundOrders || 0
+        outboundData[hour.hour] = hour.outboundShipped || 0
+      }
+    }
+  })
+  
+  return [
+    { name: '주문수', data: orderData },
+    { name: '출고수', data: outboundData }
+  ]
+})
+
 const lineOptions = {
-  chart:{ type:'line', toolbar:{ show:false } },
-  stroke:{ width:3, curve:'smooth' },
-  markers:{ size:3 },
-  xaxis:{ categories:hours, title:{ text:'시간' } },
-  tooltip:{ y:{ formatter:(v:number)=>`${v}건` } },
-  colors:['#4f8cff','#60c5a8'],
+  chart: { type: 'line', toolbar: { show: false } },
+  stroke: { width: 3, curve: 'smooth' },
+  markers: { size: 3 },
+  xaxis: { 
+    categories: hours, 
+    labels: {
+      show: true,
+      rotate: 0,
+      formatter: (value) => value + '시'
+    }
+  },
+  tooltip: { y: { formatter: (v: number) => `${v}건` } },
+  colors: ['#4f8cff', '#60c5a8'],
 }
 
 /* ===== 거점별 재고(도넛) ===== */
@@ -85,13 +194,84 @@ const topSales = ref([
 
 const nf = new Intl.NumberFormat('ko-KR')
 const chipColor = (t:Row['type']) => t==='입고'?'primary':t==='출고'?'info':'warning'
-onMounted(()=>{})
+
+/* ===== 데이터 로딩 ===== */
+const loadDashboardData = async () => {
+  try {
+    loading.value = true
+    error.value = ''
+    
+    console.log('=== 대시보드 데이터 로딩 시작 ===')
+    
+    // 병렬로 두 API 호출
+    const [dashboardRes, inOutRes] = await Promise.all([
+      getTodayDashboard(),
+      getTodayInboundOutbound()
+    ])
+    
+    console.log('=== API 호출 완료 ===')
+    console.log('대시보드 응답:', dashboardRes)
+    console.log('입출고 추이 응답:', inOutRes)
+    
+    // KPI 데이터 요약 출력
+    if (dashboardRes.success && dashboardRes.data?.summary) {
+      console.log('=== 최종 KPI 데이터 ===')
+      console.log('오늘주문:', dashboardRes.data.summary.totalOrders)
+      console.log('오늘출고:', dashboardRes.data.summary.shippingProcessed)
+      console.log('이동중:', dashboardRes.data.summary.shippingInProgress)
+      console.log('금일매출:', dashboardRes.data.summary.totalRevenue)
+    }
+    
+    // 대시보드 데이터 처리
+    if (dashboardRes.success && dashboardRes.data) {
+      dashboardData.value = dashboardRes.data
+      hourlyStatsData.value = dashboardRes.data.hourlyStats || []
+      
+      // API 데이터가 있으면 KPI 업데이트
+      if (dashboardRes.data.summary) {
+        kpi.value = {
+          todayInbound: dashboardRes.data.summary.totalOrders || 0,
+          todayOutbound: dashboardRes.data.summary.shippingProcessed || 0,
+          inTransit: dashboardRes.data.summary.shippingInProgress || 0,
+          totalRevenue: dashboardRes.data.summary.totalRevenue || 0,
+        }
+        console.log('KPI 업데이트됨:', kpi.value)
+      }
+      
+      console.log('시간대별 통계 데이터:', hourlyStatsData.value)
+      
+      // 각 KPI별 스파크라인 데이터 출력
+      console.log('=== 각 KPI별 스파크라인 데이터 ===')
+      const kpiTypes = ['todayInbound', 'todayOutbound', 'inTransit', 'criticalAlerts', 'totalRevenue']
+      kpiTypes.forEach(type => {
+        const data = getSparkData(type)
+        console.log(`${type} 스파크라인 데이터:`, data)
+      })
+    }
+    
+    // 입출고 추이 데이터 처리
+    if (inOutRes.success && inOutRes.data) {
+      hourlyInOutData.value = inOutRes.data.hours || []
+      console.log('시간대별 데이터 업데이트됨:', hourlyInOutData.value)
+    }
+    
+  } catch (err) {
+    console.error('대시보드 데이터 로딩 실패:', err)
+    error.value = '대시보드 데이터를 불러오는데 실패했습니다.'
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  loadDashboardData()
+})
 </script>
 
 <template>
   <div class="page-container dashboard-page">
     <!-- 헤더 섹션 -->
-    <div class="filter-section">
+    <div class="">
       <div class="d-flex flex-wrap align-center justify-space-between gap-4">
         <div class="d-flex align-center gap-3">
           <VIcon icon="bx-bar-chart-alt-2" size="24" class="text-primary" />
@@ -99,17 +279,31 @@ onMounted(()=>{})
           <VChip size="small" variant="tonal" color="primary">Today</VChip>
         </div>
         <div class="d-flex align-center gap-3">
-          <VBtn variant="flat" color="primary" size="small">
-            <VIcon start icon="bx-log-in" size="16"/>
-            입고 처리
-          </VBtn>
-          <VBtn variant="flat" color="info" size="small">
-            <VIcon start icon="bx-log-out" size="16"/>
-            출고 처리
+          <VBtn 
+            variant="flat" 
+            color="primary" 
+            size="small"
+            :loading="loading"
+            @click="loadDashboardData"
+          >
+            <VIcon start icon="bx-refresh" size="16"/>
+            새로고침
           </VBtn>
         </div>
       </div>
     </div>
+
+    <!-- 에러 메시지 -->
+    <VAlert
+      v-if="error"
+      type="error"
+      variant="tonal"
+      closable
+      @click:close="error = ''"
+      class="mb-4"
+    >
+      {{ error }}
+    </VAlert>
 
     <!-- 메인 콘텐츠 영역 -->
     <div class="dashboard-content">
@@ -142,21 +336,36 @@ onMounted(()=>{})
                 />
               </VAvatar>
             </div>
-            <VueApexCharts :series="sparkSeries" :options="sparkOptions" height="50" type="line" class="mt-2" />
+            <VueApexCharts 
+              :series="[{ name: '처리량', data: getSparkData(k) }]" 
+              :options="getSparkOptions(k)" 
+              height="50" 
+              type="line" 
+              class="mt-2" 
+            />
           </VCard>
         </div>
       </div>
 
       <!-- 차트 섹션 -->
       <div class="charts-section">
-        <!-- 입출고 추이 차트 -->
+        <!-- 주문/출고 추이 차트 -->
         <VCard class="chart-card">
           <VCardTitle class="text-subtitle-1 text-high-emphasis">
             <VIcon icon="bx-trending-up" size="18" class="me-2" />
-            오늘 시간대별 입출고 추이
+            오늘 시간대별 주문/출고 추이
           </VCardTitle>
           <VCardText class="pt-0">
-            <VueApexCharts height="280" type="line" :options="lineOptions" :series="dailySeries" />
+            <div v-if="loading" class="d-flex justify-center align-center" style="height: 280px;">
+              <VProgressCircular indeterminate color="primary" />
+            </div>
+            <VueApexCharts 
+              v-else
+              height="280" 
+              type="line" 
+              :options="lineOptions" 
+              :series="dailySeries" 
+            />
           </VCardText>
         </VCard>
 
@@ -260,7 +469,7 @@ onMounted(()=>{})
 <style scoped>
 /* 대시보드 레이아웃 */
 .dashboard-content {
-  padding: 16px 24px;
+  padding: 16px 0px;
   display: flex;
   flex-direction: column;
   gap: 16px;

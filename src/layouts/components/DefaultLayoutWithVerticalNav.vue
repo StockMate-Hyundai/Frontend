@@ -3,10 +3,10 @@ import navItems from '@/navigation/vertical'
 import { themeConfig } from '@themeConfig'
 
 // Components
-import Footer from '@/layouts/components/Footer.vue'
 import NavbarThemeSwitcher from '@/layouts/components/NavbarThemeSwitcher.vue'
 import UserProfile from '@/layouts/components/UserProfile.vue'
 import NavBarI18n from '@core/components/I18n.vue'
+import NavigationHistoryTabs from '@core/components/NavigationHistoryTabs.vue'
 
 // @layouts plugin
 import { useConfigStore } from '@/@core/stores/config'
@@ -34,7 +34,7 @@ const actionArrowInitialRotation = configStore.isVerticalNavCollapsed ? '180deg'
   <VerticalNavLayout :nav-items="navItems">
     <!-- 👉 navbar -->
     <template #navbar="{ toggleVerticalOverlayNavActive }">
-      <div class="d-flex h-100 align-center">
+      <div class="navbar-main d-flex h-100 align-center">
         <IconBtn
           id="vertical-nav-toggle-btn"
           class="ms-n3 d-lg-none"
@@ -47,7 +47,10 @@ const actionArrowInitialRotation = configStore.isVerticalNavCollapsed ? '180deg'
         </IconBtn>
 
         <NavbarThemeSwitcher />
-
+        <!-- 👉 네비게이션 히스토리 탭 -->
+        <div class="navbar-tabs">
+          <NavigationHistoryTabs />
+        </div>
         <VSpacer />
 
         <NavBarI18n
@@ -69,6 +72,14 @@ const actionArrowInitialRotation = configStore.isVerticalNavCollapsed ? '180deg'
 <style lang="scss">
 @use "@layouts/styles/mixins" as layoutsMixins;
 
+.navbar-main {
+  flex-shrink: 0;
+}
+
+.navbar-tabs {
+  flex-shrink: 0;
+}
+
 .layout-vertical-nav {
   // ℹ️ Nav header circle on the right edge
   .nav-header {
@@ -76,18 +87,17 @@ const actionArrowInitialRotation = configStore.isVerticalNavCollapsed ? '180deg'
     overflow: visible !important;
 
     &::after {
-      --diameter: 36px;
+      --diameter: 36px; // 36px에서 48px로 크기 증가
 
       position: absolute;
       z-index: -1;
-      border: 7px solid rgba(var(--v-theme-background), 1);
-      border-radius: 100%;
       aspect-ratio: 1;
-      background: rgba(var(--v-theme-surface), 1);
+      background: rgba(var(--v-theme-surface), 1); // 흰색 배경 복원
+      border-radius: 50%; // 원형으로 만들기
       content: "";
       inline-size: var(--diameter);
       inset-block-start: calc(50% - var(--diameter) / 2);
-      inset-inline-end: -18px;
+      inset-inline-end: -18px; // 위치 조정 (18px에서 24px로)
 
       @at-root {
         // Change background color of nav header circle when vertical nav is in overlay mode
@@ -145,8 +155,20 @@ const actionArrowInitialRotation = configStore.isVerticalNavCollapsed ? '180deg'
       // ℹ️ We need to create this CSS variable for reusing value in animation
       --app-header-actions-scale-x: 1;
 
+      // 원형 버튼 스타일 직접 정의 - !important로 강제 적용
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      background-color: rgb(var(--v-global-theme-primary)) !important;
+      height: 1.375rem !important;
+      width: 1.375rem !important;
+      border-radius: 50% !important;
+      min-width: 1.375rem !important;
+      min-height: 1.375rem !important;
+      max-width: 1.375rem !important;
+      max-height: 1.375rem !important;
+      
       position: absolute;
-      border-radius: 100%;
       animation-duration: 0.35s;
       animation-fill-mode: forwards;
       animation-name: v-bind(verticalNavHeaderActionAnimationName);
@@ -168,5 +190,23 @@ const actionArrowInitialRotation = configStore.isVerticalNavCollapsed ? '180deg'
       }
     }
   }
+}
+
+// 더 강력한 선택자로 header-action 버튼 강제 원형화
+.layout-wrapper.layout-nav-type-vertical .layout-vertical-nav .nav-header .header-action,
+.layout-vertical-nav .nav-header .header-action,
+.header-action {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background-color: rgb(var(--v-global-theme-primary)) !important;
+  height: 1.375rem !important;
+  width: 1.375rem !important;
+  border-radius: 50% !important;
+  min-width: 1.375rem !important;
+  min-height: 1.375rem !important;
+  max-width: 1.375rem !important;
+  max-height: 1.375rem !important;
+  box-sizing: border-box !important;
 }
 </style>

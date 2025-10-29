@@ -14,6 +14,11 @@ export default [
   },
   ...stock,
   ...user,
+  {
+    title: '3D 뷰어',
+    to: { name: 'warehouse-viewer' },
+    icon: { icon: 'bx-cube' },
+  },
 
   // {
   //   title: '일정표',
