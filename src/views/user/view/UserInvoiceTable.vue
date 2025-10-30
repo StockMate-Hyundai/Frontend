@@ -1,5 +1,6 @@
 <script setup>
 import { getOrderListByMemberId } from '@/api/order'
+import { ORDER_STATUS, resolveOrderStatus } from '@/utils/orderStatus'
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
@@ -77,7 +78,7 @@ const fetchInvoices = async () => {
     const rows = content.map(o => ({
       orderNumber: o.orderNumber ?? o.id ?? o.orderId,
       orderId: o.orderId ?? 0,
-      orderStatus: o.orderStatus ?? o.status ?? 'PENDING_SHIPPING',
+      orderStatus: o.orderStatus ?? o.status ?? ORDER_STATUS.PENDING_SHIPPING,
       totalPrice: o.totalPrice ?? o.total ?? o.totalAmount ?? 0,
       createdAt: o.createdAt ?? o.orderedAt ?? '',
 
@@ -111,19 +112,7 @@ await fetchInvoices()
 /* ==========================
    표시 유틸 (주문 상태용)
 ========================== */
-const resolveOrderStatus = s => {
-  const key = String(s || '').toUpperCase()
-  switch (key) {
-  case 'ORDER_COMPLETED':  return { text: '주문 완료',  color: 'primary',   icon: 'bx-purchase-tag' }
-  case 'PENDING_SHIPPING': return { text: '출고 대기',  color: 'warning',   icon: 'bx-time' }
-  case 'SHIPPING':         return { text: '배송중',    color: 'info',      icon: 'bx-package' }
-  case 'REJECTED':         return { text: '주문 반려',  color: 'error',     icon: 'bx-error-circle' }
-  case 'DELIVERED':        return { text: '배송 완료',  color: 'success',   icon: 'bx-check' }
-  case 'RECEIVED':         return { text: '입고 완료',  color: 'secondary', icon: 'bx-archive' }
-  case 'CANCELLED':        return { text: '주문 취소',  color: 'error',     icon: 'bx-error-circle' }
-  default:                 return { text: '연동 대기',  color: 'secondary', icon: 'bx-purchase-tag' }
-  }
-}
+// resolveOrderStatus는 utils/orderStatus.js에서 통합 관리
 
 const computedMoreList = computed(() => {
   return orderNo => [
@@ -207,7 +196,7 @@ const deleteInvoice = async id => {
             </IconBtn>
 
             <MoreBtn
-              :menu-list="computedMoreList(item.orderNumber)"
+              :menu-list="computedMoreList(item.orderId)"
               item-props
               class="text-medium-emphasis"
             />

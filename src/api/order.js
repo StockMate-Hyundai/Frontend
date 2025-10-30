@@ -1,19 +1,8 @@
 // File: src/api/order.js
 import { http } from '@/api/http'
 
-/**
- * 주문 상태 Enum (서버 스펙과 동일)
- * @type {const}
- */
-export const ORDER_STATUS = {
-  ORDER_COMPLETED: 'ORDER_COMPLETED',
-  PENDING_SHIPPING: 'PENDING_SHIPPING',
-  SHIPPING: 'SHIPPING',
-  REJECTED: 'REJECTED',
-  DELIVERED: 'DELIVERED',
-  RECEIVED: 'RECEIVED',
-  CANCELLED: 'CANCELLED',
-}
+// 주문 상태는 utils/orderStatus.js에서 통합 관리
+export { ORDER_STATUS } from '@/utils/orderStatus'
 
 /** 내부: 빈값 방지용 기본 응답 */
 function normalizeOrderList(payload = {}) {
@@ -233,23 +222,6 @@ export async function getTodayDashboard() {
   try {
     const res = await http.get('/api/v1/order/dashboard/today')
     
-    console.log('=== 금일 대시보드 API 응답 ===')
-    console.log('전체 응답:', res?.data)
-    console.log('요약 데이터:', res?.data?.data?.summary)
-    console.log('시간대별 통계:', res?.data?.data?.hourlyStats)
-    
-    // 시간대별 데이터 상세 출력
-    if (res?.data?.data?.hourlyStats) {
-      console.log('=== 시간대별 상세 데이터 ===')
-      res.data.data.hourlyStats.forEach((hour, index) => {
-        console.log(`시간 ${hour.hour}시:`, {
-          '오늘주문': hour.orderCount,
-          '오늘출고': hour.shippingProcessedCount,
-          '이동중': hour.shippingInProgressCount,
-          '금일매출': hour.revenue
-        })
-      })
-    }
     
     return {
       status: res?.data?.status ?? 200,
@@ -258,7 +230,6 @@ export async function getTodayDashboard() {
       data: res?.data?.data ?? {},
     }
   } catch (error) {
-    console.error('대시보드 API 호출 실패:', error)
     throw error
   }
 }
@@ -271,9 +242,6 @@ export async function getTodayInboundOutbound() {
   try {
     const res = await http.get('/api/v1/order/dashboard/today/inout')
     
-    console.log('=== 시간대별 입출고 추이 API 응답 ===')
-    console.log('전체 응답:', res?.data)
-    console.log('시간대별 데이터:', res?.data?.data?.hours)
     
     return {
       status: res?.data?.status ?? 200,
@@ -282,7 +250,6 @@ export async function getTodayInboundOutbound() {
       data: res?.data?.data ?? {},
     }
   } catch (error) {
-    console.error('입출고 추이 API 호출 실패:', error)
     throw error
   }
 }

@@ -59,7 +59,14 @@ const navigateToPage = path => {
 }
 
 const removePage = path => {
+  const isActive = route.path === path
+
   navigationHistoryStore.removeFromHistory(path)
+  if (isActive) {
+    const next = navigationHistoryStore.getCurrentPage
+
+    router.push(next?.path || '/')
+  }
 }
 </script>
 

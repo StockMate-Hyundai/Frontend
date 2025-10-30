@@ -27,21 +27,6 @@ export const useLayoutConfigStore = defineStore('layoutConfig', () => {
   // 👉 App Content Layout Nav
   const appContentLayoutNav = ref(layoutConfig.app.contentLayoutNav)
 
-  watch(appContentLayoutNav, val => {
-    // If Navbar type is hidden while switching to horizontal nav => Reset it to sticky
-    if (val === AppContentLayoutNav.Horizontal) {
-      if (navbarType.value === NavbarType.Hidden)
-        navbarType.value = NavbarType.Sticky
-      isVerticalNavCollapsed.value = false
-    }
-  })
-
-
-  // 👉 Horizontal Nav Type
-  const horizontalNavType = ref(layoutConfig.horizontalNav.type)
-
-  //  👉 Horizontal Nav Popover Offset
-  const horizontalNavPopoverOffset = ref(layoutConfig.horizontalNav.popoverOffset)
 
   // 👉 Footer Type
   const footerType = ref(layoutConfig.footer.type)
@@ -78,7 +63,6 @@ export const useLayoutConfigStore = defineStore('layoutConfig', () => {
                     && appContentLayoutNav.value === 'vertical'
                     && !isLessThanOverlayNavBreakpoint.value,
       },
-      { [`horizontal-nav-${horizontalNavType.value}`]: appContentLayoutNav.value === 'horizontal' },
       `layout-content-width-${appContentWidth.value}`,
       { 'layout-overlay-nav': isLessThanOverlayNavBreakpoint.value },
       { 'window-scrolled': unref(windowScrollY) },
@@ -119,8 +103,6 @@ export const useLayoutConfigStore = defineStore('layoutConfig', () => {
     navbarType,
     isNavbarBlurEnabled,
     isVerticalNavCollapsed,
-    horizontalNavType,
-    horizontalNavPopoverOffset,
     footerType,
     isLessThanOverlayNavBreakpoint,
     isAppRTL,

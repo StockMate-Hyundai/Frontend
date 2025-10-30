@@ -1,12 +1,4 @@
 <script setup>
-definePage({
-  meta: {
-    title: '부족 부품 목록',
-    icon: 'bx-error-circle',
-    requiresAuth: true,
-  },
-})
-
 import { getLackStock } from '@/api/parts'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 
@@ -258,7 +250,6 @@ async function loadParts() {
       model: filters.model?.length ? filters.model : undefined,
     })
 
-    console.log(pageData)
     rawPage.value = {
       content: pageData.content,
       page: pageData.page,
@@ -689,8 +680,7 @@ function closeImagePreview() {
 .table-footer {
   flex-shrink: 0;
   background: var(--erp-bg-secondary);
-  border-top: 1px solid var(--erp-border-light);
-  padding: 12px 24px;
+  padding: 5px 24px;
 }
 
 /* 페이지 하단 마진 */

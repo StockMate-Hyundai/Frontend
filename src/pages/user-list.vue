@@ -149,7 +149,6 @@ const fetchUsers = async () => {
     const dto = await apiGetUsersPublic({ page: serverPage, size: serverSize })
     const content = Array.isArray(dto?.content) ? dto.content : []
 
-    console.log(dto)
 
     // 표시용 매핑 (서버에 role/plan/status/billing 없음 → 기본값)
     let list = content.map(u => ({
@@ -681,8 +680,7 @@ const widgetData = computed(() => [
 .table-footer {
   flex: 0 0 auto;
   background: var(--erp-bg-secondary);
-  border-top: 1px solid var(--erp-border-light);
-  padding: 12px 24px;
+  padding: 5px 24px;
   z-index: 2;
   position: relative;
   width: 100%;

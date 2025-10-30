@@ -1,5 +1,6 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
+import { ORDER_STATUS_OPTIONS } from '@/utils/orderStatus'
 
 /* =========================
    Props (후방호환 기본값)
@@ -23,15 +24,7 @@ const props = defineProps({
   /* 옵션 소스 */
   statusOptions: {
     type: Array,
-    default: () => [
-      { label: '주문 완료', value: 'ORDER_COMPLETED' },
-      { label: '출고 대기', value: 'PENDING_SHIPPING' },
-      { label: '배송중',   value: 'SHIPPING' },
-      { label: '주문 반려', value: 'REJECTED' },
-      { label: '배송 완료', value: 'DELIVERED' },
-      { label: '입고 완료', value: 'RECEIVED' },
-      { label: '주문 취소', value: 'CANCELLED' },
-    ],
+    default: () => ORDER_STATUS_OPTIONS,
   },
   memberItems: { type: Array, default: () => [] }, // [{ title, value }]
   partItems: { type: Array, default: () => [] }, // [{ title, value }]
@@ -227,7 +220,6 @@ function onReset() {
 ========================= */
 watch(() => props.pageType, t => {
   // 안내용 로그 (원하면 실제 토글도 가능)
-  // console.log('[AppPartsFilters] pageType:', t)
 })
 </script>
 

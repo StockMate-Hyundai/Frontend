@@ -201,26 +201,11 @@ const loadDashboardData = async () => {
     loading.value = true
     error.value = ''
     
-    console.log('=== 대시보드 데이터 로딩 시작 ===')
-    
     // 병렬로 두 API 호출
     const [dashboardRes, inOutRes] = await Promise.all([
       getTodayDashboard(),
       getTodayInboundOutbound()
     ])
-    
-    console.log('=== API 호출 완료 ===')
-    console.log('대시보드 응답:', dashboardRes)
-    console.log('입출고 추이 응답:', inOutRes)
-    
-    // KPI 데이터 요약 출력
-    if (dashboardRes.success && dashboardRes.data?.summary) {
-      console.log('=== 최종 KPI 데이터 ===')
-      console.log('오늘주문:', dashboardRes.data.summary.totalOrders)
-      console.log('오늘출고:', dashboardRes.data.summary.shippingProcessed)
-      console.log('이동중:', dashboardRes.data.summary.shippingInProgress)
-      console.log('금일매출:', dashboardRes.data.summary.totalRevenue)
-    }
     
     // 대시보드 데이터 처리
     if (dashboardRes.success && dashboardRes.data) {
@@ -234,29 +219,17 @@ const loadDashboardData = async () => {
           todayOutbound: dashboardRes.data.summary.shippingProcessed || 0,
           inTransit: dashboardRes.data.summary.shippingInProgress || 0,
           totalRevenue: dashboardRes.data.summary.totalRevenue || 0,
+          // [TODO] API 개발되면 criticalAlerts 추가해야함
         }
-        console.log('KPI 업데이트됨:', kpi.value)
       }
-      
-      console.log('시간대별 통계 데이터:', hourlyStatsData.value)
-      
-      // 각 KPI별 스파크라인 데이터 출력
-      console.log('=== 각 KPI별 스파크라인 데이터 ===')
-      const kpiTypes = ['todayInbound', 'todayOutbound', 'inTransit', 'criticalAlerts', 'totalRevenue']
-      kpiTypes.forEach(type => {
-        const data = getSparkData(type)
-        console.log(`${type} 스파크라인 데이터:`, data)
-      })
     }
     
     // 입출고 추이 데이터 처리
     if (inOutRes.success && inOutRes.data) {
       hourlyInOutData.value = inOutRes.data.hours || []
-      console.log('시간대별 데이터 업데이트됨:', hourlyInOutData.value)
     }
     
   } catch (err) {
-    console.error('대시보드 데이터 로딩 실패:', err)
     error.value = '대시보드 데이터를 불러오는데 실패했습니다.'
   } finally {
     loading.value = false

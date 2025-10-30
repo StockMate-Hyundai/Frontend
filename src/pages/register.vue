@@ -70,7 +70,6 @@ const onSubmit = async () => {
       serverError.value = res?.message || '회원가입에 실패했습니다.'
     }
   } catch (e) {
-    console.log(e)
     serverError.value = e?.response?.data?.message || '회원가입 요청 중 오류가 발생했습니다.'
   } finally {
     loading.value = false

@@ -7,7 +7,7 @@ definePage({
   },
 })
 
-import { searchParts } from '@/api/parts'; // ✅ 변경
+import { searchParts } from '@/api/parts' // ✅ 변경
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 
 import AppExportButton from '@/components/common/ExportToExcel.vue'
@@ -260,7 +260,6 @@ async function loadParts() {
       model: filters.model?.length ? filters.model : undefined,
     })
 
-    console.log(pageData)
     rawPage.value = {
       content: pageData.content,
       page: pageData.page,
@@ -692,8 +691,7 @@ function closeImagePreview() {
 .table-footer {
   flex-shrink: 0;
   background: var(--erp-bg-secondary);
-  border-top: 1px solid var(--erp-border-light);
-  padding: 12px 24px;
+  padding: 5px 24px;
 }
 
 /* 페이지 하단 마진 */

@@ -1,4 +1,4 @@
-import { AppContentLayoutNav, ContentWidth, FooterType, HorizontalNavType, NavbarType } from '@layouts/enums'
+import { AppContentLayoutNav, ContentWidth, FooterType, NavbarType } from '@layouts/enums'
 import { breakpointsVuetify } from '@vueuse/core'
 
 export const layoutConfig = {
@@ -25,11 +25,6 @@ export const layoutConfig = {
   verticalNav: {
     isVerticalNavCollapsed: false,
     defaultNavItemIconProps: { icon: 'mdi-circle-outline' },
-  },
-  horizontalNav: {
-    type: HorizontalNavType.Sticky,
-    transition: 'none',
-    popoverOffset: 0,
   },
   icons: {
     chevronDown: { icon: 'mdi-chevron-down' },

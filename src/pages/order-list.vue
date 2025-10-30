@@ -7,7 +7,8 @@ definePage({
   },
 })
 
-import { cancelOrder as apiCancelOrder, deleteOrder as apiDeleteOrder, fetchOrdersForTable, ORDER_STATUS } from '@/api/order'
+import { cancelOrder as apiCancelOrder, deleteOrder as apiDeleteOrder, fetchOrdersForTable } from '@/api/order'
+import { ORDER_STATUS, ORDER_STATUS_OPTIONS, resolveOrderStatus } from '@/utils/orderStatus'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 
 import AppExportButton from '@/components/common/ExportToExcel.vue'
@@ -107,15 +108,7 @@ const filters = reactive({
 const isFilterExpanded = ref(true)
 
 /* 상태 선택지 */
-const statusOptions = ref([
-  { label: '주문 완료', value: 'ORDER_COMPLETED' },
-  { label: '출고 대기', value: 'PENDING_SHIPPING' },
-  { label: '배송중', value: 'SHIPPING' },
-  { label: '주문 반려', value: 'REJECTED' },
-  { label: '배송 완료', value: 'DELIVERED' },
-  { label: '입고 완료', value: 'RECEIVED' },
-  { label: '주문 취소', value: 'CANCELLED' },
-])
+const statusOptions = ref(ORDER_STATUS_OPTIONS)
 
 function onSearch() {
   isFilterExpanded.value = false
@@ -224,18 +217,7 @@ const orders = computed(() => {
 /* 유틸 */
 const totalOrder = computed(() => ordersData.value.total)
 
-const resolveOrderStatus = s => {
-  switch (s) {
-  case ORDER_STATUS.ORDER_COMPLETED:  return { text: '주문 완료',  color: 'primary' }
-  case ORDER_STATUS.PENDING_SHIPPING: return { text: '출고 대기',  color: 'warning' }
-  case ORDER_STATUS.SHIPPING:         return { text: '배송중',    color: 'info' }
-  case ORDER_STATUS.REJECTED:         return { text: '주문 반려',  color: 'error' }
-  case ORDER_STATUS.DELIVERED:        return { text: '배송 완료',  color: 'success' }
-  case ORDER_STATUS.RECEIVED:         return { text: '입고 완료',  color: 'secondary' }
-  case ORDER_STATUS.CANCELLED:        return { text: '주문 취소',  color: 'error' }
-  default:                            return { text: '연동 대기',  color: 'default' }
-  }
-}
+// resolveOrderStatus는 utils/orderStatus.js에서 import
 
 /* 액션 */
 const deleteOrder = async orderId => {
@@ -631,8 +613,7 @@ const getOrderItemsCountText = item => {
 .table-footer {
   flex-shrink: 0;
   background: var(--erp-bg-secondary);
-  border-top: 1px solid var(--erp-border-light);
-  padding: 12px 24px;
+  padding: 5px 24px;
 }
 
 /* 페이지 하단 마진 */

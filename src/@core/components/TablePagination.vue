@@ -33,10 +33,10 @@ const updatePage = value => {
       -->
 
       <VPagination
-        :model-value="page"
-        active-color="primary"
-        :length="Math.ceil(totalItems / itemsPerPage)"
-        :total-visible="$vuetify.display.xs ? 1 : Math.min(Math.ceil(totalItems / itemsPerPage), 12)"
+        :model-value="0"
+        active-color="white"
+        :length="0"
+        :total-visible="0"
         @update:model-value="updatePage"
       />
     </div>

@@ -9,6 +9,7 @@ definePage({
 })
 import { cancelOrder as apiCancelOrder, deleteOrder as apiDeleteOrder, approveOrder, getOrderDetail, rejectOrder } from '@/api/order'
 import { executeOrderApproval } from '@/api/websocket'
+import { ORDER_STATUS, resolveOrderStatus } from '@/utils/orderStatus'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -17,21 +18,7 @@ const route  = useRoute()
 const router = useRouter()
 const orderId = computed(() => String(route.params.id ?? ''))
 
-/* 상태 칩 매핑 (API 스펙에 맞게 업데이트) */
-const STATUS_UI = {
-  ORDER_COMPLETED: { key: 'ORDER_COMPLETED',   text: '주문 완료',  color: 'primary' },
-  PENDING_APPROVAL: { key: 'PENDING_APPROVAL',  text: '승인 대기',  color: 'warning' },
-  FAILED: { key: 'FAILED',            text: '처리 실패',  color: 'error' },
-  PENDING_SHIPPING: { key: 'PENDING_SHIPPING',  text: '출고 대기',  color: 'warning' },
-  SHIPPING: { key: 'SHIPPING',          text: '배송중',    color: 'info' },
-  PENDING_RECEIVING: { key: 'PENDING_RECEIVING', text: '입고 대기',  color: 'warning' },
-  DELIVERED: { key: 'DELIVERED',         text: '배송 완료',  color: 'success' },
-  RECEIVED: { key: 'RECEIVED',          text: '입고 완료',  color: 'secondary' },
-  REJECTED: { key: 'REJECTED',          text: '주문 반려',  color: 'error' },
-  CANCELLED: { key: 'CANCELLED',         text: '주문 취소',  color: 'secondary' },
-}
-
-const resolveOrderStatus = s => STATUS_UI[s] ?? { text: '연동 대기', color: 'default' }
+// 상태 칩 매핑은 utils/orderStatus.js에서 통합 관리
 
 /* 상태/데이터 */
 const loading = ref(false)
@@ -261,45 +248,54 @@ const headers = [
 
 /* 승인 가능한 상태인지 확인 */
 const canApprove = computed(() => {
-  return summary.value.status === 'ORDER_COMPLETED' && !isApproving.value
+  return summary.value.status === ORDER_STATUS.ORDER_COMPLETED && !isApproving.value
 })
 
 /* 반려 가능한 상태인지 확인 */
 const canReject = computed(() => {
-  return summary.value.status === 'ORDER_COMPLETED' && !isRejecting.value
+  return summary.value.status === ORDER_STATUS.ORDER_COMPLETED && !isRejecting.value
 })
 
 /* =============== Shipping Activity 타임라인 =============== */
-const FLOW = ['ORDER_COMPLETED', 'PENDING_APPROVAL', 'PENDING_SHIPPING', 'SHIPPING', 'PENDING_RECEIVING', 'DELIVERED', 'RECEIVED']
+const FLOW = [
+  ORDER_STATUS.ORDER_COMPLETED, 
+  ORDER_STATUS.PENDING_APPROVAL, 
+  ORDER_STATUS.PENDING_SHIPPING, 
+  ORDER_STATUS.SHIPPING, 
+  ORDER_STATUS.PENDING_RECEIVING, 
+  ORDER_STATUS.DELIVERED, 
+  ORDER_STATUS.RECEIVED
+]
 
 const timelineSteps = computed(() => {
   const s = summary.value
   const current = String(s.status || '')
   const idx = FLOW.indexOf(current)
-  const rejected = current === 'REJECTED'
-  const cancelled = current === 'CANCELLED'
+  const rejected = current === ORDER_STATUS.REJECTED
+  const cancelled = current === ORDER_STATUS.CANCELLED
 
   const dateMap = {
-    ORDER_COMPLETED: s.createdAt || null,
-    PENDING_SHIPPING: s.requestedShippingDate || null,
-    SHIPPING: s.shippingDate || null,
+    [ORDER_STATUS.ORDER_COMPLETED]: s.createdAt || null,
+    [ORDER_STATUS.PENDING_SHIPPING]: s.requestedShippingDate || null,
+    [ORDER_STATUS.SHIPPING]: s.shippingDate || null,
   }
 
   const steps = FLOW.map((k, i) => ({
     key: k,
-    title: STATUS_UI[k].text,
+    title: resolveOrderStatus(k).text,
     date: dateMap[k],
     state: i < idx ? 'done' : i === idx ? 'current' : 'todo',
     dotColor: i < idx ? 'primary' : i === idx ? 'primary' : 'secondary',
   }))
 
   if (rejected || cancelled) {
+    const info = resolveOrderStatus(current)
     steps.push({
       key: current,
-      title: STATUS_UI[current].text,
+      title: info.text,
       date: null,
       state: 'current',
-      dotColor: STATUS_UI[current].color,
+      dotColor: info.color,
     })
   }
   
@@ -338,7 +334,7 @@ const timelineSteps = computed(() => {
     </VAlert>
 
     <!-- 상단 헤더: 컴팩트 -->
-    <div class="filter-section compact-header">
+    <div class="compact-header">
       <div class="d-flex justify-space-between align-center flex-wrap gap-y-2">
         <div>
           <div class="d-flex gap-2 align-center mb-1 flex-wrap">
