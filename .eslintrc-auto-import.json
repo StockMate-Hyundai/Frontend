@@ -363,6 +363,10 @@
     "whenever": true,
     "disposeWarehouse": true,
     "focusNextPath": true,
-    "initWarehouseScene": true
+    "initWarehouseScene": true,
+    "ORDER_STATUS": true,
+    "ORDER_STATUS_INFO": true,
+    "ORDER_STATUS_OPTIONS": true,
+    "resolveOrderStatus": true
   }
 }

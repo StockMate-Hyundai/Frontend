@@ -9,6 +9,7 @@ definePage({
 })
 import TablePagination from '@/@core/components/TablePagination.vue'
 import { getOrderList } from '@/api/order'
+import { ORDER_STATUS } from '@/utils/orderStatus'
 import { executeOrderApproval } from '@/api/websocket'
 import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -68,7 +69,7 @@ const headers = [
 function isErrorPayload(p) {
   return (
     p?.type === 'ORDER_APPROVAL_RESPONSE' &&
-    (p?.step === 'ERROR' || p?.status === 'REJECTED')
+    (p?.step === 'ERROR' || p?.status === ORDER_STATUS.REJECTED)
   )
 }
 function isCompletedPayload(p) {
@@ -85,7 +86,7 @@ async function loadOrders() {
   errorMsg.value = ''
   try {
     const data = await getOrderList({
-      status: 'ORDER_COMPLETED',
+      status: ORDER_STATUS.PAY_COMPLETED,
       page: page.value,
       size: itemsPerPage.value,
     })

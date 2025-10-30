@@ -33,7 +33,6 @@ export const createLayouts = userConfig => {
 
       // isAppRTL: userConfig.app?.isRTL ?? config.app.isRTL,
       // isLessThanOverlayNavBreakpoint: false,
-      horizontalNavType: cookieRef('horizontalNavType', userConfig.horizontalNav?.type ?? layoutConfig.horizontalNav.type).value,
     })
 
     // _setDirAttr(config.app.isRTL ? 'rtl' : 'ltr')

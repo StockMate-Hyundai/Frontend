@@ -193,7 +193,6 @@ const target = join(__dirname, 'icons.css');
         .join('\n');
     // Save the CSS to a file
     await fs.writeFile(target, cssContent, 'utf8');
-    console.log(`Saved CSS to ${target}!`);
 })().catch(err => {
     console.error(err);
 });

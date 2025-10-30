@@ -9,6 +9,9 @@ declare global {
   const $api: typeof import('./src/utils/api.js')['$api']
   const COOKIE_MAX_AGE_1_YEAR: typeof import('./src/utils/constants.js')['COOKIE_MAX_AGE_1_YEAR']
   const EffectScope: typeof import('vue')['EffectScope']
+  const ORDER_STATUS: typeof import('./src/utils/orderStatus.js')['ORDER_STATUS']
+  const ORDER_STATUS_INFO: typeof import('./src/utils/orderStatus.js')['ORDER_STATUS_INFO']
+  const ORDER_STATUS_OPTIONS: typeof import('./src/utils/orderStatus.js')['ORDER_STATUS_OPTIONS']
   const acceptHMRUpdate: typeof import('pinia')['acceptHMRUpdate']
   const alphaDashValidator: typeof import('./src/@core/utils/validators.js')['alphaDashValidator']
   const alphaValidator: typeof import('./src/@core/utils/validators.js')['alphaValidator']
@@ -129,6 +132,7 @@ declare global {
   const registerPlugins: typeof import('./src/@core/utils/plugins.js')['registerPlugins']
   const requiredValidator: typeof import('./src/@core/utils/validators.js')['requiredValidator']
   const resolveComponent: typeof import('vue')['resolveComponent']
+  const resolveOrderStatus: typeof import('./src/utils/orderStatus.js')['resolveOrderStatus']
   const resolveRef: typeof import('@vueuse/core')['resolveRef']
   const resolveUnref: typeof import('@vueuse/core')['resolveUnref']
   const resolveVuetifyTheme: typeof import('./src/@core/utils/vuetify.js')['resolveVuetifyTheme']
@@ -372,6 +376,9 @@ declare module 'vue' {
     readonly $api: UnwrapRef<typeof import('./src/utils/api.js')['$api']>
     readonly COOKIE_MAX_AGE_1_YEAR: UnwrapRef<typeof import('./src/utils/constants.js')['COOKIE_MAX_AGE_1_YEAR']>
     readonly EffectScope: UnwrapRef<typeof import('vue')['EffectScope']>
+    readonly ORDER_STATUS: UnwrapRef<typeof import('./src/utils/orderStatus.js')['ORDER_STATUS']>
+    readonly ORDER_STATUS_INFO: UnwrapRef<typeof import('./src/utils/orderStatus.js')['ORDER_STATUS_INFO']>
+    readonly ORDER_STATUS_OPTIONS: UnwrapRef<typeof import('./src/utils/orderStatus.js')['ORDER_STATUS_OPTIONS']>
     readonly acceptHMRUpdate: UnwrapRef<typeof import('pinia')['acceptHMRUpdate']>
     readonly alphaDashValidator: UnwrapRef<typeof import('./src/@core/utils/validators.js')['alphaDashValidator']>
     readonly alphaValidator: UnwrapRef<typeof import('./src/@core/utils/validators.js')['alphaValidator']>
@@ -491,6 +498,7 @@ declare module 'vue' {
     readonly registerPlugins: UnwrapRef<typeof import('./src/@core/utils/plugins.js')['registerPlugins']>
     readonly requiredValidator: UnwrapRef<typeof import('./src/@core/utils/validators.js')['requiredValidator']>
     readonly resolveComponent: UnwrapRef<typeof import('vue')['resolveComponent']>
+    readonly resolveOrderStatus: UnwrapRef<typeof import('./src/utils/orderStatus.js')['resolveOrderStatus']>
     readonly resolveRef: UnwrapRef<typeof import('@vueuse/core')['resolveRef']>
     readonly resolveUnref: UnwrapRef<typeof import('@vueuse/core')['resolveUnref']>
     readonly resolveVuetifyTheme: UnwrapRef<typeof import('./src/@core/utils/vuetify.js')['resolveVuetifyTheme']>

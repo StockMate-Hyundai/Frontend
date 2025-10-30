@@ -53,7 +53,6 @@ const login = async () => {
     router.replace(redirect)
   } catch (err) {
     // 서버가 주는 메시지 우선 노출
-    console.log(err)
 
     const msg =
       err?.response?.data?.message ||

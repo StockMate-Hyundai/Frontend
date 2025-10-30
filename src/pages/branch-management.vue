@@ -244,7 +244,6 @@ onMounted(async () => {
       const layerList = new window.Module.JSLayerList(true)
       const poiLayer = layerList.createLayer('POI_FLEET', window.Module.ELT_3DPOINT)
 
-      console.log("layerList", layerList)
 
 
       // ✅ 첫 세팅 시 geojson 전부 찍기

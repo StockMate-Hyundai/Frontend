@@ -261,9 +261,6 @@ function buildWarehouse() {
     }
   })
 
-  /* 벽면 랙 없음(요청대로) */
-  buildWallRacks(totalWidth, totalDepth, WALL_RACKS)
-
   /* 작업대 */
   const workX = totalWidth/2 - WORK.size.w/2 - 1.0
   let workZ = (totalDepth/2) - WORK.size.d/2 - 1.0
@@ -350,8 +347,6 @@ function buildBackToBackSegment(centerZ, segmentCenterX, bays=5){
   }
 }
 
-/* 벽면 랙(현재 미사용) */
-function buildWallRacks(){}
 
 /* 바닥/구역 표시 */
 function drawAisleStripe(cx, cz, w, d){
@@ -562,7 +557,6 @@ function setEmissive(target, color) {
 /* ===== FPS 모드 ===== */
 function enableFPS(){
   if (isFPS.value) return
-  console.log('FPS 모드 활성화')
   isFPS.value = true
 
   // 오비트 비활성
@@ -571,7 +565,6 @@ function enableFPS(){
   // 시작 위치/높이 (문 앞으로 이동하고 사람 눈높이로 설정)
   camera.position.set(ENTRANCE.x, 1.6, ENTRANCE.z) // 문 앞, 사람 눈높이 1.6m
   camera.rotation.set(0, Math.PI, 0) // 창고 내부 방향을 바라보도록 회전 (180도)
-  console.log('FPS 시작 위치:', camera.position)
 
   // 포인터락 컨트롤 생성
   fpsControls = new PointerLockControls(camera, renderer.domElement)
@@ -579,18 +572,15 @@ function enableFPS(){
 
   // 포인터락 이벤트
   fpsControls.addEventListener('lock', ()=> {
-    console.log('포인터 잠금됨')
     pointerLocked.value = true
   })
   fpsControls.addEventListener('unlock', ()=> {
-    console.log('포인터 잠금 해제됨')
     pointerLocked.value = false
   })
   
 }
 function disableFPS(){
   if (!isFPS.value) return
-  console.log('FPS 모드 비활성화')
   isFPS.value = false
   pointerLocked.value = false
   fpsControls?.unlock?.()
@@ -629,7 +619,6 @@ function updateFPS(delta){
 
   // 디버깅: 키 입력 상태 확인
   if (keys.w || keys.a || keys.s || keys.d) {
-    console.log('키 입력:', { w: keys.w, a: keys.a, s: keys.s, d: keys.d })
   }
 
   // 이동 시도
@@ -804,7 +793,7 @@ async function initScene() {
     updateModelInfo(); animate()
 
     window.addEventListener('pointermove', onPointerMove)
-    window.addEventListener('click', onClick)
+    renderer.domElement.addEventListener('click', onClick)
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('keyup', onKeyUp)
     window.addEventListener('resize', onWindowResize)
@@ -819,7 +808,7 @@ async function initScene() {
 onMounted(initScene)
 onUnmounted(() => {
   window.removeEventListener('pointermove', onPointerMove)
-  window.removeEventListener('click', onClick)
+  renderer?.domElement?.removeEventListener('click', onClick)
   window.removeEventListener('keydown', onKeyDown)
   window.removeEventListener('keyup', onKeyUp)
   window.removeEventListener('resize', onWindowResize)

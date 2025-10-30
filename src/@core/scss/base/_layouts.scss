@@ -51,13 +51,5 @@
     .layout-navbar {
       inset-block-start: variables.$vertical-nav-floating-navbar-top;
     }
-
-    /*
-      ℹ️ If it's floating navbar
-      Add `vertical-nav-floating-navbar-top` as margin top to .layout-page-content
-    */
-    .layout-page-content {
-      margin-block-start: variables.$vertical-nav-floating-navbar-top;
-    }
   }
 }
