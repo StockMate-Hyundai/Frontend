@@ -7,7 +7,7 @@ definePage({
     requiresAuth: true,
   },
 })
-import { cancelOrder as apiCancelOrder, deleteOrder as apiDeleteOrder, approveOrder, getOrderDetail, rejectOrder } from '@/api/order'
+import { deleteOrder as apiDeleteOrder, approveOrder, getOrderDetail, rejectOrder } from '@/api/order'
 import { executeOrderApproval } from '@/api/websocket'
 import { ORDER_STATUS, resolveOrderStatus } from '@/utils/orderStatus'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
@@ -215,17 +215,7 @@ onUnmounted(() => {
 
 /* 액션 */
 const loadingAction = ref(false)
-async function onCancel() {
-  if (!orderId.value) return
-  loadingAction.value = true
-  try {
-    await apiCancelOrder(Number(orderId.value))
-    await loadDetail()
-  } catch (e) {
-  } finally {
-    loadingAction.value = false
-  }
-}
+
 async function onDelete() {
   if (!orderId.value) return
   loadingAction.value = true
@@ -235,6 +225,44 @@ async function onDelete() {
   } catch (e) {
   } finally {
     loadingAction.value = false
+  }
+}
+
+async function onDownloadInvoice() {
+  if (!orderId.value) return
+  try {
+    const http = (await import('@/api/http')).http
+    const response = await http.get(`/api/v1/order/invoice/${orderId.value}`, {
+      responseType: 'blob',
+      validateStatus: function (status) {
+        return status < 500 // 500 에러는 intercept하지 않음
+      }
+    })
+    
+    // 400-499 에러는 blob으로 온 경우, 읽어보기
+    if (response.status >= 400) {
+      const text = await response.data.text()
+      console.error('[Invoice Download] server error:', text)
+      alert('서버에서 인보이스를 생성할 수 없습니다.')
+      return
+    }
+    
+    const blob = new Blob([response.data], { type: 'application/pdf' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `Invoice_${summary.value.orderNumber}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+  } catch (e) {
+    console.error('[Invoice Download] error:', e)
+    if (e.response?.status === 500) {
+      alert('서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.')
+    } else {
+      alert('인보이스 다운로드 중 오류가 발생했습니다.')
+    }
   }
 }
 
@@ -248,23 +276,26 @@ const headers = [
 
 /* 승인 가능한 상태인지 확인 */
 const canApprove = computed(() => {
-  return summary.value.status === ORDER_STATUS.ORDER_COMPLETED && !isApproving.value
+  return summary.value.status === ORDER_STATUS.PAY_COMPLETED && !isApproving.value
 })
 
 /* 반려 가능한 상태인지 확인 */
 const canReject = computed(() => {
-  return summary.value.status === ORDER_STATUS.ORDER_COMPLETED && !isRejecting.value
+  return summary.value.status === ORDER_STATUS.PAY_COMPLETED && !isRejecting.value
+})
+
+/* 인보이스 다운로드 가능한 상태인지 확인 */
+const canDownloadInvoice = computed(() => {
+  return [ORDER_STATUS.APPROVAL_ORDER, ORDER_STATUS.PENDING_SHIPPING, ORDER_STATUS.SHIPPING, ORDER_STATUS.RECEIVED].includes(summary.value.status)
 })
 
 /* =============== Shipping Activity 타임라인 =============== */
 const FLOW = [
-  ORDER_STATUS.ORDER_COMPLETED, 
-  ORDER_STATUS.PENDING_APPROVAL, 
-  ORDER_STATUS.PENDING_SHIPPING, 
-  ORDER_STATUS.SHIPPING, 
-  ORDER_STATUS.PENDING_RECEIVING, 
-  ORDER_STATUS.DELIVERED, 
-  ORDER_STATUS.RECEIVED
+  ORDER_STATUS.PAY_COMPLETED,
+  ORDER_STATUS.APPROVAL_ORDER,
+  ORDER_STATUS.PENDING_SHIPPING,
+  ORDER_STATUS.SHIPPING,
+  ORDER_STATUS.RECEIVED,
 ]
 
 const timelineSteps = computed(() => {
@@ -275,9 +306,11 @@ const timelineSteps = computed(() => {
   const cancelled = current === ORDER_STATUS.CANCELLED
 
   const dateMap = {
-    [ORDER_STATUS.ORDER_COMPLETED]: s.createdAt || null,
+    [ORDER_STATUS.PAY_COMPLETED]: s.createdAt || null,
+    [ORDER_STATUS.APPROVAL_ORDER]: null,
     [ORDER_STATUS.PENDING_SHIPPING]: s.requestedShippingDate || null,
     [ORDER_STATUS.SHIPPING]: s.shippingDate || null,
+    [ORDER_STATUS.RECEIVED]: null,
   }
 
   const steps = FLOW.map((k, i) => ({
@@ -290,6 +323,7 @@ const timelineSteps = computed(() => {
 
   if (rejected || cancelled) {
     const info = resolveOrderStatus(current)
+
     steps.push({
       key: current,
       title: info.text,
@@ -370,6 +404,20 @@ const timelineSteps = computed(() => {
         </div>
         <div class="d-flex gap-2">
           <VBtn
+            v-if="canDownloadInvoice"
+            variant="flat"
+            color="primary"
+            size="small"
+            @click="onDownloadInvoice"
+          >
+            <VIcon
+              start
+              icon="bx-download"
+              size="16"
+            />
+            인보이스 다운로드
+          </VBtn>
+          <VBtn
             v-if="canApprove"
             variant="flat"
             color="success"
@@ -387,7 +435,7 @@ const timelineSteps = computed(() => {
           <VBtn
             v-if="canReject"
             variant="flat"
-            color="error"
+            color="warning"
             size="small"
             :loading="isRejecting"
             @click="openRejectDialog"
@@ -398,20 +446,6 @@ const timelineSteps = computed(() => {
               size="16"
             />
             주문 반려
-          </VBtn>
-          <VBtn
-            variant="flat"
-            color="warning"
-            size="small"
-            :loading="loadingAction"
-            @click="onCancel"
-          >
-            <VIcon
-              start
-              icon="bx-x"
-              size="16"
-            />
-            주문 취소
           </VBtn>
           <VBtn
             variant="flat"
@@ -560,16 +594,16 @@ const timelineSteps = computed(() => {
           </div>
 
           <!-- 요청사항 (있는 경우만) -->
-          <div
-            v-if="summary.etc"
-            class="info-section"
-          >
+          <div class="info-section">
             <VDivider class="my-3" />
             <div class="info-row">
               <div class="info-label">
                 요청사항
               </div>
-              <div class="info-content">
+              <div
+                v-if="summary.etc"
+                class="info-content"
+              >
                 <div
                   class="text-body-2"
                   style="white-space: pre-line;"

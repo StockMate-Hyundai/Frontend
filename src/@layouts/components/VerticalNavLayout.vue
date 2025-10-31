@@ -200,7 +200,6 @@ const verticalNavAttrs = computed(() => {
     .layout-page-content {
       display: flex;
       overflow: hidden;
-
       .page-content-container {
         inline-size: 100%;
 

@@ -10,12 +10,13 @@ export const ORDER_STATUS = {
   PENDING_SHIPPING: 'PENDING_SHIPPING',         // 출고 대기
   SHIPPING: 'SHIPPING',                         // 배송중
   PENDING_RECEIVING: 'PENDING_RECEIVING',       // 입고 대기
-  REJECTED: 'REJECTED',                         // 출고 반려
+  REJECTED: 'REJECTED',                         // 주문 반려
   DELIVERED: 'DELIVERED',                       // 배송 완료
   RECEIVED: 'RECEIVED',                         // 입고 완료
   REFUNDED: 'REFUNDED',                         // 환불 완료
   REFUND_REJECTED: 'REFUND_REJECTED',           // 환불 반려
   CANCELLED: 'CANCELLED',                       // 주문 취소
+  APPROVAL_ORDER: 'APPROVAL_ORDER',             // 주문 승인
 }
 
 /**
@@ -24,68 +25,87 @@ export const ORDER_STATUS = {
 export const ORDER_STATUS_INFO = {
   [ORDER_STATUS.ORDER_COMPLETED]: {
     label: '주문 완료',
+    icon: 'bx-check-circle',
     color: 'primary',
     description: '주문이 완료되었습니다.'
   },
   [ORDER_STATUS.PAY_COMPLETED]: {
     label: '결제 완료',
+    icon: 'bx-check-circle',
     color: 'success',
     description: '결제가 완료되었습니다.'
   },
   [ORDER_STATUS.PENDING_APPROVAL]: {
     label: '승인 대기',
+    icon: 'bx-time-five',
     color: 'warning',
     description: '재고 차감 및 결제 진행 중입니다.'
   },
   [ORDER_STATUS.FAILED]: {
     label: '결제 실패',
+    icon: 'bx-x-circle',
     color: 'error',
     description: '결제 처리에 실패했습니다.'
   },
   [ORDER_STATUS.PENDING_SHIPPING]: {
     label: '출고 대기',
+    icon: 'bx-package',
     color: 'warning',
     description: '출고 준비 중입니다.'
   },
   [ORDER_STATUS.SHIPPING]: {
     label: '배송중',
+    icon: 'bx-shipping',
     color: 'info',
     description: '배송이 진행 중입니다.'
   },
   [ORDER_STATUS.PENDING_RECEIVING]: {
     label: '입고 대기',
+    icon: 'bx-package',
     color: 'warning',
     description: '입고 대기 중입니다.'
   },
   [ORDER_STATUS.REJECTED]: {
     label: '주문 반려',
+    icon: 'bx-x-circle',
     color: 'error',
     description: '주문이 반려되었습니다.'
   },
   [ORDER_STATUS.DELIVERED]: {
     label: '배송 완료',
+    icon: 'bx-check-circle',
     color: 'success',
     description: '배송이 완료되었습니다.'
   },
   [ORDER_STATUS.RECEIVED]: {
     label: '입고 완료',
+    icon: 'bx-check-circle',
     color: 'secondary',
     description: '입고가 완료되었습니다.'
   },
   [ORDER_STATUS.REFUNDED]: {
     label: '환불 완료',
+    icon: 'bx-money',
     color: 'info',
     description: '환불이 완료되었습니다.'
   },
   [ORDER_STATUS.REFUND_REJECTED]: {
     label: '환불 반려',
+    icon: 'bx-x-circle',
     color: 'error',
     description: '환불이 반려되었습니다.'
   },
   [ORDER_STATUS.CANCELLED]: {
     label: '주문 취소',
+    icon: 'bx-x-circle',
     color: 'error',
     description: '주문이 취소되었습니다.'
+  },
+  [ORDER_STATUS.APPROVAL_ORDER]: {
+    label: '주문 승인',
+    icon: 'bx-check-circle',
+    color: 'success',
+    description: '주문이 승인되었습니다.'
   }
 }
 
@@ -94,27 +114,23 @@ export const ORDER_STATUS_INFO = {
  */
 export const ORDER_STATUS_OPTIONS = [
   { label: '주문 완료', value: ORDER_STATUS.ORDER_COMPLETED },
-  { label: '결제 완료', value: ORDER_STATUS.PAY_COMPLETED },
-  { label: '승인 대기', value: ORDER_STATUS.PENDING_APPROVAL },
   { label: '결제 실패', value: ORDER_STATUS.FAILED },
+  { label: '결제 완료', value: ORDER_STATUS.PAY_COMPLETED },
+  { label: '주문 취소', value: ORDER_STATUS.CANCELLED },
+  { label: '주문 반려', value: ORDER_STATUS.REJECTED },
+  { label: '주문 승인', value: ORDER_STATUS.APPROVAL_ORDER },
   { label: '출고 대기', value: ORDER_STATUS.PENDING_SHIPPING },
   { label: '배송중', value: ORDER_STATUS.SHIPPING },
-  { label: '입고 대기', value: ORDER_STATUS.PENDING_RECEIVING },
-  { label: '주문 반려', value: ORDER_STATUS.REJECTED },
-  { label: '배송 완료', value: ORDER_STATUS.DELIVERED },
   { label: '입고 완료', value: ORDER_STATUS.RECEIVED },
-  { label: '환불 완료', value: ORDER_STATUS.REFUNDED },
-  { label: '환불 반려', value: ORDER_STATUS.REFUND_REJECTED },
-  { label: '주문 취소', value: ORDER_STATUS.CANCELLED }
 ]
 
 /**
  * 주문 상태 해결 함수
  * @param {string} status - 주문 상태
- * @returns {object} - { text, color, description }
+ * @returns {object} - { text, color, icon, description }
  */
 export const resolveOrderStatus = (status) => {
   const info = ORDER_STATUS_INFO[status]
-  if (info) return { text: info.label, color: info.color, description: info.description }
-  return { text: '알 수 없음', color: 'error', description: '알 수 없는 상태입니다.' }
+  if (info) return { text: info.label, color: info.color, icon: info.icon, description: info.description }
+  return { text: '알 수 없음', icon: 'bx-help-circle', color: 'error', description: '알 수 없는 상태입니다.' }
 }

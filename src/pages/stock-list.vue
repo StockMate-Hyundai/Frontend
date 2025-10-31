@@ -1,4 +1,9 @@
 <script setup>
+import { searchParts } from '@/api/parts'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+
+import AppExportButton from '@/components/common/ExportToExcel.vue'
+
 definePage({
   meta: {
     title: '부품 목록',
@@ -6,11 +11,6 @@ definePage({
     requiresAuth: true,
   },
 })
-
-import { searchParts } from '@/api/parts' // ✅ 변경
-import { computed, onMounted, reactive, ref, watch } from 'vue'
-
-import AppExportButton from '@/components/common/ExportToExcel.vue'
 
 /* 엑셀 설정 (동일) */
 const exportFilename = computed(() => {

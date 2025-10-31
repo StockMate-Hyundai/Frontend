@@ -1,16 +1,18 @@
-<!-- File: src/pages/order-approval.vue -->
+<!-- File: src/pages/order-pending-shipping.vue -->
 <script setup>
 definePage({
   meta: {
-    title: '주문 승인',
-    icon: 'bx-check-circle',
+    title: '출고 대기',
+    icon: 'bx-package',
     requiresAuth: true,
   },
 })
 import TablePagination from '@/@core/components/TablePagination.vue'
-import { getOrderList } from '@/api/order'
-import { executeOrderApproval } from '@/api/websocket'
+import { getOrderList, getOrderDetail, updateOrderToPendingShipping } from '@/api/order'
 import { ORDER_STATUS } from '@/utils/orderStatus'
+import { generateInvoicePDF, transformOrderDataForInvoice } from '@/utils/invoice'
+import { resolveOrderStatus } from '@/utils/orderStatus'
+import JSZip from 'jszip'
 import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -25,19 +27,16 @@ const totalItems = ref(0)
 const page = ref(1)
 const itemsPerPage = ref(20)
 
-/* 승인/모달 상태 */
-const approvingOrders = ref(new Set())          // 행별 로딩
+/* 처리 상태 */
+const processingOrders = ref(new Set())          // 행별 로딩
 const selectedOrders = ref([])                   // 체크된 주문 IDs
-const showApprovalModal = ref(false)
-const approvedOrderInfo = ref(null)
 const showProcessingModal = ref(false)
 const processingOrderInfo = ref(null)
 const currentProcessingMessage = ref('')
-const processingStep = ref('')                   // CONNECTING | PROCESSING | BATCH_* | COMPLETED | ERROR
+const processingStep = ref('')                   // PROCESSING | BATCH_* | COMPLETED | ERROR
 const showConfirmButton = ref(false)
-const currentProcessingOrderId = ref(null)
 
-/* 일괄 승인 진행률 */
+/* 일괄 처리 진행률 */
 const batchProgress = ref({
   current: 0,
   total: 0,
@@ -59,26 +58,8 @@ const headers = [
   { title: '고객', key: 'customer', sortable: false },
   { title: '주문내역', key: 'orderItems', sortable: false },
   { title: '총가격', key: 'totalPrice', sortable: false },
-  { title: '승인', key: 'approve', sortable: false, width: '100px' },
+  { title: '처리', key: 'process', sortable: false, width: '100px' },
 ]
-
-/* ==============
-   에러/성공 판정
-=============== */
-// ❗ 이제는 STOCK_DEDUCTION 은 "진행중"으로 취급 (에러 아님)
-function isErrorPayload(p) {
-  return (
-    p?.type === 'ORDER_APPROVAL_RESPONSE' &&
-    (p?.step === 'ERROR' || p?.status === ORDER_STATUS.REJECTED)
-  )
-}
-function isCompletedPayload(p) {
-  // 최종 성공 신호: step === COMPLETED (status: PENDING_SHIPPING)
-  return (
-    p?.type === 'ORDER_APPROVAL_RESPONSE' &&
-    p?.step === 'COMPLETED'
-  )
-}
 
 /* 주문 목록 로드 */
 async function loadOrders() {
@@ -86,7 +67,7 @@ async function loadOrders() {
   errorMsg.value = ''
   try {
     const data = await getOrderList({
-      status: ORDER_STATUS.PAY_COMPLETED,
+      status: ORDER_STATUS.APPROVAL_ORDER,
       page: page.value,
       size: itemsPerPage.value,
     })
@@ -102,110 +83,44 @@ async function loadOrders() {
   }
 }
 
-/* 1건 승인 Promise (내부) */
-function processOne(orderId, isBatchMode) {
-  if (approvingOrders.value.has(orderId)) return Promise.resolve()
+/* 단건 처리 (인보이스 다운로드 + 상태 업데이트) */
+async function processOne(orderId, isBatchMode) {
+  if (processingOrders.value.has(orderId)) return
 
-  approvingOrders.value.add(orderId)
+  processingOrders.value.add(orderId)
 
-  // 단건 모달 세팅
-  if (!isBatchMode) {
-    const order = orders.value.find(o => o.orderId === orderId)
-
-    currentProcessingOrderId.value = orderId
-    processingOrderInfo.value = {
-      orderNumber: order?.orderNumber || orderId,
-      customer: order?.customer?.name || '알 수 없음',
+  try {
+    // 주문 상세 조회
+    const orderDetail = await getOrderDetail(orderId)
+    
+    // 인보이스 생성에 필요한 데이터 변환
+    const invoiceData = transformOrderDataForInvoice(orderDetail)
+    
+    // 통화 포맷 함수 추가
+    invoiceData.fmtCurrency = fmtCurrency
+    invoiceData.resolveOrderStatus = resolveOrderStatus
+    
+    // PDF 생성
+    const pdf = await generateInvoicePDF(invoiceData)
+    
+    // 단건이면 바로 다운로드, 일괄이면 PDF를 반환
+    if (!isBatchMode) {
+      pdf.save(`Invoice_${invoiceData.summary.orderNumber}.pdf`)
     }
-    currentProcessingMessage.value = '웹소켓 연결 중...'
-    processingStep.value = 'CONNECTING'
-    showConfirmButton.value = false
-    showProcessingModal.value = true
+    
+    // 출고 대기 상태로 업데이트
+    await updateOrderToPendingShipping(orderId)
+    
+    return { pdf, orderNumber: invoiceData.summary.orderNumber, orderId }
+  } catch (e) {
+    throw e
+  } finally {
+    processingOrders.value.delete(orderId)
   }
-
-  return new Promise(async (resolve, reject) => {
-    let done = false
-
-    const safeReject = err => {
-      if (done) return
-      done = true
-      approvingOrders.value.delete(orderId)
-      if (!isBatchMode && currentProcessingOrderId.value === orderId) {
-        currentProcessingMessage.value = err?.message || '승인 처리 중 오류가 발생했습니다.'
-        processingStep.value = 'ERROR'
-        showConfirmButton.value = true
-      }
-      reject(err instanceof Error ? err : new Error(String(err?.message || err)))
-    }
-
-    const safeResolve = data => {
-      if (done) return
-      done = true
-      approvingOrders.value.delete(orderId)
-
-      if (!isBatchMode && currentProcessingOrderId.value === orderId) {
-        const order = orders.value.find(o => o.orderId === orderId)
-
-        showProcessingModal.value = false
-        showApprovalModal.value = true
-        approvedOrderInfo.value = {
-          orderNumber: order?.orderNumber || orderId,
-          customer: order?.customer?.name || '알 수 없음',
-        }
-        loadOrders()
-        currentProcessingOrderId.value = null
-      }
-      resolve(data)
-    }
-
-    try {
-      await executeOrderApproval(
-        orderId,
-
-        // onMessage
-        data => {
-          if (done) return
-
-          // 혹시 다른 주문 메시지 섞임 방지
-          if (data?.orderId && data.orderId !== orderId) return
-
-          // 실패
-          if (isErrorPayload(data)) {
-            return safeReject(new Error(data?.message || '승인 실패'))
-          }
-
-          // 최종 성공
-          if (isCompletedPayload(data)) {
-            return safeResolve(data)
-          }
-
-          // 중간 진행(예: STOCK_DEDUCTION)
-          if (!isBatchMode) {
-            if (processingStep.value === 'ERROR' || processingStep.value === 'COMPLETED' || showConfirmButton.value) return
-            currentProcessingMessage.value = data?.message || '승인 처리 중...'
-            processingStep.value = 'PROCESSING'
-          }
-        },
-
-        // onError
-        error => {
-          safeReject(error)
-        },
-
-        // onComplete (서버가 COMPLETED 후 자동 disconnect 라도 보호 차원)
-        finalData => {
-          // onMessage에서 COMPLETED를 잡아 resolve하므로 여기선 보조
-          if (!done) safeResolve(finalData)
-        },
-      )
-    } catch (e) {
-      safeReject(e)
-    }
-  })
 }
 
 /* 단건/일괄 공통 실행 */
-async function runApproval(orderIds = []) {
+async function runProcessing(orderIds = []) {
   const ids = (orderIds && orderIds.length ? orderIds : selectedOrders.value).slice()
   if (ids.length === 0) return
 
@@ -220,14 +135,14 @@ async function runApproval(orderIds = []) {
 
   processingOrderInfo.value = {
     orderNumber: isBatch
-      ? `${sortedIds.length}건 일괄 승인`
+      ? `${sortedIds.length}건 일괄 처리`
       : (orders.value.find(o => o.orderId === sortedIds[0])?.orderNumber || sortedIds[0]),
     customer: isBatch
       ? '일괄 처리'
-      : (orders.value.find(o => o.orderId === sortedIds[0])?.customer?.name || '알 수 없음'),
+      : (orders.value.find(o => o.orderId === sortedIds[0])?.userInfo?.storeName || '알 수 없음'),
   }
-  currentProcessingMessage.value = isBatch ? '일괄 승인을 시작합니다...' : '웹소켓 연결 중...'
-  processingStep.value = isBatch ? 'BATCH_START' : 'CONNECTING'
+  currentProcessingMessage.value = isBatch ? '일괄 처리를 시작합니다...' : '처리 중...'
+  processingStep.value = isBatch ? 'BATCH_START' : 'PROCESSING'
   showConfirmButton.value = false
   showProcessingModal.value = true
 
@@ -242,6 +157,7 @@ async function runApproval(orderIds = []) {
 
   let completedCount = 0
   let errorCount = 0
+  const pdfs = [] // 일괄 처리 시 PDF 모음
 
   for (let i = 0; i < sortedIds.length; i++) {
     const orderId = sortedIds[i]
@@ -254,13 +170,18 @@ async function runApproval(orderIds = []) {
 
       processingOrderInfo.value = {
         orderNumber: order?.orderNumber || orderId,
-        customer: order?.customer?.name || '알 수 없음',
+        customer: order?.userInfo?.storeName || '알 수 없음',
       }
-      currentProcessingMessage.value = isBatch ? `승인 중... (${i + 1}/${sortedIds.length})` : '승인 처리 중...'
+      currentProcessingMessage.value = isBatch ? `처리 중... (${i + 1}/${sortedIds.length})` : '처리 중...'
       processingStep.value = isBatch ? 'BATCH_PROCESSING' : 'PROCESSING'
 
-      await processOne(orderId, isBatch)
+      const result = await processOne(orderId, isBatch)
       completedCount++
+      
+      if (isBatch && result) {
+        pdfs.push(result)
+      }
+      
       if (isBatch) await new Promise(r => setTimeout(r, 150))
     } catch (e) {
       errorCount++
@@ -273,23 +194,53 @@ async function runApproval(orderIds = []) {
     }
   }
 
+  // 일괄 처리 시 PDF 압축 다운로드
+  if (isBatch && pdfs.length > 0) {
+    try {
+      const zip = new JSZip()
+      
+      for (const { pdf, orderNumber } of pdfs) {
+        const pdfBlob = pdf.output('blob')
+        zip.file(`Invoice_${orderNumber}.pdf`, pdfBlob)
+      }
+      
+      const zipBlob = await zip.generateAsync({ type: 'blob' })
+      const url = URL.createObjectURL(zipBlob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `Invoices_${new Date().toISOString().split('T')[0]}.zip`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error('ZIP 생성 오류:', e)
+      errorCount++
+      batchProgress.value.failedMessages.push('인보이스 압축 파일 생성 중 오류가 발생했습니다.')
+    }
+  }
+
   // 배치 요약
   if (isBatch) {
     if (errorCount === 0) {
-      currentProcessingMessage.value = `모든 주문이 성공적으로 승인되었습니다. (${completedCount}건 완료)`
+      currentProcessingMessage.value = `모든 주문이 성공적으로 처리되었습니다. (${completedCount}건 완료)`
       processingStep.value = 'COMPLETED'
     } else {
       const failedOrderNumbers = batchProgress.value.failedOrders.join(', ')
       const failedMessages = batchProgress.value.failedMessages.join('\n')
 
       currentProcessingMessage.value =
-        `일괄 승인이 완료되었습니다. (성공: ${completedCount}건, 실패: ${errorCount}건)\n` +
+        `일괄 처리가 완료되었습니다. (성공: ${completedCount}건, 실패: ${errorCount}건)\n` +
         `실패한 주문: ${failedOrderNumbers}\n\n에러 내용:\n${failedMessages}`
       processingStep.value = 'ERROR'
     }
     showConfirmButton.value = true
     await loadOrders()
     batchProgress.value.isBatchMode = false
+  } else {
+    // 단건 처리 완료
+    showProcessingModal.value = false
+    await loadOrders()
   }
 }
 
@@ -342,11 +293,6 @@ function getOrderItemsCountText(order) {
 }
 
 /* 모달 */
-function closeApprovalModal() {
-  showApprovalModal.value = false
-  approvedOrderInfo.value = null
-  loadOrders()
-}
 function closeProcessingModal() {
   showProcessingModal.value = false
   processingOrderInfo.value = null
@@ -376,22 +322,22 @@ watch([page, itemsPerPage], loadOrders, { deep: true })
     <div class="filter-section ">
       <div class="d-flex justify-space-between align-center">
         <h6 class="text-subtitle-1 text-high-emphasis mb-1">
-          주문 승인 관리
+          출고 대기 처리
         </h6>
         <div class="d-flex gap-2">
           <VBtn
             v-if="selectedOrders.length > 0"
             variant="flat"
-            color="success"
+            color="primary"
             size="small"
-            :disabled="selectedOrders.some(id => approvingOrders.has(id))"
-            @click="runApproval"
+            :disabled="selectedOrders.some(id => processingOrders.has(id))"
+            @click="runProcessing"
           >
             <VIcon
               start
-              icon="bx-check"
+              icon="bx-package"
               size="16"
-            /> 선택 승인 ({{ selectedOrders.length }})
+            /> 선택 처리 ({{ selectedOrders.length }})
           </VBtn>
           <VBtn
             variant="flat"
@@ -411,7 +357,7 @@ watch([page, itemsPerPage], loadOrders, { deep: true })
 
     <div class="table-header">
       <div class="text-caption text-medium-emphasis">
-        총 {{ totalItems }}건의 주문이 승인 대기 중입니다
+        총 {{ totalItems }}건의 주문이 출고 대기 처리를 기다리고 있습니다
       </div>
     </div>
 
@@ -518,20 +464,20 @@ watch([page, itemsPerPage], loadOrders, { deep: true })
             <span class="text-body-2 font-weight-medium">₩{{ fmtCurrency(item.totalPrice) }}</span>
           </template>
 
-          <template #item.approve="{ item }">
+          <template #item.process="{ item }">
             <VBtn
               variant="flat"
-              color="success"
+              color="primary"
               size="x-small"
-              :loading="approvingOrders.has(item.orderId)"
-              :disabled="approvingOrders.has(item.orderId)"
-              @click="runApproval([item.orderId])"
+              :loading="processingOrders.has(item.orderId)"
+              :disabled="processingOrders.has(item.orderId)"
+              @click="runProcessing([item.orderId])"
             >
               <VIcon
                 start
-                icon="bx-check"
+                icon="bx-package"
                 size="14"
-              /> 승인
+              /> 처리
             </VBtn>
           </template>
 
@@ -556,43 +502,7 @@ watch([page, itemsPerPage], loadOrders, { deep: true })
 
     <div class="page-bottom-margin" />
 
-    <!-- 승인 완료 모달 -->
-    <VDialog
-      v-model="showApprovalModal"
-      max-width="400"
-      persistent
-    >
-      <VCard>
-        <VCardTitle class="text-center pa-6">
-          <VIcon
-            icon="bx-check-circle"
-            color="success"
-            size="48"
-            class="mb-3"
-          />
-          <div class="text-h6 text-success">
-            주문 승인 완료
-          </div>
-        </VCardTitle>
-        <VCardText class="text-center pa-6 pt-0">
-          <div class="text-body-1">
-            주문이 성공적으로 승인되었습니다.
-          </div>
-        </VCardText>
-        <VCardActions class="justify-center pa-6 pt-0">
-          <VBtn
-            color="success"
-            variant="flat"
-            size="large"
-            @click="closeApprovalModal"
-          >
-            확인
-          </VBtn>
-        </VCardActions>
-      </VCard>
-    </VDialog>
-
-    <!-- 승인 처리 중 모달 -->
+    <!-- 처리 중 모달 -->
     <VDialog
       v-model="showProcessingModal"
       max-width="400"
@@ -626,7 +536,7 @@ watch([page, itemsPerPage], loadOrders, { deep: true })
             class="text-h6"
             :class="processingStep === 'COMPLETED' ? 'text-success' : processingStep === 'ERROR' ? 'text-error' : 'text-primary'"
           >
-            {{ processingStep === 'COMPLETED' ? '주문 승인이 완료되었습니다' : processingStep === 'ERROR' ? '승인 처리 오류' : '주문 승인 처리 중' }}
+            {{ processingStep === 'COMPLETED' ? '처리가 완료되었습니다' : processingStep === 'ERROR' ? '처리 오류' : '출고 대기 처리 중' }}
           </div>
         </VCardTitle>
 

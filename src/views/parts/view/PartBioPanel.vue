@@ -1,17 +1,19 @@
 <!-- File: src/views/parts/view/PartBioPanel.vue -->
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 const props = defineProps({
   part: { type: Object, required: true },
 })
 
+const imgError = ref(false)
+
 const displayName = computed(() =>
-  props.part.korName || props.part.engName || props.part.name || `#${props.part.id}`
+  props.part.korName || props.part.engName || props.part.name || `#${props.part.id}`,
 )
 
 const modelTrim = computed(() =>
-  [props.part.model, props.part.trim].filter(Boolean).join(' / ')
+  [props.part.model, props.part.trim].filter(Boolean).join(' / '),
 )
 
 const hasImage = computed(() => !!props.part.image)
@@ -19,6 +21,7 @@ const hasImage = computed(() => !!props.part.image)
 const formatKRW = val => {
   const n = Number(val)
   if (!Number.isFinite(n)) return '—'
+  
   return new Intl.NumberFormat('ko-KR').format(n) + '원'
 }
 
@@ -29,6 +32,7 @@ const resolveCategory = category => {
   if (name.includes('하체')) return { color: 'error', icon: 'bx-wrench' }
   if (name.includes('전기')) return { color: 'info', icon: 'bx-bulb' }
   if (name.includes('내장')) return { color: 'success', icon: 'bx-chair' }
+  
   return { color: 'secondary', icon: 'bx-package' }
 }
 
@@ -53,8 +57,15 @@ function copyCode() {
         eager
         class="rounded-lg mb-5"
       />
-      <div v-else class="d-flex align-center justify-center mb-4 text-medium-emphasis">
-        <VIcon icon="bx-image-alt" size="32" class="me-2" />
+      <div
+        v-else
+        class="d-flex align-center justify-center mb-4 text-medium-emphasis"
+      >
+        <VIcon
+          icon="bx-image-alt"
+          size="32"
+          class="me-2"
+        />
         이미지가 없습니다
       </div>
 
@@ -69,7 +80,11 @@ function copyCode() {
           :color="resolveCategory(part.categoryName).color"
           variant="tonal"
         >
-          <VIcon start :icon="resolveCategory(part.categoryName).icon" size="16" />
+          <VIcon
+            start
+            :icon="resolveCategory(part.categoryName).icon"
+            size="16"
+          />
           {{ part.categoryName }}
         </VChip>
 
@@ -87,7 +102,10 @@ function copyCode() {
 
       <div class="text-caption text-medium-emphasis">
         ID: {{ part.id }}
-        <span v-if="part.code" class="ms-2">· 코드: <strong>{{ part.code }}</strong></span>
+        <span
+          v-if="part.code"
+          class="ms-2"
+        >· 코드: <strong>{{ part.code }}</strong></span>
       </div>
     </div>
 
@@ -97,8 +115,12 @@ function copyCode() {
     <VCardText class="pt-4 pb-10">
       <div class="d-flex flex-column gap-3">
         <div class="d-flex align-center justify-space-between">
-          <span class="text-medium-emphasis ">모델 / 트림</span>
-          <span class="font-weight-regular font-weight-bold">{{ modelTrim || '—' }}</span>
+          <span class="text-medium-emphasis ">트림</span>
+          <span class="font-weight-regular font-weight-bold">{{ part.trim }}</span>
+        </div>
+        <div class="d-flex align-center justify-space-between">
+          <span class="text-medium-emphasis ">모델</span>
+          <span class="font-weight-regular font-weight-bold">{{ part.model }}</span>
         </div>
 
         <div class="d-flex align-center justify-space-between">

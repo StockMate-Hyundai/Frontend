@@ -7,8 +7,8 @@ definePage({
   },
 })
 
-import { cancelOrder as apiCancelOrder, deleteOrder as apiDeleteOrder, fetchOrdersForTable } from '@/api/order'
-import { ORDER_STATUS, ORDER_STATUS_OPTIONS, resolveOrderStatus } from '@/utils/orderStatus'
+import { deleteOrder as apiDeleteOrder, fetchOrdersForTable } from '@/api/order'
+import { ORDER_STATUS_OPTIONS, resolveOrderStatus } from '@/utils/orderStatus'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 
 import AppExportButton from '@/components/common/ExportToExcel.vue'
@@ -222,11 +222,6 @@ const totalOrder = computed(() => ordersData.value.total)
 /* 액션 */
 const deleteOrder = async orderId => {
   await apiDeleteOrder(orderId)
-  await loadOrders()
-}
-
-const cancelOrder = async orderId => {
-  await apiCancelOrder(orderId)
   await loadOrders()
 }
 

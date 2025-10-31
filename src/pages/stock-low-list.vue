@@ -4,6 +4,14 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 
 import AppExportButton from '@/components/common/ExportToExcel.vue'
 
+definePage({
+  meta: {
+    title: '부족 부품 목록',
+    icon: 'bx-package',
+    requiresAuth: true,
+  },
+})
+
 /* 엑셀 설정 */
 const exportFilename = computed(() => {
   const d = new Date()

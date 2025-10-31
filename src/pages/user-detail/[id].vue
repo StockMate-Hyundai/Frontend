@@ -8,6 +8,8 @@ import { apiGetUserByMemberIdPublic, normalizeUser } from '@/api/user'
 
 // 제공해주신 컴포넌트
 import UserTabAccount from '@/views/user/view/UserTabAccount.vue'
+import UserTabHistory from '@/views/user/view/UserTabHistory.vue'
+import UserTabStock from '@/views/user/view/UserTabStock.vue'
 
 definePage({ meta: { public: true } })
 
@@ -25,12 +27,9 @@ const orderStats = ref({
 })
 
 const tabs = [
-  { icon: 'bx-user',     title: '주문내역' },
-
-  // { icon: 'bx-lock-alt', title: 'Security' },
-  // { icon: 'bx-detail',   title: 'Billing & Plan' },
-  // { icon: 'bx-bell',     title: 'Notifications' },
-  // { icon: 'bx-link',     title: 'Connections' },
+  { icon: 'bx-receipt',  title: '주문내역' },
+  { icon: 'bx-package',  title: '재고 현황' },
+  { icon: 'bx-history',  title: '입출고 히스토리' },
 ]
 
 // 주문 통계 계산 함수
@@ -359,35 +358,25 @@ await fetchUser()
 
         <!-- 데이터 탭 카드 -->
         <VCard class="erp-tabs-card">
-          <VCardTitle class="erp-card-title">
-            <VIcon
-              icon="bx-receipt"
-              size="18"
-              class="me-2"
-            />
-            주문 내역
-          </VCardTitle>
           <VDivider />
           <VCardText class="erp-tabs-content">
-            <!--
-              <VTabs
+            <VTabs
               v-model="userTab"
               class="erp-tabs"
-              >
+            >
               <VTab
-              v-for="tab in tabs"
-              :key="tab.icon"
-              class="erp-tab"
+                v-for="tab in tabs"
+                :key="tab.icon"
+                class="erp-tab"
               >
-              <VIcon
-              :size="16"
-              :icon="tab.icon"
-              class="me-2"
-              />
-              {{ tab.title }}
+                <VIcon
+                  :size="16"
+                  :icon="tab.icon"
+                  class="me-2"
+                />
+                {{ tab.title }}
               </VTab>
-              </VTabs> 
-            -->
+            </VTabs>
 
             <VWindow
               v-model="userTab"
@@ -398,12 +387,13 @@ await fetchUser()
                 <UserTabAccount :user-data="userData" />
               </VWindowItem>
               
-              <!-- 나중에 다른 탭들 추가 가능 -->
-              <!--
-                <VWindowItem>
-                <UserTabSecurity :user-data="userData" />
-                </VWindowItem> 
-              -->
+              <VWindowItem>
+                <UserTabStock :user-data="userData" />
+              </VWindowItem>
+              
+              <VWindowItem>
+                <UserTabHistory :user-data="userData" />
+              </VWindowItem>
             </VWindow>
           </VCardText>
         </VCard>
@@ -485,6 +475,7 @@ await fetchUser()
   color: #2c3e50;
   display: flex;
   align-items: center;
+  height: 50px;
 }
 
 .erp-card-content {
@@ -636,6 +627,12 @@ await fetchUser()
 
 .erp-tabs {
   border-bottom: 1px solid #e0e0e0;
+  background: #f8f9fa;
+  padding: 16px 20px;
+  color: #2c3e50;
+  align-items: center;
+  height: 50px;
+
 }
 
 .erp-tab {
@@ -648,7 +645,7 @@ await fetchUser()
 .erp-tab-content {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: 0;
 }
 
 /* 반응형 */

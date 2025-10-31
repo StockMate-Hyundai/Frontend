@@ -7,8 +7,8 @@ export const useNavigationHistoryStore = defineStore('navigationHistory', {
   }),
 
   getters: {
-    getHistory: (state) => state.history,
-    getCurrentPage: (state) => state.history[state.history.length - 1],
+    getHistory: state => state.history,
+    getCurrentPage: state => state.history[state.history.length - 1],
   },
 
   actions: {

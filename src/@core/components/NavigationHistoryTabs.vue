@@ -2,7 +2,7 @@
   <div class="navigation-history-tabs">
     <div class="tabs-container">
       <div
-        v-for="(item, index) in history"
+        v-for="(item) in history"
         :key="item.path"
         class="tab-item"
         :class="{ 'active': isCurrentPage(item.path) }"
@@ -177,18 +177,5 @@ const removePage = path => {
   scroll-behavior: smooth;
   transform: translateZ(0); // 하드웨어 가속
   backface-visibility: hidden; // 뒤면 숨김
-}
-
-// 탭 상태 변경 시 깜빡임 방지
-.tab-item {
-  // 활성 상태 변경 시 부드러운 전환
-  &.active {
-    transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease;
-  }
-  
-  // 비활성 상태로 변경 시 더 빠른 전환
-  &:not(.active) {
-    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-  }
 }
 </style>
