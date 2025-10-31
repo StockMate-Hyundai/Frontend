@@ -9,8 +9,8 @@ definePage({
 })
 import TablePagination from '@/@core/components/TablePagination.vue'
 import { getOrderList } from '@/api/order'
-import { ORDER_STATUS } from '@/utils/orderStatus'
 import { executeOrderApproval } from '@/api/websocket'
+import { ORDER_STATUS } from '@/utils/orderStatus'
 import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -706,3 +706,4 @@ watch([page, itemsPerPage], loadOrders, { deep: true })
 .page-bottom-margin { height: 48px; flex-shrink: 0; background: var(--erp-bg-primary); }
 .filter-section { padding: 14px 24px !important; }
 </style>
+

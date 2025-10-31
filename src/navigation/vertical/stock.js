@@ -6,6 +6,7 @@ export default [
     children: [
       { title: '전체 재고 조회', to: 'stock-list' },
       { title: '부족 재고 조회', to: 'stock-low-list' },
+      { title: '지점별 재고 조회', to: 'branch-stock-list' },
     ],
   },
 
@@ -15,6 +16,8 @@ export default [
     children: [
       { title: '주문 목록 조회', to: 'order-list' },
       { title: '주문 승인', to: 'order-approval' },
+      { title: '입출고 히스토리', to: 'order-history' },
+      { title: '입출고 히스토리 캘린더', to: 'order-history-calendar' },
     ],
   },
 ]

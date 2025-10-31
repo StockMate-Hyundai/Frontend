@@ -6,7 +6,7 @@ definePage({
     icon: 'bx-home-alt',
     requiresAuth: true,
   },
-})
+}) 
 import { getTodayDashboard, getTodayInboundOutbound } from '@/api/order'
 import { computed, onMounted, ref } from 'vue'
 import VueApexCharts from 'vue3-apexcharts'
@@ -30,18 +30,6 @@ const hourlyStatsData = ref([])
 
 /* ===== 실시간 처리량 스파크라인 ===== */
 const getSparkData = (type) => {
-  if (hourlyStatsData.value.length === 0) {
-    // 더미 데이터 - 각 타입별로 다른 패턴
-    const dummyData = {
-      todayInbound: [2,3,4,5,3,6,5,4,7,6,5,8,3,2,1,0,1,2,3,4,5,6,7,8],
-      todayOutbound: [1,2,3,4,5,6,7,6,5,4,3,2,1,0,1,2,3,4,5,6,7,8,9,10],
-      inTransit: [0,0,1,2,3,4,5,6,7,8,9,8,7,6,5,4,3,2,1,0,1,2,3,4],
-      criticalAlerts: [0,0,0,1,1,2,1,0,0,1,2,3,2,1,0,0,1,1,2,1,0,0,1,2],
-      totalRevenue: [1000,2000,3000,4000,5000,6000,7000,8000,9000,8000,7000,6000,5000,4000,3000,2000,1000,2000,3000,4000,5000,6000,7000,8000]
-    }
-    return dummyData[type] || [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
-  }
-  
   // API 데이터로 24시간 배열 생성
   const data = new Array(24).fill(0)
   hourlyStatsData.value.forEach(hour => {
@@ -282,12 +270,11 @@ onMounted(() => {
     <div class="dashboard-content">
       <!-- KPI 카드들 -->
       <div class="kpi-section">
-        <div class="grid-5 gap-3">
+        <div class="grid-4 gap-3">
           <VCard v-for="(v,k) in {
-            todayInbound:'오늘 입고',
+            todayInbound:'오늘 주문',
             todayOutbound:'오늘 출고',
             inTransit:'이동 중',
-            criticalAlerts:'긴급 알림',
             totalRevenue:'금일 매출'
           }" :key="k" class="kpi-card">
             <div class="d-flex align-center justify-space-between">
@@ -450,9 +437,9 @@ onMounted(() => {
 }
 
 /* 그리드 시스템 */
-.grid-5 { 
+.grid-4 { 
   display: grid; 
-  grid-template-columns: repeat(5, minmax(0, 1fr)); 
+  grid-template-columns: repeat(4, minmax(0, 1fr)); 
   gap: 12px; 
 }
 

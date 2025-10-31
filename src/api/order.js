@@ -54,21 +54,6 @@ export async function makeOrder(params) {
 }
 
 /**
- * 주문 취소
- * PUT /api/v1/order/{orderId}/cancel
- */
-export async function cancelOrder(orderId) {
-  if (orderId == null) throw new Error('orderId is required')
-  const res = await http.put(`/api/v1/order/${orderId}/cancel`)
-  
-  return {
-    status: res?.data?.status ?? 200,
-    success: !!(res?.data?.success ?? true),
-    message: res?.data?.message,
-  }
-}
-
-/**
  * 주문 물리 삭제
  * DELETE /api/v1/order/{orderId}
  */
@@ -89,8 +74,9 @@ export async function deleteOrder(orderId) {
  */
 export async function approveOrder(orderId) {
   if (orderId == null) throw new Error('orderId is required')
+
   const res = await http.put('/api/v1/order/approve', null, { 
-    params: { orderId } 
+    params: { orderId }, 
   })
   
   return {

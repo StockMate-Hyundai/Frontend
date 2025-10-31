@@ -51,11 +51,6 @@ export const { themeConfig, layoutConfig } = defineThemeConfig({
     defaultNavItemIconProps: { icon: 'bx-bxs-circle', color: 'disabled' },
     isVerticalNavSemiDark: false,
   },
-  horizontalNav: {
-    type: 'sticky',
-    transition: 'slide-y-reverse-transition',
-    popoverOffset: 6,
-  },
 
   /*
     // ℹ️  In below Icons section, you can specify icon for each component. Also you can use other props of v-icon component like `color` and `size` for each icon.

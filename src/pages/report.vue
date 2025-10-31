@@ -309,15 +309,6 @@ const salesGrowth   = computed(()=> ((salesValues.value[peakIdx.value]-salesValu
     <span class="muted">매출은 출고완료 기준이며 부가세 제외 금액.</span>
   </div>
 </section>
-
-    <!-- 푸터 -->
-    <footer class="foot">
-      <div>파일명: <b>{{ `부품관리_월간보고서_${month}.xlsx` }}</b></div>
-      <AppExportButton :filename="`부품관리_월간보고서_${month}.xlsx`"
-        :rows="[...topInbound, ...topOutbound]"
-        :fields="[{key:'id',label:'ID'},{key:'name',label:'부품명'},{key:'model',label:'모델'},{key:'unitPrice',label:'단가'}]"
-        text="엑셀 다운로드" />
-    </footer>
   </div>
 </template>
 
@@ -333,7 +324,7 @@ const salesGrowth   = computed(()=> ((salesValues.value[peakIdx.value]-salesValu
   min-height: 100vh !important;
   overflow-y: auto !important;
 }
-.hdr{ display:flex; justify-content:space-between; align-items:center; margin:0 0 18px; }
+.hdr{ display:flex; justify-content:space-between; align-items:center; margin:0 0 8px; }
 .hdr .ttl{ font-size:20px; font-weight:800; letter-spacing:.2px; }
 .hdr .meta{ margin-top:4px; font-size:13px; color:var(--muted); }
 .hdr .r{ display:flex; gap:12px; align-items:center; }
@@ -388,15 +379,4 @@ const salesGrowth   = computed(()=> ((salesValues.value[peakIdx.value]-salesValu
 .grid2{ display:grid; grid-template-columns: 1fr 1fr; gap:18px; }
 @media (max-width:960px){ .grid2{ grid-template-columns:1fr; } }
 
-/* 푸터 */
-.foot{
-  position:sticky; bottom:0; z-index:5;
-  display:flex; justify-content:space-between; align-items:center;
-  background:linear-gradient(180deg, rgba(247,249,252,.45), rgba(247,249,252,1));
-  border-top:1px solid var(--line);
-  padding:12px 16px; margin-top:24px; backdrop-filter: blur(6px);
-}
-
-/* 인쇄 */
-@media print { .foot{ position:static; backdrop-filter:none; } }
 </style>

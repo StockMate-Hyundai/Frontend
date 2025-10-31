@@ -1,17 +1,17 @@
-import { getTokens } from '@/api/http'; // ← 우리가 만든 토큰 유틸(JS 버전)
+import { getTokens } from '@/api/http' // ← 우리가 만든 토큰 유틸(JS 버전)
 import { setupLayouts } from 'virtual:meta-layouts'
 import { createRouter, createWebHistory } from 'vue-router/auto'
 
-function recursiveLayouts(route) {
-  if (route.children) {
-    for (let i = 0; i < route.children.length; i++)
-      route.children[i] = recursiveLayouts(route.children[i])
+// function recursiveLayouts(route) {
+//   if (route.children) {
+//     for (let i = 0; i < route.children.length; i++)
+//       route.children[i] = recursiveLayouts(route.children[i])
     
-    return route
-  }
+//     return route
+//   }
   
-  return setupLayouts([route])[0]
-}
+//   return setupLayouts([route])[0]
+// }
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -20,11 +20,11 @@ const router = createRouter({
     
     return { top: 0 }
   },
-  extendRoutes: pages => [
-    ...[...pages].map(route => recursiveLayouts(route)),
 
-    // 팁) 사실 아래처럼 더 간단히도 가능: extendRoutes: pages => setupLayouts(pages)
-  ],
+  // extendRoutes: pages => [
+  //   ...[...pages].map(route => recursiveLayouts(route)),
+  // ],
+  extendRoutes: pages => setupLayouts(pages),
 })
 
 /** ✅ 인증 가드 */
@@ -45,9 +45,10 @@ router.beforeEach(to => {
 })
 
 /** ✅ 네비게이션 히스토리 관리 */
-router.afterEach((to) => {
+router.afterEach(to => {
   // 공개 페이지가 아닌 경우에만 히스토리에 추가
   const isPublic = to.matched.some(r => r.meta?.public === true)
+
   if (!isPublic) {
     // 스토어는 컴포넌트에서 사용하도록 하고, 여기서는 이벤트로 처리
     // 실제로는 NavigationHistoryTabs 컴포넌트에서 라우터 변경을 감지하여 처리

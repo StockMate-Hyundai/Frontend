@@ -8,7 +8,7 @@ import { useDisplay } from 'vuetify'
 const { isLeftSidebarOpen } = useResponsiveLeftSidebar()
 const vuetifyDisplay = useDisplay()
 
-definePage({ meta: { layoutWrapperClasses: 'layout-content-height-fixed fleet-full-width' } })
+definePage({ meta: { layoutWrapperClasses: 'layout-content-height-fixed fleet-full-width', title: '지점 관리' } })
 
 /* UI용 더미 이미지/상태는 그대로 유지 */
 const carImgs = ref([fleetImg, fleetImg, fleetImg, fleetImg])

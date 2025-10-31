@@ -48,6 +48,8 @@ declare module 'vue' {
     EnableOneTimePasswordDialog: typeof import('./src/components/dialogs/EnableOneTimePasswordDialog.vue')['default']
     ErrorHeader: typeof import('./src/components/ErrorHeader.vue')['default']
     ExportToExcel: typeof import('./src/components/common/ExportToExcel.vue')['default']
+    HistoryDetailDialog: typeof import('./src/components/dialogs/HistoryDetailDialog.vue')['default']
+    HistoryEditDialog: typeof import('./src/components/dialogs/HistoryEditDialog.vue')['default']
     I18n: typeof import('./src/@core/components/I18n.vue')['default']
     MoreBtn: typeof import('./src/@core/components/MoreBtn.vue')['default']
     NavigationHistoryTabs: typeof import('./src/@core/components/NavigationHistoryTabs.vue')['default']
