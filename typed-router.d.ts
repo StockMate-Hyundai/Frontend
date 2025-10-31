@@ -28,6 +28,7 @@ declare module 'vue-router/auto-routes' {
     'order-history': RouteRecordInfo<'order-history', '/order-history', Record<never, never>, Record<never, never>>,
     'order-history-calendar': RouteRecordInfo<'order-history-calendar', '/order-history-calendar', Record<never, never>, Record<never, never>>,
     'order-list': RouteRecordInfo<'order-list', '/order-list', Record<never, never>, Record<never, never>>,
+    'order-pending-shipping': RouteRecordInfo<'order-pending-shipping', '/order-pending-shipping', Record<never, never>, Record<never, never>>,
     'part-detail-id': RouteRecordInfo<'part-detail-id', '/part-detail/:id', { id: ParamValue<true> }, { id: ParamValue<false> }>,
     'parts-request': RouteRecordInfo<'parts-request', '/parts-request', Record<never, never>, Record<never, never>>,
     'register': RouteRecordInfo<'register', '/register', Record<never, never>, Record<never, never>>,

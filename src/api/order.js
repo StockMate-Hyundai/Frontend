@@ -239,3 +239,18 @@ export async function getTodayInboundOutbound() {
     throw error
   }
 }
+
+/**
+ * 출고 대기 상태로 변경
+ * PUT /api/v1/order/pending-shipping/{orderId}
+ */
+export async function updateOrderToPendingShipping(orderId) {
+  if (orderId == null) throw new Error('orderId is required')
+  const res = await http.put(`/api/v1/order/pending-shipping/${orderId}`)
+  
+  return {
+    status: res?.data?.status ?? 200,
+    success: !!(res?.data?.success ?? true),
+    message: res?.data?.message,
+  }
+}
