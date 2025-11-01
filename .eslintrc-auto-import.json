@@ -367,6 +367,8 @@
     "ORDER_STATUS": true,
     "ORDER_STATUS_INFO": true,
     "ORDER_STATUS_OPTIONS": true,
-    "resolveOrderStatus": true
+    "resolveOrderStatus": true,
+    "generateInvoicePDF": true,
+    "transformOrderDataForInvoice": true
   }
 }
