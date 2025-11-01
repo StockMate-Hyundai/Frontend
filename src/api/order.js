@@ -254,3 +254,22 @@ export async function updateOrderToPendingShipping(orderId) {
     message: res?.data?.message,
   }
 }
+
+/**
+ * 배송 시작
+ * POST /api/v1/order/shipping
+ */
+export async function startShipping(orderNumber) {
+  if (!orderNumber || orderNumber.trim() === '') throw new Error('주문번호는 필수입니다')
+  
+  const res = await http.post('/api/v1/order/shipping', {
+    orderNumber: orderNumber.trim(),
+  })
+  
+  return {
+    status: res?.data?.status ?? 200,
+    success: !!(res?.data?.success ?? true),
+    message: res?.data?.message,
+    data: res?.data?.data ?? {},
+  }
+}

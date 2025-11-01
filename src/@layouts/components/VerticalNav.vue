@@ -123,9 +123,6 @@ const hideTitleAndIcon = configStore.isVerticalNavMini(isHovered)
         </div>
       </slot>
     </div>
-    <slot name="before-nav-items">
-      <div class="vertical-nav-items-shadow" />
-    </slot>
     <slot
       name="nav-items"
       :update-is-vertical-nav-scrolled="updateIsVerticalNavScrolled"
