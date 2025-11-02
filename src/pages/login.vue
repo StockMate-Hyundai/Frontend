@@ -170,7 +170,7 @@ const login = async () => {
               </VCol>
 
               <!-- create account -->
-              <VCol
+              <!-- <VCol
                 cols="12"
                 class="text-body-1 text-center"
               >
@@ -181,7 +181,7 @@ const login = async () => {
                 >
                   회원가입
                 </RouterLink>
-              </VCol>
+              </VCol> -->
             </VRow>
           </VForm>
         </VCardText>

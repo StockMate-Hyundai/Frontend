@@ -10,6 +10,7 @@ definePage({
 import { deleteOrder as apiDeleteOrder, approveOrder, getOrderDetail, rejectOrder } from '@/api/order'
 import { executeOrderApproval } from '@/api/websocket'
 import { ORDER_STATUS, resolveOrderStatus } from '@/utils/orderStatus'
+import { generateInvoicePDF, transformOrderDataForInvoice } from '@/utils/invoice'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -60,6 +61,11 @@ const isRejecting = ref(false)
 /* 유틸 */
 const fmtCurrency = v => (v ?? v === 0) ? new Intl.NumberFormat().format(v) : '-'
 const avatarText = name => (name ?? '?').trim().split(/\s+/).map(s => s[0]).join('').slice(0, 2).toUpperCase()
+
+/* 금액 계산 */
+const totalAmount = computed(() => Number(summary.value.totalPrice) || 0)
+const vatAmount = computed(() => Math.floor(totalAmount.value * 10 / 110))
+const supplyAmount = computed(() => totalAmount.value - vatAmount.value)
 
 /* 데이터 로드 */
 async function loadDetail() {
@@ -231,38 +237,24 @@ async function onDelete() {
 async function onDownloadInvoice() {
   if (!orderId.value) return
   try {
-    const http = (await import('@/api/http')).http
-    const response = await http.get(`/api/v1/order/invoice/${orderId.value}`, {
-      responseType: 'blob',
-      validateStatus: function (status) {
-        return status < 500 // 500 에러는 intercept하지 않음
-      }
-    })
+    // 주문 상세 조회
+    const orderDetail = await getOrderDetail(orderId.value)
     
-    // 400-499 에러는 blob으로 온 경우, 읽어보기
-    if (response.status >= 400) {
-      const text = await response.data.text()
-      console.error('[Invoice Download] server error:', text)
-      alert('서버에서 인보이스를 생성할 수 없습니다.')
-      return
-    }
+    // 인보이스 생성에 필요한 데이터 변환
+    const invoiceData = transformOrderDataForInvoice(orderDetail)
     
-    const blob = new Blob([response.data], { type: 'application/pdf' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `Invoice_${summary.value.orderNumber}.pdf`
-    document.body.appendChild(a)
-    a.click()
-    window.URL.revokeObjectURL(url)
-    document.body.removeChild(a)
+    // 통화 포맷 함수 추가
+    invoiceData.fmtCurrency = fmtCurrency
+    invoiceData.resolveOrderStatus = resolveOrderStatus
+    
+    // PDF 생성
+    const pdf = await generateInvoicePDF(invoiceData)
+    
+    // 다운로드
+    pdf.save(`Invoice_${invoiceData.summary.orderNumber}.pdf`)
   } catch (e) {
     console.error('[Invoice Download] error:', e)
-    if (e.response?.status === 500) {
-      alert('서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.')
-    } else {
-      alert('인보이스 다운로드 중 오류가 발생했습니다.')
-    }
+    alert('인보이스 다운로드 중 오류가 발생했습니다.')
   }
 }
 
@@ -524,11 +516,11 @@ const timelineSteps = computed(() => {
         <div class="px-4 py-3 d-flex justify-end">
           <table class="text-high-emphasis sum-table">
             <tbody>
-              <tr><td>총합</td><td>₩{{ fmtCurrency(lineItems.reduce((s, i) => s + (i.total || 0), 0)) }}</td></tr>
+              <tr><td>공급가액</td><td>₩{{ fmtCurrency(supplyAmount) }}</td></tr>
+              <tr><td>부가세액</td><td>₩{{ fmtCurrency(vatAmount) }}</td></tr>
               <tr><td>배송비</td><td>₩0</td></tr>
-              <tr><td>세금</td><td>₩0</td></tr>
               <tr class="em">
-                <td>결제금액</td><td>₩{{ fmtCurrency(summary.totalPrice) }}</td>
+                <td>합계금액</td><td>₩{{ fmtCurrency(totalAmount) }}</td>
               </tr>
             </tbody>
           </table>

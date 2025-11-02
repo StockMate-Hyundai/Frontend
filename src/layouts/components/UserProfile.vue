@@ -1,8 +1,13 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { clearSession } from '@/api/http'
+import { useNotificationsStore } from '@/@core/stores/notifications'
+import { useRouter } from 'vue-router'
 
 const LS = { role: 'sm_role', email: 'sm_email', isLogin: 'isLogin', avatar: 'sm_avatar' }
 const raw = ref(null)
+const notificationsStore = useNotificationsStore()
+const router = useRouter()
 
 function readUser () {
   if (typeof window === 'undefined') return
@@ -49,6 +54,18 @@ function roleColor(role) {
   if (r === 'admin')       return 'warning'
   
   return 'primary'
+}
+
+/** 로그아웃 처리 */
+function handleLogout() {
+  // 웹소켓 연결 해제
+  notificationsStore.disconnectWebSocket()
+  
+  // 세션 클리어
+  clearSession()
+  
+  // 로그인 페이지로 이동
+  router.push('/login')
 }
 </script>
 
@@ -168,7 +185,7 @@ function roleColor(role) {
 
           <VDivider class="my-2" />
 
-          <VListItem to="/login">
+          <VListItem @click="handleLogout">
             <template #prepend>
               <VIcon
                 class="me-2"

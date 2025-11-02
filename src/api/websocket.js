@@ -31,7 +31,7 @@ export class OrderApprovalWebSocket {
     if (!this.currentUser?.memberId) throw new Error('User ID not found')
 
     const userId = this.currentUser.memberId
-    const wsUrl = `wss://api.stockmate.site/ws/order?userId=${userId}`
+    const wsUrl = `ㄴㄴㄴwss://api.stockmate.site/ws/order?userId=${userId}`
 
     return new Promise((resolve, reject) => {
       try {
@@ -115,6 +115,150 @@ export class OrderApprovalWebSocket {
 /** 인스턴스 생성 */
 export function createOrderApprovalWebSocket() {
   return new OrderApprovalWebSocket()
+}
+
+/**
+ * 대시보드 알림 웹소켓 관리 클래스
+ */
+export class DashboardWebSocket {
+  constructor() {
+    this.websocket = null
+    this.currentUser = null
+    this.isConnected = false
+    this.messageHandlers = new Map()
+    this.reconnectAttempts = 0
+    this.maxReconnectAttempts = 5
+    this.reconnectDelay = 3000
+  }
+
+  async loadCurrentUser() {
+    try {
+      this.currentUser = await apiGetMyUser()
+      
+      return this.currentUser
+    } catch (e) {
+      console.error('Failed to load current user:', e)
+      throw e
+    }
+  }
+
+  async connect() {
+    if (!this.currentUser) {
+      await this.loadCurrentUser()
+    }
+
+    // 역할에 따라 웹소켓 URL 결정
+    const role = this.currentUser?.role
+    let wsType = ''
+    
+    if (role === 'SUPER_ADMIN' || role === 'ADMIN') {
+      wsType = 'admin'
+    } else if (role === 'WAREHOUSE') {
+      wsType = 'warehouse'
+    } else {
+      console.warn('Unknown role:', role, '- WebSocket connection skipped')
+      
+      return
+    }
+
+    const wsUrl = `ㄴㄴㄴwss://api.stockmate.site/ws/order/dashboard?type=${wsType}`
+
+    return new Promise((resolve, reject) => {
+      try {
+        this.websocket = new WebSocket(wsUrl)
+
+        this.websocket.onopen = () => {
+          this.isConnected = true
+          this.reconnectAttempts = 0
+          this.emit('connected')
+          console.log('[DashboardWebSocket] Connected')
+          resolve()
+        }
+
+        this.websocket.onmessage = event => {
+          try {
+            const data = JSON.parse(event.data)
+
+            this.handleMessage(data)
+          } catch (e) {
+            this.emit('error', { type: 'parse_error', error: e })
+          }
+        }
+
+        this.websocket.onerror = error => {
+          this.isConnected = false
+          this.emit('error', { type: 'connection_error', error })
+          console.error('[DashboardWebSocket] Connection error:', error)
+          reject(error)
+        }
+
+        this.websocket.onclose = () => {
+          this.isConnected = false
+          this.websocket = null
+          this.emit('disconnected')
+          console.log('[DashboardWebSocket] Disconnected')
+          
+          // 자동 재연결 시도
+          if (this.reconnectAttempts < this.maxReconnectAttempts) {
+            this.reconnectAttempts++
+            console.log(`[DashboardWebSocket] Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`)
+            setTimeout(() => this.connect(), this.reconnectDelay)
+          } else {
+            console.error('[DashboardWebSocket] Max reconnection attempts reached')
+          }
+        }
+      } catch (e) {
+        reject(e)
+      }
+    })
+  }
+
+  handleMessage(data) {
+    if (data?.type === 'DASHBOARD_NOTIFICATION') {
+      this.emit('notification', data)
+    } else {
+      this.emit('message', data)
+    }
+  }
+
+  on(event, handler) {
+    if (!this.messageHandlers.has(event)) this.messageHandlers.set(event, [])
+    this.messageHandlers.get(event).push(handler)
+  }
+
+  off(event, handler) {
+    if (this.messageHandlers.has(event)) {
+      const handlers = this.messageHandlers.get(event)
+      const index = handlers.indexOf(handler)
+      if (index > -1) handlers.splice(index, 1)
+    }
+  }
+
+  emit(event, data) {
+    if (this.messageHandlers.has(event)) {
+      this.messageHandlers.get(event).forEach(handler => {
+        try { handler(data) } catch (e) { console.error(`Error in handler for ${event}:`, e) }
+      })
+    }
+  }
+
+  disconnect() {
+    this.maxReconnectAttempts = 0 // 재연결 비활성화
+    if (this.websocket) {
+      this.websocket.close()
+      this.websocket = null
+      this.isConnected = false
+    }
+  }
+
+  get connected() {
+    return this.isConnected && this.websocket?.readyState === WebSocket.OPEN
+  }
+}
+
+/** 인스턴스 생성 */
+export function createDashboardWebSocket() {
+  return new DashboardWebSocket()
 }
 
 /**

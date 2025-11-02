@@ -273,3 +273,90 @@ export async function startShipping(orderNumber) {
     data: res?.data?.data ?? {},
   }
 }
+
+/**
+ * 알림 관련 API
+ */
+
+/**
+ * 모든 알림 조회
+ * GET /api/v1/order/notifications?type=admin|warehouse
+ */
+export async function getAllNotifications(type = 'admin') {
+  const res = await http.get('/api/v1/order/notifications', {
+    params: { type },
+  })
+  
+  return {
+    status: res?.data?.status ?? 200,
+    success: !!(res?.data?.success ?? true),
+    message: res?.data?.message,
+    data: Array.isArray(res?.data?.data) ? res.data.data : [],
+  }
+}
+
+/**
+ * 읽지 않은 알림 조회
+ * GET /api/v1/order/notifications/unread?type=admin|warehouse
+ */
+export async function getUnreadNotifications(type = 'admin') {
+  const res = await http.get('/api/v1/order/notifications/unread', {
+    params: { type },
+  })
+  
+  return {
+    status: res?.data?.status ?? 200,
+    success: !!(res?.data?.success ?? true),
+    message: res?.data?.message,
+    data: Array.isArray(res?.data?.data) ? res.data.data : [],
+  }
+}
+
+/**
+ * 읽지 않은 알림 개수 조회
+ * GET /api/v1/order/notifications/unread/count?type=admin|warehouse
+ */
+export async function getUnreadCount(type = 'admin') {
+  const res = await http.get('/api/v1/order/notifications/unread/count', {
+    params: { type },
+  })
+  
+  return {
+    status: res?.data?.status ?? 200,
+    success: !!(res?.data?.success ?? true),
+    message: res?.data?.message,
+    data: res?.data?.data ?? { unreadCount: 0 },
+  }
+}
+
+/**
+ * 알림 읽음 처리
+ * PUT /api/v1/order/notifications/read/{notificationId}
+ */
+export async function markNotificationAsRead(notificationId) {
+  if (!notificationId) throw new Error('notificationId is required')
+  
+  const res = await http.put(`/api/v1/order/notifications/read/${notificationId}`)
+  
+  return {
+    status: res?.data?.status ?? 200,
+    success: !!(res?.data?.success ?? true),
+    message: res?.data?.message,
+  }
+}
+
+/**
+ * 모든 알림 읽음 처리
+ * PUT /api/v1/order/notifications/read-all?type=admin|warehouse
+ */
+export async function markAllNotificationsAsRead(type = 'admin') {
+  const res = await http.put('/api/v1/order/notifications/read-all', null, {
+    params: { type },
+  })
+  
+  return {
+    status: res?.data?.status ?? 200,
+    success: !!(res?.data?.success ?? true),
+    message: res?.data?.message,
+  }
+}

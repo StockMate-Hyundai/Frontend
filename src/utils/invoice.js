@@ -1,6 +1,6 @@
+import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 import QRCode from 'qrcode'
-import html2canvas from 'html2canvas'
 
 /**
  * 주문 데이터를 기반으로 인보이스 PDF를 생성하고 반환합니다.
@@ -79,7 +79,9 @@ export async function generateInvoicePDF(orderData) {
  * 인보이스 HTML 생성
  */
 function createInvoiceHTML({ summary, customerInfo, lineItems, qrDataUrl, fmtCurrency, resolveOrderStatus }) {
-  const totalAmount = lineItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+  const totalAmount = Number(summary.totalPrice) || 0
+  const vatAmount = Math.floor(totalAmount * 10 / 110)
+  const supplyAmount = totalAmount - vatAmount
   
   return `
     <div style="font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; padding: 40px; background: white;">
@@ -131,8 +133,16 @@ function createInvoiceHTML({ summary, customerInfo, lineItems, qrDataUrl, fmtCur
             `).join('')}
           </tbody>
           <tfoot>
+            <tr style="border-bottom: 1px solid #e0e0e0;">
+              <td colspan="3" style="padding: 12px; text-align: right; font-size: 14px;">공급가액:</td>
+              <td style="padding: 12px; text-align: right; font-size: 14px;">${fmtCurrency(supplyAmount)}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e0e0e0;">
+              <td colspan="3" style="padding: 12px; text-align: right; font-size: 14px;">부가세액:</td>
+              <td style="padding: 12px; text-align: right; font-size: 14px;">${fmtCurrency(vatAmount)}</td>
+            </tr>
             <tr style="background: #f8f9fa; border-top: 2px solid #2563eb;">
-              <td colspan="3" style="padding: 12px; text-align: right; font-size: 16px; font-weight: bold;">총 주문금액:</td>
+              <td colspan="3" style="padding: 12px; text-align: right; font-size: 16px; font-weight: bold;">합계금액:</td>
               <td style="padding: 12px; text-align: right; font-size: 16px; font-weight: bold; color: #2563eb;">${fmtCurrency(totalAmount)}</td>
             </tr>
           </tfoot>
@@ -150,6 +160,7 @@ export function transformOrderDataForInvoice(orderDetail) {
     orderNumber: orderDetail?.orderNumber || `#${orderDetail?.orderId}`,
     createdAt: orderDetail?.createdAt || '',
     status: orderDetail?.orderStatus || null,
+    totalPrice: orderDetail?.totalPrice || 0,
   }
 
   const u = orderDetail?.userInfo ?? {}

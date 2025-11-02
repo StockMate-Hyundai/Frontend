@@ -63,6 +63,25 @@ const branches = ref([])
 const selectedBranches = ref([]) // 배열로 변경
 const branchLoading = ref(false)
 
+// 지점별 색상 팔레트 (파스텔톤 16진수)
+const BRANCH_COLORS = [
+  '#FFB3BA',
+  '#FFDFBA',
+  '#FFFFBA',
+  '#BAFFC9',
+  '#BAE1FF',
+  '#E6B3FF',
+  '#FFB3D9',
+  '#FFE6B3',
+  '#B3E6FF',
+  '#FFD9B3',
+  '#C9FFB3',
+  '#B3B3FF',
+  '#FFB3E6',
+  '#B3FFF0',
+  '#FFF0B3',
+]
+
 async function loadBranches() {
   if (!isAdmin.value) return
   branchLoading.value = true
@@ -144,6 +163,13 @@ function isBranchSelected(b) {
   if (!b) return false
   
   return selectedBranches.value.some(br => br.id === b.id)
+}
+
+function getBranchColor(branch) {
+  if (!branch || branch.id === null) return null
+  const memberId = branch.memberId || branch.id
+  
+  return BRANCH_COLORS[memberId % BRANCH_COLORS.length]
 }
 
 /* =========================
@@ -244,7 +270,6 @@ async function fetchEvents(info, successCallback, failureCallback) {
         },
         color: getEventColor(h),
         textColor: getEventTextColor(h),
-        borderColor: getEventTextColor(h),
       }))
 
     successCallback(events)
@@ -279,6 +304,24 @@ function getEventTitle(history) {
 }
 
 function getEventColor(history) {
+  // 지점별 색상 적용
+  const memberId = history?.userInfo?.memberId || history?.memberId
+  if (memberId && isAdmin.value) {
+    const branchColor = BRANCH_COLORS[memberId % BRANCH_COLORS.length]
+
+    // 파스텔 색상에 RGB 값을 직접 더하여 진하게 만듦
+    const rgb = hexToRgb(branchColor)
+    if (rgb) {
+      // 배경을 더 진하게 만들기 위해 RGB 값 증가
+      const darkenFactor = 20
+      
+      return `rgb(${Math.min(255, rgb.r + darkenFactor)}, ${Math.min(255, rgb.g + darkenFactor)}, ${Math.min(255, rgb.b + darkenFactor)})`
+    }
+    
+    return branchColor
+  }
+  
+  // 기존 로직 (지점별 색상이 없는 경우)
   if (history.type === 'INBOUND') {
     return '#d1fae5' // 입고 - 연한 초록 배경
   } else if (history.type === 'OUTBOUND') {
@@ -299,6 +342,21 @@ function getEventColor(history) {
 }
 
 function getEventTextColor(history) {
+  // 지점별 색상 적용
+  const memberId = history?.userInfo?.memberId || history?.memberId
+  if (memberId && isAdmin.value) {
+    const branchColor = BRANCH_COLORS[memberId % BRANCH_COLORS.length]
+
+    // 파스텔 색상의 텍스트는 훨씬 더 어둡게 하기 위해 RGB를 크게 낮춤
+    const rgb = hexToRgb(branchColor)
+    if (rgb) {
+      return `rgb(${Math.max(0, rgb.r - 120)}, ${Math.max(0, rgb.g - 120)}, ${Math.max(0, rgb.b - 120)})`
+    }
+    
+    return branchColor
+  }
+  
+  // 기존 로직 (지점별 색상이 없는 경우)
   if (history.type === 'INBOUND') {
     return '#065f46' // 입고 - 진한 초록 텍스트
   } else if (history.type === 'OUTBOUND') {
@@ -316,6 +374,16 @@ function getEventTextColor(history) {
   }
   
   return textColor[history.status] || '#374151'
+}
+
+function hexToRgb(hex) {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+  
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16),
+  } : null
 }
 
 function resolveStatusLabel(s) {
@@ -487,6 +555,7 @@ watch(selectedBranches, () => {
                 >
                   <VCheckbox
                     :model-value="isBranchSelected(b)"
+                    :color="getBranchColor(b)"
                     density="compact"
                     hide-details
                     class="branch-checkbox"
@@ -655,6 +724,10 @@ watch(selectedBranches, () => {
   margin-inline-end: 0;
 }
 
+.branch-checkbox :deep(.v-checkbox .v-icon) {
+  color: white !important;
+}
+
 .branch-name {
   font-size: 13px;
   line-height: 1.4;
@@ -718,7 +791,7 @@ watch(selectedBranches, () => {
 
 /* 이벤트 간격 줄이기 */
 .full-calendar :deep(.fc-daygrid-event) {
-  margin-block-end: 2px !important;
+  margin-block-end: 4px !important;
   margin-inline: 0 !important;
 }
 
@@ -727,7 +800,7 @@ watch(selectedBranches, () => {
 }
 
 .full-calendar :deep(.fc-event) {
-  margin-block-end: 2px !important;
+  margin-block-end: 6px !important;
   padding-block: 2px !important;
   padding-inline: 6px !important;
 }

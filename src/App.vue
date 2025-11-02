@@ -5,6 +5,7 @@ import {
   initConfigStore,
   useConfigStore,
 } from '@core/stores/config'
+import { useNotificationsStore } from '@/@core/stores/notifications'
 import { hexToRgb } from '@core/utils/colorConverter'
 import { useTheme } from 'vuetify'
 
@@ -15,6 +16,18 @@ initCore()
 initConfigStore()
 
 const configStore = useConfigStore()
+const notificationsStore = useNotificationsStore()
+
+// 웹소켓 자동 연결 및 알림 로드
+onMounted(async () => {
+  notificationsStore.connectWebSocket()
+  // 서버에서 기존 알림 로드
+  await notificationsStore.loadNotifications()
+})
+
+onBeforeUnmount(() => {
+  notificationsStore.disconnectWebSocket()
+})
 </script>
 
 <template>

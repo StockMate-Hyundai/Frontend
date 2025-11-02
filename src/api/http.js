@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getActivePinia } from 'pinia'
 
 export const API_BASE_URL = 'https://api.stockmate.site'
 
@@ -65,6 +66,17 @@ http.interceptors.response.use(
     if (status === 401 && original && !original._smRetried) {
       original._smRetried = true
       clearSession()
+
+      // 웹소켓 연결 해제
+      try {
+        const pinia = getActivePinia()
+        const notificationsStore = pinia?._s?.get('notifications')
+        if (notificationsStore) {
+          notificationsStore.disconnectWebSocket()
+        }
+      } catch (e) {
+        console.warn('[HttpInterceptor] Failed to disconnect WebSocket:', e)
+      }
 
       const redirectTo = encodeURIComponent(location.pathname + location.search)
 

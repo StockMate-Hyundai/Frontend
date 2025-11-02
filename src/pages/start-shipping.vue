@@ -1,210 +1,353 @@
 <!-- File: src/pages/start-shipping.vue -->
 <script setup>
 definePage({
-  meta: {
-    title: '배송 시작',
-    icon: 'bx-package',
-    requiresAuth: true,
-  },
+  meta: { title: '배송 시작', icon: 'bx-package', requiresAuth: true },
 })
+
 import { startShipping } from '@/api/order'
 import { Html5Qrcode } from 'html5-qrcode'
 import { onMounted, onUnmounted, ref } from 'vue'
 
-/* 상태 */
-const scanner = ref(null)
-const isScanning = ref(false)
-const scanError = ref('')
-const successMessage = ref('')
-const errorMessage = ref('')
-const isProcessing = ref(false)
+/* =========================
+   상태
+========================= */
+const scanner            = ref(null)        // Html5Qrcode 인스턴스
+const isScanning         = ref(false)
+const scanError          = ref('')
+const isProcessing       = ref(false)
+const showResultDialog   = ref(false)
+const resultType         = ref('')          // 'success' | 'error'
+const resultMessage      = ref('')
+const resultOrderNumber  = ref('')
+const cameras            = ref([])          // 디바이스 목록
+const selectedCameraId   = ref(null)
+const torchAvailable     = ref(false)
+const torchOn            = ref(false)
+const paused             = ref(false)
 
-/* 카메라 시작 */
+const lastScanAt         = ref(0)           // 중복 스캔 방지(쿨다운)
+const SCAN_COOLDOWN_MS   = 1500
+
+/* =========================
+   카메라 제어
+========================= */
+async function enumerateCameras() {
+  try {
+    const list = await Html5Qrcode.getCameras()
+
+    cameras.value = list || []
+    if (!selectedCameraId.value && cameras.value.length) {
+      // 후면 우선 선택
+      const back = cameras.value.find(c => /back|rear|environment/i.test(c.label)) || cameras.value[0]
+
+      selectedCameraId.value = back.id
+    }
+  } catch (e) {
+    console.warn('카메라 목록 조회 실패:', e)
+  }
+}
+
 async function startCamera() {
   try {
     scanError.value = ''
-    successMessage.value = ''
-    errorMessage.value = ''
-    
-    console.log('카메라 시작 시도...')
-    
-    console.log('HTML5 QR 스캐너 초기화 중...')
+
+    // 기존 인스턴스 정리
+    if (scanner.value) await stopCamera()
+
     scanner.value = new Html5Qrcode('reader')
-    
-    const cameraConfig = {
-      fps: 10,
-      qrbox: { width: 250, height: 250 },
+
+    const constraints = selectedCameraId.value
+      ? { deviceId: { exact: selectedCameraId.value } }
+      : { facingMode: 'environment' }
+
+    const config = {
+      fps: 12,
+      qrbox: { width: 280, height: 280 },
+
+      // 실내 형광등 밴딩 감소
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+
+      // 화면 사이즈에 맞게
+      formatsToSupport: [/* 기본 QR */],
     }
-    
-    console.log('HTML5 QR 스캐너 시작 중...')
-    
-    // HTML5 QR Code가 권한 팝업을 트리거하고 카메라를 시작합니다
+
     await scanner.value.start(
-      { facingMode: 'environment' },
-      cameraConfig,
+      constraints,
+      config,
       onScanSuccess,
       onScanFailure,
     )
-    
-    console.log('카메라 시작 성공!')
+
     isScanning.value = true
+    paused.value = false
+
+    // torch 지원 탐지(일부 브라우저/기기)
+    try {
+      const track = scanner.value.getState()?.videoTrack
+      const capabilities = track?.getCapabilities?.() || {}
+
+      torchAvailable.value = !!capabilities.torch
+    } catch { torchAvailable.value = false }
   } catch (err) {
     console.error('카메라 시작 실패:', err)
-    console.error('에러 상세:', err.message, err.name, err.stack)
-    
-    // 에러 타입에 따라 다른 메시지 표시
+
     const errorMsg = err?.message || err?.name || ''
-    
-    if (errorMsg.includes('Permission denied') || errorMsg.includes('NotAllowedError')) {
-      scanError.value = '카메라 권한이 거부되었습니다. 브라우저 설정에서 카메라 권한을 허용해주세요.'
-    } else if (errorMsg.includes('not found') || errorMsg.includes('NotFoundError')) {
-      scanError.value = '카메라를 찾을 수 없습니다. 카메라가 연결되어 있는지 확인해주세요.'
-    } else if (errorMsg.includes('NotReadableError') || errorMsg.includes('could not start')) {
-      scanError.value = '카메라에 접근할 수 없습니다. 다른 프로그램에서 카메라를 사용 중일 수 있습니다.'
+    if (errorMsg.includes('NotAllowedError')) {
+      scanError.value = '카메라 권한이 거부되었습니다. 브라우저 설정에서 권한을 허용해주세요.'
+    } else if (errorMsg.includes('NotFoundError')) {
+      scanError.value = '사용 가능한 카메라가 없습니다. 연결 상태를 확인해주세요.'
+    } else if (errorMsg.includes('NotReadableError')) {
+      scanError.value = '카메라를 사용할 수 없습니다. 다른 앱에서 사용 중일 수 있어요.'
     } else {
       scanError.value = `카메라를 시작할 수 없습니다: ${errorMsg || '알 수 없는 오류'}`
     }
-    
     isScanning.value = false
   }
 }
 
-/* 카메라 중지 */
-function stopCamera() {
-  if (scanner.value) {
-    scanner.value.stop().then(() => {
-      scanner.value.clear()
-      scanner.value = null
-      isScanning.value = false
-    }).catch(err => {
-      console.error('카메라 중지 실패:', err)
-    })
+async function stopCamera() {
+  try {
+    if (!scanner.value) return
+    await scanner.value.stop()
+    await scanner.value.clear()
+    scanner.value = null
+  } catch (e) {
+    console.warn('카메라 중지 실패:', e)
+  } finally {
+    isScanning.value = false
+    paused.value = false
+    torchOn.value = false
   }
 }
 
-/* QR 코드 인식 성공 */
-async function onScanSuccess(decodedText, decodedResult) {
-  if (isProcessing.value) return
-  
+async function togglePause() {
+  if (!scanner.value) return
   try {
-    isProcessing.value = true
-    stopCamera()
-    
-    // API 호출
-    const result = await startShipping(decodedText)
-    
-    successMessage.value = `배송이 시작되었습니다: ${decodedText}`
-    errorMessage.value = ''
-    
-    // 2초 후 다시 스캔 가능하도록
-    setTimeout(() => {
-      isProcessing.value = false
-      successMessage.value = ''
-      startCamera()
-    }, 2000)
-    
+    if (paused.value) {
+      await scanner.value.resume()
+      paused.value = false
+    } else {
+      await scanner.value.pause(true)
+      paused.value = true
+    }
+  } catch (e) {
+    console.warn('일시정지/재개 실패:', e)
+  }
+}
+
+async function switchCamera(id) {
+  if (id === selectedCameraId.value) return
+  selectedCameraId.value = id
+  await startCamera()
+}
+
+async function toggleTorch() {
+  if (!scanner.value) return
+  try {
+    const track = scanner.value.getState()?.videoTrack
+
+    await track.applyConstraints({ advanced: [{ torch: !torchOn.value }] })
+    torchOn.value = !torchOn.value
+  } catch (e) {
+    console.warn('토치 제어 실패:', e)
+    torchAvailable.value = false
+  }
+}
+
+/* =========================
+   스캔 처리
+========================= */
+function isValidOrder(decoded) {
+  // 필요 시 주문번호 포맷 검증 로직(예: 숫자 6~12자리)
+  return /^[A-Z0-9\-]{4,32}$/i.test(String(decoded || '').trim())
+}
+
+async function onScanSuccess(decodedText) {
+  const now = Date.now()
+  if (now - lastScanAt.value < SCAN_COOLDOWN_MS) return
+  lastScanAt.value = now
+
+  const text = String(decodedText || '').trim()
+  if (!isValidOrder(text)) return
+
+  if (isProcessing.value) return
+  isProcessing.value = true
+
+  try {
+    await stopCamera() // 진동/소리 전에 정지 → 이중 호출 방지
+    if (navigator?.vibrate) navigator.vibrate(60)
+
+    await startShipping(text)
+
+    resultType.value = 'success'
+    resultMessage.value = '배송이 시작되었습니다'
+    resultOrderNumber.value = text
   } catch (err) {
     console.error('배송 시작 실패:', err)
-    errorMessage.value = err?.message || '배송 시작에 실패했습니다.'
-    successMessage.value = ''
+    resultType.value = 'error'
+    resultMessage.value = err?.message || '배송 시작에 실패했습니다.'
+    resultOrderNumber.value = text
+  } finally {
+    showResultDialog.value = true
     isProcessing.value = false
-    
-    // 3초 후 다시 시작
-    setTimeout(() => {
-      errorMessage.value = ''
-      startCamera()
-    }, 3000)
   }
 }
 
-/* QR 코드 인식 실패 */
-function onScanFailure(error) {
-  // 에러 메시지를 표시하지 않음 (너무 많이 출력됨)
+function onScanFailure() {
+  // 과도한 로그/토스트 방지를 위해 무시
 }
 
-/* 컴포넌트 언마운트 시 카메라 중지 */
-onUnmounted(() => {
-  stopCamera()
-})
+/* =========================
+   가시성 변화 대응(탭 이동)
+========================= */
+function handleVisibility() {
+  if (document.hidden) {
+    if (isScanning.value) togglePause().catch(() => {})
+  } else if (scanner.value && paused.value) {
+    togglePause().catch(() => {})
+  }
+}
 
-/* 수동 입력 처리 */
-const manualOrderNumber = ref('')
-const isManualProcessing = ref(false)
+/* =========================
+   수동 입력
+========================= */
+const manualOrderNumber   = ref('')
+const isManualProcessing  = ref(false)
 
 async function handleManualSubmit() {
-  if (!manualOrderNumber.value.trim() || isManualProcessing.value) return
-  
+  const orderNum = manualOrderNumber.value.trim()
+  if (!orderNum || isManualProcessing.value) return
+  if (!isValidOrder(orderNum)) {
+    resultType.value = 'error'
+    resultMessage.value = '주문번호 형식이 올바르지 않습니다.'
+    resultOrderNumber.value = orderNum
+    showResultDialog.value = true
+    
+    return
+  }
+
   try {
     isManualProcessing.value = true
-    errorMessage.value = ''
-    successMessage.value = ''
-    
-    const result = await startShipping(manualOrderNumber.value.trim())
-    
-    successMessage.value = `배송이 시작되었습니다: ${manualOrderNumber.value.trim()}`
+    await startShipping(orderNum)
+
+    resultType.value = 'success'
+    resultMessage.value = '배송이 시작되었습니다'
+    resultOrderNumber.value = orderNum
+    showResultDialog.value = true
     manualOrderNumber.value = ''
-    
   } catch (err) {
     console.error('배송 시작 실패:', err)
-    errorMessage.value = err?.message || '배송 시작에 실패했습니다.'
+    resultType.value = 'error'
+    resultMessage.value = err?.message || '배송 시작에 실패했습니다.'
+    resultOrderNumber.value = orderNum
+    showResultDialog.value = true
   } finally {
     isManualProcessing.value = false
   }
 }
 
-/* QR 코드 형식 정리 */
-function formatOrderNumber(text) {
-  // "#" 제거 또는 기타 정리
-  return text.replace(/^#/, '').trim()
+/* =========================
+   결과 닫기 → 카메라 재시작
+========================= */
+function closeResultDialog() {
+  showResultDialog.value = false
+  resultMessage.value = ''
+  resultOrderNumber.value = ''
+  if (resultType.value === 'success') {
+    setTimeout(() => { startCamera() }, 300)
+  }
 }
 
-/* 페이지 로드 시 초기화 */
-onMounted(() => {
-  // 자동 시작하지 않음 - 사용자가 버튼을 눌러 시작
+/* =========================
+   라이프사이클
+========================= */
+onMounted(async () => {
+  await enumerateCameras()
+  await startCamera()
+  document.addEventListener('visibilitychange', handleVisibility)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('visibilitychange', handleVisibility)
+  stopCamera()
 })
 </script>
 
 <template>
-  <div class="page-container">
-    <div class="start-shipping-wrapper">
-      <VCard class="scanner-card">
-        <VCardTitle class="text-center pa-6">
-          <VIcon
-            icon="bx-truck"
-            size="48"
-            color="primary"
-            class="mb-3"
-          />
-          <div class="text-h5 mb-1">
-            배송 시작
+  <div class="page start-shipping">
+    <!-- 헤더 -->
+    <div class="header">
+      <div class="header-left">
+        <h6 class="title">
+          배송 시작
+        </h6>
+        <p class="desc">
+          QR 스캔 또는 주문번호 입력으로 배송을 시작하세요.
+        </p>
+      </div>
+      <div class="header-right hidden-sm-and-down" />
+    </div>
+
+    <div class="grid">
+      <!-- 스캐너 -->
+      <VCard class="panel scanner">
+        <VCardText class="px-6 pt-5 pb-2">
+          <div class="panel-head">
+            <div class="panel-title">
+              <VIcon
+                icon="bx-qr-scan"
+                class="mr-2"
+              /> QR 코드 스캔
+            </div>
+
+            <!-- 카메라 컨트롤 -->
+            <div class="controls">
+              <VSelect
+                v-model="selectedCameraId"
+                :items="cameras.map(c => ({ title: c.label || 'Camera', value: c.id }))"
+                density="comfortable"
+                variant="outlined"
+                hide-details
+                style="min-width: 220px"
+                placeholder="카메라 선택"
+                @update:model-value="switchCamera"
+              />
+              <VBtn
+                v-if="torchAvailable"
+                :color="torchOn ? 'warning' : 'default'"
+                variant="tonal"
+                @click="toggleTorch"
+              >
+                <VIcon
+                  :icon="torchOn ? 'bx-bulb' : 'bx-bulb'"
+                  start
+                />
+                {{ torchOn ? '토치 끄기' : '토치 켜기' }}
+              </VBtn>
+              <VBtn
+                color="error"
+                variant="tonal"
+                @click="stopCamera"
+              >
+                <VIcon
+                  start
+                  icon="bx-stop"
+                /> 중지
+              </VBtn>
+              <VBtn
+                color="primary"
+                variant="flat"
+                class="ml-1"
+                @click="startCamera"
+              >
+                <VIcon
+                  start
+                  icon="bx-video"
+                /> 시작
+              </VBtn>
+            </div>
           </div>
-          <div class="text-body-2 text-medium-emphasis">
-            인보이스의 QR 코드를 스캔하세요
-          </div>
-        </VCardTitle>
 
-        <VCardText class="text-center pa-6 pt-0">
-          <!-- 에러 메시지 -->
-          <VAlert
-            v-if="errorMessage"
-            type="error"
-            variant="tonal"
-            class="mb-4"
-          >
-            {{ errorMessage }}
-          </VAlert>
-
-          <!-- 성공 메시지 -->
-          <VAlert
-            v-if="successMessage"
-            type="success"
-            variant="tonal"
-            class="mb-4"
-          >
-            {{ successMessage }}
-          </VAlert>
-
-          <!-- 카메라 권한 에러 -->
           <VAlert
             v-if="scanError"
             type="warning"
@@ -224,252 +367,285 @@ onMounted(() => {
             </div>
           </VAlert>
 
-          <!-- QR 스캐너 영역 -->
-          <div class="scanner-container">
+          <div class="scanner-wrap">
             <div
               id="reader"
               class="qr-scanner"
             />
             <div
               v-if="!isScanning && !isProcessing"
-              class="qr-scanner-placeholder"
+              class="placeholder"
             >
               <VIcon
-                icon="bx-camera"
-                size="64"
-                color="grey"
+                icon="bx-qr"
+                size="120"
               />
-              <div class="text-body-1 text-medium-emphasis mt-4">
-                카메라를 시작하려면 아래 버튼을 클릭하세요
-              </div>
+              <p class="mt-3 text-medium-emphasis">
+                카메라를 시작하면 자동으로 스캔합니다.
+              </p>
             </div>
 
-            <!-- 스캔 가이드 오버레이 -->
+            <!-- 커스텀 스캔 프레임 -->
             <div
               v-if="isScanning"
-              class="scan-overlay"
+              class="overlay"
             >
-              <div class="scan-frame" />
-              <div class="scan-corner scan-corner-tl" />
-              <div class="scan-corner scan-corner-tr" />
-              <div class="scan-corner scan-corner-bl" />
-              <div class="scan-corner scan-corner-br" />
+              <div class="frame">
+                <div class="beam" />
+              </div>
+              <div class="corner tl" />
+              <div class="corner tr" />
+              <div class="corner bl" />
+              <div class="corner br" />
             </div>
-          </div>
-
-          <!-- 카메라 제어 버튼 -->
-          <div class="camera-controls mt-4">
-            <VBtn
-              v-if="!isScanning && !isProcessing"
-              color="primary"
-              size="large"
-              @click="startCamera"
-            >
-              <VIcon
-                start
-                icon="bx-video"
-              />
-              카메라 시작
-            </VBtn>
-            <VBtn
-              v-else
-              color="error"
-              size="large"
-              @click="stopCamera"
-            >
-              <VIcon
-                start
-                icon="bx-stop"
-              />
-              카메라 중지
-            </VBtn>
           </div>
         </VCardText>
       </VCard>
 
-      <!-- 수동 입력 섹션 -->
-      <VCard class="manual-card mt-4">
-        <VCardTitle class="pa-4">
-          <div class="text-subtitle-1">
-            수동 입력
+      <!-- 수동 입력 -->
+      <VCard class="panel manual">
+        <VCardText class="px-6 py-5">
+          <div class="panel-title mb-4">
+            <VIcon
+              icon="bx-keyboard"
+              class="mr-2"
+            /> 수동 입력
           </div>
-        </VCardTitle>
-        <VCardText class="pa-4 pt-0">
-          <div class="d-flex gap-2">
-            <VTextField
-              v-model="manualOrderNumber"
-              label="주문번호 입력"
-              placeholder="#123456"
-              variant="outlined"
-              density="comfortable"
-              hide-details
-              class="flex-grow-1"
-              @keyup.enter="handleManualSubmit"
+
+          <VTextField
+            v-model="manualOrderNumber"
+            label="주문번호"
+            placeholder="예) SO-240915-001"
+            variant="outlined"
+            density="comfortable"
+            hide-details="auto"
+            class="mb-3"
+            maxlength="32"
+            :rules="[v => !v || /^[A-Za-z0-9\-]{4,32}$/.test(v) || '주문번호 형식이 올바르지 않습니다.']"
+            @keyup.enter="handleManualSubmit"
+          />
+          <VBtn
+            color="primary"
+            variant="flat"
+            size="large"
+            block
+            :loading="isManualProcessing"
+            :disabled="!manualOrderNumber.trim()"
+            @click="handleManualSubmit"
+          >
+            <VIcon
+              start
+              icon="bx-log-out"
+            /> 배송 시작
+          </VBtn>
+
+          <VDivider class="my-6" />
+
+          <div class="hints">
+            <VIcon
+              icon="bx-info-circle"
+              class="mr-1"
             />
-            <VBtn
-              color="primary"
-              variant="elevated"
-              :loading="isManualProcessing"
-              :disabled="!manualOrderNumber.trim()"
-              @click="handleManualSubmit"
-            >
-              <VIcon
-                start
-                icon="bx-check"
-              />
-              시작
-            </VBtn>
+            팁: 빛 반사가 심하면 토치를 끄고, 카메라를 QR에 평행하게 맞춰주세요.
           </div>
         </VCardText>
       </VCard>
     </div>
+
+    <!-- 결과 다이얼로그 -->
+    <VDialog
+      v-model="showResultDialog"
+      max-width="460"
+      persistent
+    >
+      <VCard class="elevation-0">
+        <VCardTitle class="text-center pa-7 pb-3">
+          <VAvatar
+            :color="resultType === 'success' ? 'success' : 'error'"
+            size="72"
+            class="mb-4"
+          >
+            <VIcon
+              :icon="resultType === 'success' ? 'bx-check' : 'bx-x'"
+              size="44"
+            />
+          </VAvatar>
+          <div
+            class="text-h5 font-weight-bold"
+            :class="resultType === 'success' ? 'text-success' : 'text-error'"
+          >
+            {{ resultMessage }}
+          </div>
+        </VCardTitle>
+
+        <VCardText class="text-center px-7 pb-1">
+          <div class="result-box">
+            <div class="text-body-2 text-medium-emphasis mb-2">
+              주문번호
+            </div>
+            <div class="text-h5 font-weight-bold">
+              #{{ resultOrderNumber }}
+            </div>
+          </div>
+        </VCardText>
+
+        <VCardActions class="justify-center pb-6">
+          <VBtn
+            :color="resultType === 'success' ? 'success' : 'error'"
+            variant="flat"
+            size="large"
+            min-width="120"
+            @click="closeResultDialog"
+          >
+            확인
+          </VBtn>
+        </VCardActions>
+      </VCard>
+    </VDialog>
   </div>
 </template>
 
 <style scoped>
-.page-container {
-  min-height: calc(100vh - 120px);
+.page.start-shipping {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: var(--erp-bg-primary);
+  flex-direction: column;
+  gap: 20px;
+  padding: 4px 12px;
 }
 
-.start-shipping-wrapper {
-  width: 100%;
-  max-width: 600px;
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
 }
 
-.scanner-card,
-.manual-card {
-  border-radius: 16px;
+.title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0;
+  color: rgb(var(--v-theme-on-surface));
 }
 
-.scanner-container {
-  position: relative;
-  width: 100%;
-  max-width: 400px;
-  margin: 0 auto;
+.desc {
+  margin: 6px 0 0;
+  font-size: 0.92rem;
+  color: rgba(var(--v-theme-on-surface), 0.68);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.panel {
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   border-radius: 12px;
   overflow: hidden;
-  background: var(--erp-bg-secondary);
+}
+
+.panel .panel-title {
+  font-weight: 700;
+  color: rgb(var(--v-theme-on-surface));
+  display: flex;
+  align-items: center;
+  font-size: 1rem;
+}
+
+.panel.scanner .panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.panel.scanner .controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.scanner-wrap {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(var(--v-theme-on-surface), 0.03), rgba(var(--v-theme-on-surface), 0.06));
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  height: 500px;
 }
 
 .qr-scanner {
   width: 100% !important;
-  min-height: 300px !important;
+  height: 500px !important;
   position: relative;
   z-index: 1;
 }
 
-/* html5-qrcode가 추가하는 내부 요소들 스타일링 */
 .qr-scanner video,
 .qr-scanner canvas {
   width: 100% !important;
-  max-width: 100% !important;
-  height: auto !important;
+  height: 500px !important;
   display: block !important;
+  object-fit: cover !important;
 }
 
-.qr-scanner-placeholder {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  min-height: 300px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: var(--erp-bg-tertiary);
-  border-radius: 12px;
-  z-index: 0;
+/* 기본 qrbox 숨김 */
+.qr-scanner :deep(#qr-shaded-region) { display: none !important; }
+
+/* 플레이스홀더 */
+.placeholder {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  opacity: .5; z-index: 0;
 }
 
-.scan-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  pointer-events: none;
-}
-
-.scan-frame {
-  position: absolute;
-  top: 50%;
-  left: 50%;
+/* 오버레이(프레임 & 라인 애니메) */
+.overlay { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.frame {
+  position: absolute; top: 50%; left: 50%;
   transform: translate(-50%, -50%);
-  width: 250px;
-  height: 250px;
-  border: 2px solid rgba(33, 150, 243, 0.3);
-  border-radius: 12px;
+  width: min(64%, 420px); aspect-ratio: 1;
+}
+.beam {
+  position: absolute; left: 8%; right: 8%;
+  height: 2px; background: rgba(33,150,243,.8);
+  animation: beam 2.2s ease-in-out infinite;
+}
+@keyframes beam {
+  0% { top: 10%; opacity: .2; }
+  50% { top: 90%; opacity: .8; }
+  100% { top: 10%; opacity: .2; }
 }
 
-.scan-corner {
-  position: absolute;
-  width: 24px;
-  height: 24px;
-  border: 3px solid rgb(33, 150, 243);
+.corner { position: absolute; width: 46px; height: 46px; border: 4px solid rgb(33,150,243); }
+.corner.tl { top: calc(50% - min(32%, 210px)); left: calc(50% - min(32%, 210px)); border-right: 0; border-bottom: 0; border-radius: 14px 0 0 0; }
+.corner.tr { top: calc(50% - min(32%, 210px)); right: calc(50% - min(32%, 210px)); border-left: 0; border-bottom: 0; border-radius: 0 14px 0 0; }
+.corner.bl { bottom: calc(50% - min(32%, 210px)); left: calc(50% - min(32%, 210px)); border-right: 0; border-top: 0; border-radius: 0 0 0 14px; }
+.corner.br { bottom: calc(50% - min(32%, 210px)); right: calc(50% - min(32%, 210px)); border-left: 0; border-top: 0; border-radius: 0 0 14px 0; }
+
+/* 결과 박스 */
+.result-box {
+  background: rgba(var(--v-theme-on-surface), .04);
+  border: 1px solid rgba(var(--v-theme-on-surface), .08);
+  border-radius: 10px;
+  padding: 18px;
 }
 
-.scan-corner-tl {
-  top: calc(50% - 125px);
-  left: calc(50% - 125px);
-  border-right: none;
-  border-bottom: none;
-  border-radius: 12px 0 0 0;
-}
+/* 힌트 */
+.hints { font-size: .9rem; color: rgba(var(--v-theme-on-surface), .7); display: flex; align-items: center; }
 
-.scan-corner-tr {
-  top: calc(50% - 125px);
-  right: calc(50% - 125px);
-  border-left: none;
-  border-bottom: none;
-  border-radius: 0 12px 0 0;
+/* 반응형 */
+@media (max-width: 1080px) {
+  .grid { grid-template-columns: 1fr; }
 }
-
-.scan-corner-bl {
-  bottom: calc(50% - 125px);
-  left: calc(50% - 125px);
-  border-right: none;
-  border-top: none;
-  border-radius: 0 0 0 12px;
-}
-
-.scan-corner-br {
-  bottom: calc(50% - 125px);
-  right: calc(50% - 125px);
-  border-left: none;
-  border-top: none;
-  border-radius: 0 0 12px 0;
-}
-
-.camera-controls {
-  display: flex;
-  justify-content: center;
-}
-
-.manual-card {
-  background: var(--erp-bg-secondary);
-}
-
 @media (max-width: 600px) {
-  .qr-scanner,
-  .qr-scanner-placeholder {
-    min-height: 250px;
-  }
-
-  .scan-frame {
-    width: 200px;
-    height: 200px;
-  }
-
-  .scan-corner {
-    width: 20px;
-    height: 20px;
-  }
+  .page.start-shipping { padding: 16px; gap: 14px; }
+  .scanner-wrap { height: 320px !important; }
+  .qr-scanner { height: 320px !important; }
+  .qr-scanner video,
+  .qr-scanner canvas { height: 320px !important; }
 }
 </style>
-

@@ -343,3 +343,28 @@ export async function getStorePartsList(storeId, {
 
   return normalizePagePayload(res, size)
 }
+
+/**
+ * 📊 부품 분포 조회 API
+ * GET /api/v1/parts/distribution/{partId}
+ * @param {number|string} partId - 부품 ID
+ * @param {Object} options - 검색 옵션
+ * @param {number} options.page - 페이지 번호 (0부터 시작)
+ * @param {number} options.size - 페이지 크기
+ * @returns {Promise} 부품 분포 정보 (PartDistributionResponseDTO)
+ */
+export async function getPartDistribution(partId, {
+  page = 0,
+  size = 20,
+} = {}) {
+  if (!partId) {
+    return null
+  }
+
+  const res = await http.get(`/api/v1/parts/distribution/${partId}`, {
+    params: { page, size },
+  })
+
+  // 응답 스펙: ApiResponsePartDistributionResponseDTO -> data: PartDistributionResponseDTO
+  return res?.data?.data ?? null
+}

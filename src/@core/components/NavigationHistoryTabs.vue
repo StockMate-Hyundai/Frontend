@@ -78,7 +78,7 @@ const removePage = path => {
   white-space: nowrap;
   flex-shrink: 0;
   will-change: scroll-position;
-  max-width: 70vw; // 최대 가로 넓이 50vh로 제한
+  max-width: 60vw; // 최대 가로 넓이 50vh로 제한
 
   .tabs-container {
     display: flex;
