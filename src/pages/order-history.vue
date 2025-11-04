@@ -1,9 +1,7 @@
 <!-- File: src/pages/order-history.vue -->
 <script setup>
-import { getProfile } from '@/api/http'
 import {
   getAllReceivingHistoryForAdmin,
-  getMyReceivingHistory,
   getReceivingHistoryByMemberIdForAdmin,
   getReceivingHistoryByOrderNumber,
 } from '@/api/orderHistory'
@@ -21,8 +19,9 @@ definePage({
 /* =========================
    권한/레이아웃
 ========================= */
-const userRole = computed(() => (getProfile().role || 'USER').toUpperCase())
-const isAdmin = computed(() => ['ADMIN', 'SUPER_ADMIN'].includes(userRole.value))
+// 모든 사용자가 동일한 권한으로 볼 수 있도록 isAdmin 제거
+// const userRole = computed(() => (getProfile().role || 'USER').toUpperCase())
+// const isAdmin = computed(() => ['ADMIN', 'SUPER_ADMIN'].includes(userRole.value))
 const { isLeftSidebarOpen } = useResponsiveLeftSidebar()
 const router = useRouter()
 
@@ -88,9 +87,8 @@ const headers = computed(() => {
     { title: '등록일시', key: 'createdAt' },
   ]
 
-  if (isAdmin.value) {
-    base.splice(2, 0, { title: '가맹점', key: 'storeName' })
-  }
+  // 모든 사용자에게 가맹점 컬럼 표시
+  base.splice(2, 0, { title: '가맹점', key: 'storeName' })
   
   return base
 })
@@ -105,7 +103,7 @@ const selectedBranch = ref(null)
 const branchLoading = ref(false)
 
 async function loadBranches() {
-  if (!isAdmin.value) return
+  // 모든 사용자가 지점 목록 로드 가능
   branchLoading.value = true
   try {
     const list = unwrap(await getBranchList()) || []
@@ -147,7 +145,8 @@ async function loadHistories() {
         page: page.value - 1,
         size: itemsPerPage.value,
       })
-    } else if (isAdmin.value) {
+    } else {
+      // 모든 사용자가 관리자 API 사용
       if (selectedBranch.value?.id) {
         res = await getReceivingHistoryByMemberIdForAdmin(selectedBranch.value.id, {
           page: page.value - 1,
@@ -159,11 +158,6 @@ async function loadHistories() {
           size: itemsPerPage.value,
         })
       }
-    } else {
-      res = await getMyReceivingHistory({
-        page: page.value - 1,
-        size: itemsPerPage.value,
-      })
     }
     historiesData.value = unwrapList(res)
   } catch (e) {
@@ -175,7 +169,7 @@ async function loadHistories() {
 }
 
 onMounted(async () => {
-  if (isAdmin.value) await loadBranches()
+  await loadBranches()
   await loadHistories()
 })
 watch([page, itemsPerPage, selectedBranch], () => loadHistories())
@@ -221,7 +215,7 @@ function onSearch() {
 
 function onReset() {
   orderNumberFilter.value = ''
-  if (isAdmin.value && branches.value.length) selectedBranch.value = branches.value[0]
+  if (branches.value.length) selectedBranch.value = branches.value[0]
   page.value = 1
   loadHistories()
 }
@@ -234,14 +228,12 @@ async function fetchAllForExport() {
   let currentPage = 0
   while (true) {
     let res
-    if (isAdmin.value) {
-      if (selectedBranch.value?.id) {
-        res = await getReceivingHistoryByMemberIdForAdmin(selectedBranch.value.id, { page: currentPage, size: 100 })
-      } else {
-        res = await getAllReceivingHistoryForAdmin({ page: currentPage, size: 100 })
-      }
+
+    // 모든 사용자가 관리자 API 사용
+    if (selectedBranch.value?.id) {
+      res = await getReceivingHistoryByMemberIdForAdmin(selectedBranch.value.id, { page: currentPage, size: 100 })
     } else {
-      res = await getMyReceivingHistory({ page: currentPage, size: 100 })
+      res = await getAllReceivingHistoryForAdmin({ page: currentPage, size: 100 })
     }
     const { content, last } = unwrapList(res)
 
@@ -292,11 +284,8 @@ async function fetchAllForExport() {
 
     <!-- 하단: 좌측 지점 선택 + 우측 테이블 -->
     <div class="page-content">
-      <!-- 좌측: 지점 선택 (관리자만) -->
-      <div
-        v-if="isAdmin"
-        class="branch-selector"
-      >
+      <!-- 좌측: 지점 선택 (모든 사용자) -->
+      <div class="branch-selector">
         <div class="branch-header">
           <span class="branch-title">지점</span>
         </div>
@@ -395,13 +384,10 @@ async function fetchAllForExport() {
             <template #colgroup>
               <col style="width: 6%">
               <col style="width: 12%">
-              <col
-                v-if="isAdmin"
-                style="width: 10%"
-              >
+              <col style="width: 12%">
               <col style="width: 10%">
               <col style="width: 35%">
-              <col style="width: 20%">
+              <col style="width: 25%">
             </template>
 
             <template #item.id="{ item }">
@@ -424,10 +410,7 @@ async function fetchAllForExport() {
               </span>
             </template>
 
-            <template
-              v-if="isAdmin"
-              #item.storeName="{ item }"
-            >
+            <template #item.storeName="{ item }">
               <span
                 v-if="item.userInfo?.memberId || item.memberId"
                 class="store-name cursor-pointer"
@@ -462,7 +445,7 @@ async function fetchAllForExport() {
 
             <template #expanded-row="{ item }">
               <tr>
-                <td :colspan="isAdmin ? 7 : 6">
+                <td :colspan="7">
                   <div class="expanded-content">
                     <!-- 상단 요약 -->
                     <div class="expanded-header">

@@ -13,10 +13,43 @@ const props = defineProps({
     type: null,
     required: true,
   },
+  toggleIsOverlayNavActive: {
+    type: Function,
+    required: false,
+    default: null,
+  },
+  isOverlayNavActive: {
+    type: Boolean,
+    required: false,
+    default: false,
+  },
 })
 
 const configStore = useLayoutConfigStore()
 const hideTitleAndBadge = configStore.isVerticalNavMini()
+
+// 네비게이션 링크 클릭 시 오버레이 닫기 (즉시 처리)
+const handleLinkClick = () => {
+  // 모바일 환경에서만 처리
+  if (configStore.isLessThanOverlayNavBreakpoint.value && props.isOverlayNavActive && props.toggleIsOverlayNavActive) {
+    // 즉시 닫기 - 동기적으로 여러 번 호출하여 확실하게
+    props.toggleIsOverlayNavActive(false)
+    
+    // requestAnimationFrame으로도 처리 (브라우저 렌더링 사이클에 맞춰)
+    requestAnimationFrame(() => {
+      if (props.toggleIsOverlayNavActive) {
+        props.toggleIsOverlayNavActive(false)
+      }
+    })
+    
+    // 추가로 setTimeout으로도 처리 (모든 경우 대비)
+    setTimeout(() => {
+      if (props.toggleIsOverlayNavActive) {
+        props.toggleIsOverlayNavActive(false)
+      }
+    }, 0)
+  }
+}
 </script>
 
 <template>
@@ -29,6 +62,7 @@ const hideTitleAndBadge = configStore.isVerticalNavMini()
       :is="item.to ? 'RouterLink' : 'a'"
       v-bind="getComputedNavLinkToProp(item)"
       :class="{ 'router-link-active router-link-exact-active': isNavLinkActive(item, $router) }"
+      @click="handleLinkClick"
     >
       <Component
         :is="layoutConfig.app.iconRenderer || 'div'"

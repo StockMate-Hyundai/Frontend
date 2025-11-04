@@ -369,6 +369,9 @@
     "ORDER_STATUS_OPTIONS": true,
     "resolveOrderStatus": true,
     "generateInvoicePDF": true,
-    "transformOrderDataForInvoice": true
+    "transformOrderDataForInvoice": true,
+    "isAppBuild": true,
+    "isNativePlatform": true,
+    "isWebPlatform": true
   }
 }

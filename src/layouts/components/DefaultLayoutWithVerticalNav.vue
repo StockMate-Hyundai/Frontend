@@ -1,5 +1,6 @@
 <script setup>
-import navItems from '@/navigation/vertical'
+import { getNavigationItems } from '@/navigation/vertical'
+import { getProfile } from '@/api/http'
 import { themeConfig } from '@themeConfig'
 
 // Components
@@ -14,6 +15,46 @@ import { useConfigStore } from '@/@core/stores/config'
 import { VerticalNavLayout } from '@layouts'
 
 const configStore = useConfigStore()
+
+// localStorage 변경 감지를 위한 ref (UserProfile 컴포넌트와 동일한 방식)
+const forceUpdate = ref(0)
+
+// 역할에 따라 네비게이션 항목을 동적으로 계산
+// forceUpdate를 참조하여 localStorage 변경 시 반응성 확보
+const navItems = computed(() => {
+  // forceUpdate를 참조하여 반응성 확보
+  forceUpdate.value // eslint-disable-line no-unused-expressions
+  // 항상 최신 프로필 정보를 가져오기 위해 getProfile 호출
+  getProfile()
+  return getNavigationItems()
+})
+
+// localStorage 변경 감지 설정
+if (typeof window !== 'undefined') {
+  const handleStorageChange = (e) => {
+    if (e && e.key && ['sm_role', 'sm_email'].includes(e.key)) {
+      forceUpdate.value++
+    }
+  }
+  
+  onMounted(() => {
+    // 다른 탭에서의 변경 감지
+    window.addEventListener('storage', handleStorageChange)
+    
+    // 같은 탭 내에서의 변경 감지 (localStorage.setItem 오버라이드)
+    const originalSetItem = localStorage.setItem.bind(localStorage)
+    localStorage.setItem = function(key, value) {
+      originalSetItem(key, value)
+      if (['sm_role', 'sm_email'].includes(key)) {
+        forceUpdate.value++
+      }
+    }
+  })
+  
+  onBeforeUnmount(() => {
+    window.removeEventListener('storage', handleStorageChange)
+  })
+}
 
 // ℹ️ Provide animation name for vertical nav collapse icon.
 const verticalNavHeaderActionAnimationName = ref(null)

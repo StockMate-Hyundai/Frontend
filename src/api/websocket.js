@@ -31,7 +31,7 @@ export class OrderApprovalWebSocket {
     if (!this.currentUser?.memberId) throw new Error('User ID not found')
 
     const userId = this.currentUser.memberId
-    const wsUrl = `ㄴㄴㄴwss://api.stockmate.site/ws/order?userId=${userId}`
+    const wsUrl = `wss://api.stockmate.site/ws/order?userId=${userId}`
 
     return new Promise((resolve, reject) => {
       try {
@@ -161,7 +161,7 @@ export class DashboardWebSocket {
       return
     }
 
-    const wsUrl = `ㄴㄴㄴwss://api.stockmate.site/ws/order/dashboard?type=${wsType}`
+    const wsUrl = `wss://api.stockmate.site/ws/order/dashboard?type=${wsType}`
 
     return new Promise((resolve, reject) => {
       try {

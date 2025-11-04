@@ -66,9 +66,11 @@ declare global {
   const inject: typeof import('vue')['inject']
   const injectLocal: typeof import('@vueuse/core')['injectLocal']
   const integerValidator: typeof import('./src/@core/utils/validators.js')['integerValidator']
+  const isAppBuild: typeof import('./src/utils/platform.js')['isAppBuild']
   const isDefined: typeof import('@vueuse/core')['isDefined']
   const isEmpty: typeof import('./src/@core/utils/helpers.js')['isEmpty']
   const isEmptyArray: typeof import('./src/@core/utils/helpers.js')['isEmptyArray']
+  const isNativePlatform: typeof import('./src/utils/platform.js')['isNativePlatform']
   const isNullOrUndefined: typeof import('./src/@core/utils/helpers.js')['isNullOrUndefined']
   const isObject: typeof import('./src/@core/utils/helpers.js')['isObject']
   const isProxy: typeof import('vue')['isProxy']
@@ -76,6 +78,7 @@ declare global {
   const isReadonly: typeof import('vue')['isReadonly']
   const isRef: typeof import('vue')['isRef']
   const isToday: typeof import('./src/@core/utils/helpers.js')['isToday']
+  const isWebPlatform: typeof import('./src/utils/platform.js')['isWebPlatform']
   const kFormatter: typeof import('./src/@core/utils/formatters.js')['kFormatter']
   const lengthValidator: typeof import('./src/@core/utils/validators.js')['lengthValidator']
   const loadXDWorld: typeof import('./src/utils/loadXDWorld')['loadXDWorld']
@@ -435,9 +438,11 @@ declare module 'vue' {
     readonly inject: UnwrapRef<typeof import('vue')['inject']>
     readonly injectLocal: UnwrapRef<typeof import('@vueuse/core')['injectLocal']>
     readonly integerValidator: UnwrapRef<typeof import('./src/@core/utils/validators.js')['integerValidator']>
+    readonly isAppBuild: UnwrapRef<typeof import('./src/utils/platform.js')['isAppBuild']>
     readonly isDefined: UnwrapRef<typeof import('@vueuse/core')['isDefined']>
     readonly isEmpty: UnwrapRef<typeof import('./src/@core/utils/helpers.js')['isEmpty']>
     readonly isEmptyArray: UnwrapRef<typeof import('./src/@core/utils/helpers.js')['isEmptyArray']>
+    readonly isNativePlatform: UnwrapRef<typeof import('./src/utils/platform.js')['isNativePlatform']>
     readonly isNullOrUndefined: UnwrapRef<typeof import('./src/@core/utils/helpers.js')['isNullOrUndefined']>
     readonly isObject: UnwrapRef<typeof import('./src/@core/utils/helpers.js')['isObject']>
     readonly isProxy: UnwrapRef<typeof import('vue')['isProxy']>
@@ -445,6 +450,7 @@ declare module 'vue' {
     readonly isReadonly: UnwrapRef<typeof import('vue')['isReadonly']>
     readonly isRef: UnwrapRef<typeof import('vue')['isRef']>
     readonly isToday: UnwrapRef<typeof import('./src/@core/utils/helpers.js')['isToday']>
+    readonly isWebPlatform: UnwrapRef<typeof import('./src/utils/platform.js')['isWebPlatform']>
     readonly kFormatter: UnwrapRef<typeof import('./src/@core/utils/formatters.js')['kFormatter']>
     readonly lengthValidator: UnwrapRef<typeof import('./src/@core/utils/validators.js')['lengthValidator']>
     readonly logicAnd: UnwrapRef<typeof import('@vueuse/math')['logicAnd']>

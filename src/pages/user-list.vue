@@ -591,12 +591,6 @@ const widgetData = computed(() => [
               <VIcon icon="bx-dots-vertical-rounded" />
               <VMenu activator="parent">
                 <VList>
-                  <VListItem :to="{ name: 'second-page' }">
-                    <template #prepend>
-                      <VIcon icon="bx-show" />
-                    </template>
-                    <VListItemTitle>View</VListItemTitle>
-                  </VListItem>
 
                   <!-- 메뉴에서도 수정 가능 -->
                   <VListItem

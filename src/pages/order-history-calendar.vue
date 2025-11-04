@@ -1,9 +1,7 @@
 <!-- File: src/pages/order-history-calendar.vue -->
 <script setup>
-import { getProfile } from '@/api/http'
 import {
   getAllReceivingHistoryForAdmin,
-  getMyReceivingHistory,
   getReceivingHistoryByMemberIdForAdmin,
 } from '@/api/orderHistory'
 import { getBranchList } from '@/api/parts'
@@ -14,6 +12,7 @@ import FullCalendar from '@fullcalendar/vue3'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { PerfectScrollbar } from 'vue3-perfect-scrollbar'
+import { useDisplay } from 'vuetify'
 
 definePage({
   meta: { title: '입출고 히스토리 캘린더', icon: 'bx-calendar', requiresAuth: true },
@@ -22,10 +21,12 @@ definePage({
 /* =========================
    권한/레이아웃
 ========================= */
-const userRole = computed(() => (getProfile().role || 'USER').toUpperCase())
-const isAdmin = computed(() => ['ADMIN', 'SUPER_ADMIN'].includes(userRole.value))
+// 모든 사용자가 동일한 권한으로 볼 수 있도록 isAdmin 제거
+// const userRole = computed(() => (getProfile().role || 'USER').toUpperCase())
+// const isAdmin = computed(() => ['ADMIN', 'SUPER_ADMIN'].includes(userRole.value))
 const { isLeftSidebarOpen } = useResponsiveLeftSidebar()
 const router = useRouter()
+const { mdAndDown, smAndDown, xs } = useDisplay()
 
 /* =========================
    캘린더 설정
@@ -33,28 +34,34 @@ const router = useRouter()
 const calendarRef = ref()
 const calendarApi = ref(null)
 
-const calendarOptions = computed(() => ({
-  plugins: [dayGridPlugin, interactionPlugin],
-  initialView: 'dayGridMonth',
-  locale: 'ko',
-  headerToolbar: {
-    left: 'prev,next today',
-    center: 'title',
-    right: 'dayGridMonth',
-  },
-  height: 'auto',
-  contentHeight: 'auto',
-  editable: false,
-  selectable: true,
-  selectMirror: true,
-  dayMaxEvents: true,
-  weekends: true,
-  eventClick: handleEventClick,
-  dateClick: handleDateClick,
-  datesSet: handleDatesSet,
-  events: fetchEvents,
-  eventContent: renderEventContent,
-}))
+const calendarOptions = computed(() => {
+  const isMobile = smAndDown.value
+  
+  return {
+    plugins: [dayGridPlugin, interactionPlugin],
+    initialView: 'dayGridMonth',
+    locale: 'ko',
+    headerToolbar: {
+      left: isMobile ? 'prev,next' : 'prev,next today',
+      center: 'title',
+      right: isMobile ? '' : 'dayGridMonth',
+    },
+    height: 'auto',
+    contentHeight: 'auto',
+    editable: false,
+    selectable: true,
+    selectMirror: true,
+    dayMaxEvents: 3, // 하루에 최대 3개만 표시
+    moreLinkClick: handleMoreLinkClick, // 더보기 버튼 클릭 핸들러
+    moreLinkText: '건 더보기', // 더보기 버튼 텍스트
+    weekends: true,
+    eventClick: handleEventClick,
+    dateClick: handleDateClick,
+    datesSet: handleDatesSet,
+    events: fetchEvents,
+    eventContent: renderEventContent,
+  }
+})
 
 /* =========================
    필터/지점
@@ -83,7 +90,7 @@ const BRANCH_COLORS = [
 ]
 
 async function loadBranches() {
-  if (!isAdmin.value) return
+  // 모든 사용자가 지점 목록 로드 가능
   branchLoading.value = true
   try {
     const list = unwrap(await getBranchList()) || []
@@ -191,8 +198,8 @@ async function fetchEvents(info, successCallback, failureCallback) {
     let currentPage = 0
     const pageSize = 100
 
-    // 시작일과 종료일 사이의 모든 히스토리 가져오기
-    if (isAdmin.value && selectedBranches.value.length > 0) {
+    // 시작일과 종료일 사이의 모든 히스토리 가져오기 (모든 사용자)
+    if (selectedBranches.value.length > 0) {
       const hasAll = selectedBranches.value.some(br => br.id === null)
       
       if (hasAll) {
@@ -235,20 +242,6 @@ async function fetchEvents(info, successCallback, failureCallback) {
         const results = await Promise.all(allPromises)
 
         allHistories = results.flat()
-      }
-    } else {
-      // 일반 사용자
-      while (true) {
-        const res = await getMyReceivingHistory({
-          page: currentPage,
-          size: pageSize,
-        })
-
-        const { content, last } = unwrapList(res)
-
-        allHistories = allHistories.concat(content || [])
-        if (last || (content || []).length === 0) break
-        currentPage++
       }
     }
 
@@ -304,9 +297,9 @@ function getEventTitle(history) {
 }
 
 function getEventColor(history) {
-  // 지점별 색상 적용
+  // 지점별 색상 적용 (모든 사용자)
   const memberId = history?.userInfo?.memberId || history?.memberId
-  if (memberId && isAdmin.value) {
+  if (memberId) {
     const branchColor = BRANCH_COLORS[memberId % BRANCH_COLORS.length]
 
     // 파스텔 색상에 RGB 값을 직접 더하여 진하게 만듦
@@ -342,9 +335,9 @@ function getEventColor(history) {
 }
 
 function getEventTextColor(history) {
-  // 지점별 색상 적용
+  // 지점별 색상 적용 (모든 사용자)
   const memberId = history?.userInfo?.memberId || history?.memberId
-  if (memberId && isAdmin.value) {
+  if (memberId) {
     const branchColor = BRANCH_COLORS[memberId % BRANCH_COLORS.length]
 
     // 파스텔 색상의 텍스트는 훨씬 더 어둡게 하기 위해 RGB를 크게 낮춤
@@ -431,6 +424,30 @@ function handleDatesSet(info) {
   // 날짜 변경 시 이벤트 자동으로 다시 로드됨
 }
 
+function handleMoreLinkClick(info) {
+  // 더보기 버튼 클릭 시 해당 날짜의 모든 이벤트를 사이드바에 표시
+  const clickedDate = new Date(info.date)
+
+  clickedDate.setHours(0, 0, 0, 0)
+  
+  // 해당 날짜의 모든 이벤트 가져오기
+  if (calendarApi.value) {
+    const events = calendarApi.value.getEvents().filter(event => {
+      const eventDate = new Date(event.start)
+
+      eventDate.setHours(0, 0, 0, 0)
+      
+      return eventDate.getTime() === clickedDate.getTime()
+    })
+    
+    selectedDateForList.value = clickedDate
+    selectedDateEvents.value = events.map(event => event.extendedProps.history)
+    isEventListSidebarOpen.value = true
+  }
+  
+  info.jsEvent.preventDefault()
+}
+
 /* =========================
    다이얼로그
 ========================= */
@@ -439,6 +456,13 @@ const isDetailDialogVisible = ref(false)
 const selectedDate = ref(null)
 const selectedHistory = ref(null)
 const editingHistory = ref(null)
+
+/* =========================
+   이벤트 리스트 사이드바
+========================= */
+const isEventListSidebarOpen = ref(false)
+const selectedDateForList = ref(null)
+const selectedDateEvents = ref([])
 
 function openEditDialog(date, history = null) {
   selectedDate.value = date
@@ -484,14 +508,24 @@ function onHistoryUpdated(history) {
   isEditDialogVisible.value = true
 }
 
+function formatDate(date) {
+  if (!date) return ''
+  const d = new Date(date)
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const weekdays = ['일', '월', '화', '수', '목', '금', '토']
+  const weekday = weekdays[d.getDay()]
+  
+  return `${year}년 ${month}월 ${day}일 (${weekday})`
+}
+
 /* =========================
    초기화
 ========================= */
 onMounted(async () => {
-  // 관리자인 경우 브랜치를 먼저 로드
-  if (isAdmin.value) {
-    await loadBranches()
-  }
+  // 모든 사용자가 브랜치를 먼저 로드
+  await loadBranches()
   
   // 캘린더 API 초기화 (브랜치 로드 완료 후)
   await nextTick()
@@ -501,7 +535,7 @@ onMounted(async () => {
     
     // 초기 로드 시 선택된 브랜치가 있으면 이벤트 새로고침
     // (관리자: loadBranches 후 selectedBranches가 설정됨, 일반 사용자: fetchEvents에서 처리)
-    if (isAdmin.value && selectedBranches.value.length > 0) {
+    if (selectedBranches.value.length > 0) {
       // 약간의 지연을 두어 캘린더가 완전히 렌더링된 후 이벤트 로드
       await nextTick()
       calendarApi.value.refetchEvents()
@@ -520,10 +554,10 @@ watch(selectedBranches, () => {
   <div class="order-history-calendar-page">
     <!-- 하단 컨텐츠 -->
     <div class="page-content">
-      <!-- 좌측: 지점 선택 (관리자만) -->
+      <!-- 좌측: 지점 선택 (모든 사용자) -->
       <div
-        v-if="isAdmin"
         class="branch-selector"
+        :class="{ 'branch-selector-mobile': smAndDown }"
       >
         <div class="branch-header">
           <span class="branch-title">지점</span>
@@ -553,14 +587,24 @@ watch(selectedBranches, () => {
                   :class="{ selected: isBranchSelected(b) }"
                   @click="toggleBranch(b)"
                 >
-                  <VCheckbox
-                    :model-value="isBranchSelected(b)"
-                    :color="getBranchColor(b)"
-                    density="compact"
-                    hide-details
-                    class="branch-checkbox"
-                    @click.stop="toggleBranch(b)"
-                  />
+                  <div
+                    class="branch-color-indicator"
+                    :class="{ 'branch-color-indicator-checked': isBranchSelected(b) }"
+                    :style="{
+                      backgroundColor: isBranchSelected(b) 
+                        ? (getBranchColor(b) || '#696CFF') 
+                        : (getBranchColor(b) || '#e5e7eb'),
+                      opacity: isBranchSelected(b) ? 1 : 0.5
+                    }"
+                  >
+                    <VIcon
+                      v-if="isBranchSelected(b)"
+                      icon="bx-check"
+                      size="14"
+                      color="white"
+                      class="branch-check-icon"
+                    />
+                  </div>
                   <span class="branch-name">{{ b.name }}</span>
                 </div>
               </template>
@@ -621,6 +665,87 @@ watch(selectedBranches, () => {
       @updated="onHistoryUpdated"
       @close="closeDetailDialog"
     />
+
+    <!-- 이벤트 리스트 사이드바 -->
+    <VNavigationDrawer
+      v-model="isEventListSidebarOpen"
+      location="end"
+      temporary
+      width="400"
+      class="event-list-sidebar"
+    >
+      <div class="event-list-header">
+        <VCardTitle class="d-flex align-center justify-space-between">
+          <span class="text-h6">
+            {{ selectedDateForList ? formatDate(selectedDateForList) : '일정 목록' }}
+          </span>
+          <VBtn
+            icon
+            variant="text"
+            size="small"
+            @click="isEventListSidebarOpen = false"
+          >
+            <VIcon icon="bx-x" />
+          </VBtn>
+        </VCardTitle>
+      </div>
+
+      <VDivider />
+
+      <div class="event-list-content">
+        <PerfectScrollbar
+          :options="{ wheelPropagation: false, suppressScrollX: true }"
+          class="event-list-scroll"
+        >
+          <VList
+            v-if="selectedDateEvents.length > 0"
+            class="pa-4"
+          >
+            <VListItem
+              v-for="(history, index) in selectedDateEvents"
+              :key="history.id || index"
+              class="mb-2 event-list-item"
+              :style="{
+                borderLeft: `4px solid ${getEventColor(history)}`,
+              }"
+              @click="openDetailDialog(history)"
+            >
+              <VListItemTitle class="text-body-1 font-weight-medium mb-1">
+                {{ getEventTitle(history) }}
+              </VListItemTitle>
+              <VListItemSubtitle class="text-caption">
+                <div class="d-flex align-center gap-2">
+                  <VIcon
+                    :icon="history.type === 'INBOUND' ? 'bx-down-arrow' : 'bx-up-arrow'"
+                    size="14"
+                  />
+                  <span>{{ history.orderNumber ? `주문번호: ${history.orderNumber}` : '주문번호 없음' }}</span>
+                </div>
+                <div
+                  v-if="history.message"
+                  class="mt-1"
+                >
+                  {{ history.message }}
+                </div>
+              </VListItemSubtitle>
+            </VListItem>
+          </VList>
+          <div
+            v-else
+            class="d-flex flex-column align-center justify-center py-12"
+          >
+            <VIcon
+              icon="bx-calendar-x"
+              size="48"
+              class="mb-4 text-medium-emphasis"
+            />
+            <div class="text-body-1 text-medium-emphasis">
+              일정이 없습니다
+            </div>
+          </div>
+        </PerfectScrollbar>
+      </div>
+    </VNavigationDrawer>
   </div>
 </template>
 
@@ -630,7 +755,15 @@ watch(selectedBranches, () => {
   display: flex;
   flex-direction: column;
   height: calc(100vh - 100px);
+  min-height: calc(100vh - 100px);
   background: rgb(var(--v-theme-surface));
+}
+
+@media (max-width: 959.98px) {
+  .order-history-calendar-page {
+    height: auto;
+    min-height: calc(100vh - 100px);
+  }
 }
 
 /* 상단 헤더 */
@@ -663,6 +796,13 @@ watch(selectedBranches, () => {
   overflow: hidden;
 }
 
+@media (max-width: 959.98px) {
+  .page-content {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+}
+
 /* 좌측: 지점 선택 */
 .branch-selector {
   width: 200px;
@@ -672,6 +812,22 @@ watch(selectedBranches, () => {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+}
+
+@media (max-width: 959.98px) {
+  .branch-selector {
+    width: 100%;
+    min-width: unset;
+    max-width: 100%;
+    border-right: none;
+    border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+    max-height: 200px;
+    flex-shrink: 1;
+  }
+  
+  .branch-selector-mobile {
+    max-height: 180px;
+  }
 }
 
 .branch-header {
@@ -710,22 +866,30 @@ watch(selectedBranches, () => {
   transition: background-color 0.15s ease;
 }
 
-.branch-checkbox {
+.branch-color-indicator {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  border-radius: 3px;
   flex-shrink: 0;
-  margin: 0;
-  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
-.branch-checkbox :deep(.v-selection-control) {
-  min-height: auto;
+.branch-color-indicator-checked {
+  border-color: rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
-.branch-checkbox :deep(.v-selection-control__wrapper) {
-  margin-inline-end: 0;
-}
-
-.branch-checkbox :deep(.v-checkbox .v-icon) {
-  color: white !important;
+.branch-check-icon {
+  opacity: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+  font-weight: bold;
 }
 
 .branch-name {
@@ -752,6 +916,20 @@ watch(selectedBranches, () => {
   overflow-y: auto;
 }
 
+@media (max-width: 959.98px) {
+  .calendar-section {
+    padding: 12px;
+    flex: 1;
+    min-height: 500px;
+  }
+}
+
+@media (max-width: 599.98px) {
+  .calendar-section {
+    padding: 8px;
+  }
+}
+
 .calendar-loading {
   position: absolute;
   top: 50%;
@@ -765,6 +943,11 @@ watch(selectedBranches, () => {
 
 .full-calendar {
   width: 100%;
+}
+
+/* FullCalendar 기본 더보기 팝오버 숨기기 */
+.full-calendar :deep(.fc-more-popover) {
+  display: none !important;
 }
 
 /* FullCalendar 내부 스크롤러 제거하여 잘림 방지 */
@@ -803,6 +986,134 @@ watch(selectedBranches, () => {
   margin-block-end: 6px !important;
   padding-block: 2px !important;
   padding-inline: 6px !important;
+}
+
+/* 모바일 반응형 - FullCalendar 헤더 */
+@media (max-width: 599.98px) {
+  .full-calendar :deep(.fc-header-toolbar) {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .full-calendar :deep(.fc-header-toolbar .fc-toolbar-chunk) {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+  }
+  
+  .full-calendar :deep(.fc-button-group) {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  
+  .full-calendar :deep(.fc-button) {
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+  
+  .full-calendar :deep(.fc-today-button) {
+    font-size: 11px;
+    padding: 4px 6px;
+  }
+  
+  .full-calendar :deep(.fc-daygrid-day) {
+    min-height: 80px;
+  }
+  
+  .full-calendar :deep(.fc-daygrid-day-number) {
+    font-size: 12px;
+    padding: 2px;
+  }
+  
+  .full-calendar :deep(.fc-event-title) {
+    font-size: 10px;
+  }
+}
+
+/* 테블릿 반응형 */
+@media (min-width: 600px) and (max-width: 959.98px) {
+  .full-calendar :deep(.fc-header-toolbar) {
+    gap: 8px;
+  }
+  
+  .full-calendar :deep(.fc-button) {
+    font-size: 13px;
+    padding: 6px 10px;
+  }
+  
+  .full-calendar :deep(.fc-daygrid-day) {
+    min-height: 100px;
+  }
+}
+
+/* 지점 선택 모바일 스타일 개선 */
+@media (max-width: 959.98px) {
+  .branch-item {
+    padding: 4px 0;
+    min-height: 36px;
+  }
+  
+  .branch-name {
+    font-size: 12px;
+  }
+  
+  .branch-title {
+    font-size: 12px;
+    padding-bottom: 8px;
+  }
+  
+  .branch-header {
+    padding: 8px 12px 0px 12px;
+  }
+  
+  .branch-list-content {
+    padding: 6px 12px;
+  }
+}
+
+/* 이벤트 리스트 사이드바 */
+.event-list-sidebar {
+  z-index: 1500;
+}
+
+.event-list-header {
+  padding: 16px;
+}
+
+.event-list-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: calc(100vh - 140px);
+}
+
+.event-list-scroll {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+.event-list-item {
+  border-radius: 8px;
+  padding: 12px 16px;
+  background: rgb(var(--v-theme-surface));
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.event-list-item:hover {
+  background: rgba(var(--v-theme-primary), 0.08);
+  transform: translateX(4px);
+}
+
+.event-list-item .v-list-item-title {
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.event-list-item .v-list-item-subtitle {
+  color: rgba(var(--v-theme-on-surface), 0.7);
 }
 </style>
 

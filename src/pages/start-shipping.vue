@@ -6,6 +6,8 @@ definePage({
 
 import { startShipping } from '@/api/order'
 import { Html5Qrcode } from 'html5-qrcode'
+import { Capacitor } from '@capacitor/core'
+import { Camera } from '@capacitor/camera'
 import { onMounted, onUnmounted, ref } from 'vue'
 
 /* =========================
@@ -47,9 +49,34 @@ async function enumerateCameras() {
   }
 }
 
+async function requestCameraPermission() {
+  // Capacitor 앱인 경우 권한 요청
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const permission = await Camera.requestPermissions({ permissions: ['camera'] })
+      if (permission.camera === 'granted' || permission.camera === 'limited') {
+        return true
+      }
+      scanError.value = '카메라 권한이 필요합니다. 설정에서 권한을 허용해주세요.'
+      return false
+    } catch (e) {
+      console.warn('권한 요청 실패:', e)
+      return false
+    }
+  }
+  return true
+}
+
 async function startCamera() {
   try {
     scanError.value = ''
+
+    // 권한 확인 및 요청
+    const hasPermission = await requestCameraPermission()
+    if (!hasPermission) {
+      isScanning.value = false
+      return
+    }
 
     // 기존 인스턴스 정리
     if (scanner.value) await stopCamera()
