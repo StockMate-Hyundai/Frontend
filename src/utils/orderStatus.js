@@ -55,7 +55,7 @@ export const ORDER_STATUS_INFO = {
   },
   [ORDER_STATUS.SHIPPING]: {
     label: '배송중',
-    icon: 'bx-shipping',
+    icon: 'bx-bxs-truck',
     color: 'info',
     description: '배송이 진행 중입니다.'
   },

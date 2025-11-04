@@ -1,5 +1,6 @@
 <script setup>
 import { PerfectScrollbar } from 'vue3-perfect-scrollbar'
+import { useRoute } from 'vue-router'
 
 const props = defineProps({
   notifications: {
@@ -16,6 +17,14 @@ const props = defineProps({
     required: false,
     default: 'bottom end',
   },
+})
+
+const route = useRoute()
+const isMenuOpen = ref(false)
+
+// 페이지 이동 시 메뉴 닫기
+watch(() => route.path, () => {
+  isMenuOpen.value = false
 })
 
 const emit = defineEmits([
@@ -50,7 +59,10 @@ const toggleReadUnread = (isSeen, Id) => {
 </script>
 
 <template>
-  <IconBtn id="notification-btn">
+  <IconBtn
+    id="notification-btn"
+    class="mr-1"
+  >
     <VBadge
       v-bind="props.badgeProps"
       :model-value="props.notifications.some(n => !n.isSeen)"
@@ -66,6 +78,7 @@ const toggleReadUnread = (isSeen, Id) => {
     </VBadge>
 
     <VMenu
+      v-model="isMenuOpen"
       activator="parent"
       width="380px"
       :location="props.location"
@@ -76,7 +89,7 @@ const toggleReadUnread = (isSeen, Id) => {
         <!-- 👉 Header -->
         <VCardItem class="notification-section">
           <VCardTitle class="text-h6">
-            Notifications
+            알림
           </VCardTitle>
 
           <template #append>
@@ -119,7 +132,7 @@ const toggleReadUnread = (isSeen, Id) => {
           <VList class="notification-list rounded-0 py-0">
             <template
               v-for="(notification, index) in props.notifications"
-              :key="notification.title"
+              :key="notification.id"
             >
               <VDivider v-if="index > 0" />
               <VListItem
@@ -192,25 +205,10 @@ const toggleReadUnread = (isSeen, Id) => {
               class="text-center text-medium-emphasis"
               style="block-size: 56px;"
             >
-              <VListItemTitle>No Notification Found!</VListItemTitle>
+              <VListItemTitle>새로운 알림이 없습니다</VListItemTitle>
             </VListItem>
           </VList>
         </PerfectScrollbar>
-
-        <VDivider />
-
-        <!-- 👉 Footer -->
-        <VCardText
-          v-show="props.notifications.length"
-          class="py-4 px-5"
-        >
-          <VBtn
-            block
-            size="small"
-          >
-            View All Notifications
-          </VBtn>
-        </VCardText>
       </VCard>
     </VMenu>
   </IconBtn>

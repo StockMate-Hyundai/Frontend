@@ -1,81 +1,40 @@
 <script setup>
-import avatar3 from '@images/avatars/avatar-3.png'
-import avatar4 from '@images/avatars/avatar-4.png'
-import avatar5 from '@images/avatars/avatar-5.png'
-import paypal from '@images/cards/paypal-rounded.png'
+import { useNotificationsStore } from '@/@core/stores/notifications'
+import { useRouter } from 'vue-router'
 
-const notifications = ref([
-  {
-    id: 1,
-    img: avatar4,
-    title: 'Congratulation Flora! 🎉',
-    subtitle: 'Won the monthly best seller badge',
-    time: 'Today',
-    isSeen: true,
-  },
-  {
-    id: 2,
-    text: 'Tom Holland',
-    title: 'New user registered.',
-    subtitle: '5 hours ago',
-    time: 'Yesterday',
-    isSeen: false,
-  },
-  {
-    id: 3,
-    img: avatar5,
-    title: 'New message received 👋🏻',
-    subtitle: 'You have 10 unread messages',
-    time: '11 Aug',
-    isSeen: true,
-  },
-  {
-    id: 4,
-    img: paypal,
-    title: 'PayPal',
-    subtitle: 'Received Payment',
-    time: '25 May',
-    isSeen: false,
-    color: 'error',
-  },
-  {
-    id: 5,
-    img: avatar3,
-    title: 'Received Order 📦',
-    subtitle: 'New order received from john',
-    time: '19 Mar',
-    isSeen: true,
-  },
-])
+const notificationsStore = useNotificationsStore()
+const router = useRouter()
+
+const notifications = computed(() => notificationsStore.notifications)
 
 const removeNotification = notificationId => {
-  notifications.value.forEach((item, index) => {
-    if (notificationId === item.id)
-      notifications.value.splice(index, 1)
-  })
+  notificationsStore.removeNotification(notificationId)
 }
 
-const markRead = notificationId => {
-  notifications.value.forEach(item => {
-    notificationId.forEach(id => {
-      if (id === item.id)
-        item.isSeen = true
-    })
-  })
+const markRead = async notificationIds => {
+  // 전체 읽음인 경우 별도 처리
+  const totalNotifications = notificationsStore.notifications.length
+  if (notificationIds.length === totalNotifications && totalNotifications > 0) {
+    await notificationsStore.markAllReadOnServer()
+  } else {
+    await notificationsStore.markReadOnServer(notificationIds)
+  }
 }
 
-const markUnRead = notificationId => {
-  notifications.value.forEach(item => {
-    notificationId.forEach(id => {
-      if (id === item.id)
-        item.isSeen = false
-    })
-  })
+const markUnRead = notificationIds => {
+  notificationsStore.markUnread(notificationIds)
 }
 
-const handleNotificationClick = notification => {
-  if (!notification.isSeen)
-    markRead([notification.id])
+const handleNotificationClick = async notification => {
+  // 주문 알림인 경우 주문 상세 페이지로 이동
+  if (notification.data?.orderId) {
+    router.push(`/order-detail/${notification.data.orderId}`)
+  }
+  
+  // 읽음 처리 (서버 동기화)
+  if (!notification.isSeen) {
+    await markRead([notification.id])
+  }
 }
 </script>
 

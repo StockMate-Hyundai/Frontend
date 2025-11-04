@@ -19,11 +19,49 @@ const configStore = useLayoutConfigStore()
 const isOverlayNavActive = ref(false)
 const isLayoutOverlayVisible = ref(false)
 const toggleIsOverlayNavActive = useToggle(isOverlayNavActive)
+const route = useRoute()
+const router = useRouter()
 
 // ℹ️ This is alternative to below two commented watcher
 
 // We want to show overlay if overlay nav is visible and want to hide overlay if overlay is hidden and vice versa.
 syncRef(isOverlayNavActive, isLayoutOverlayVisible)
+
+// 앱 환경에서 라우트 변경 시 네비게이션 자동 닫기 (강제 처리)
+const closeNavIfNeeded = () => {
+  if (configStore.isLessThanOverlayNavBreakpoint.value && isOverlayNavActive.value) {
+    // 즉시 닫기
+    toggleIsOverlayNavActive(false)
+    
+    // requestAnimationFrame으로도 처리
+    requestAnimationFrame(() => {
+      if (isOverlayNavActive.value) {
+        toggleIsOverlayNavActive(false)
+      }
+    })
+    
+    // setTimeout으로도 처리
+    setTimeout(() => {
+      if (isOverlayNavActive.value) {
+        toggleIsOverlayNavActive(false)
+      }
+    }, 0)
+  }
+}
+
+// 라우트 경로 변경 감지 (immediate: true로 즉시 감지)
+watch(() => route.fullPath, () => {
+  closeNavIfNeeded()
+}, { immediate: true, flush: 'sync' })
+
+// 라우터 이벤트로도 감지 (beforeEach에서 먼저 처리)
+router.beforeEach(() => {
+  closeNavIfNeeded()
+})
+
+router.afterEach(() => {
+  closeNavIfNeeded()
+})
 
 // })
 
@@ -97,7 +135,11 @@ const verticalNavAttrs = computed(() => {
     <div
       class="layout-overlay"
       :class="[{ visible: isLayoutOverlayVisible }]"
-      @click="() => { isLayoutOverlayVisible = !isLayoutOverlayVisible }"
+      @click="() => { 
+        if (isLayoutOverlayVisible) {
+          toggleIsOverlayNavActive(false)
+        }
+      }"
     />
   </div>
 </template>

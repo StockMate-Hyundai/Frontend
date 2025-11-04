@@ -6,13 +6,22 @@ import Components from 'unplugin-vue-components/vite'
 import { VueRouterAutoImports, getPascalCaseRouteName } from 'unplugin-vue-router'
 import VueRouter from 'unplugin-vue-router/vite'
 import { defineConfig } from 'vite'
+import { VitePWA } from 'vite-plugin-pwa'
 import VueDevTools from 'vite-plugin-vue-devtools'
 import MetaLayouts from 'vite-plugin-vue-meta-layouts'
 import vuetify from 'vite-plugin-vuetify'
 import svgLoader from 'vite-svg-loader'
 
+// 앱 빌드 모드 감지
+const isAppBuild = process.env.VITE_BUILD_TARGET === 'app' || process.env.NODE_ENV === 'app'
+
 // https://vitejs.dev/config/
 export default defineConfig({
+  define: {
+    'process.env': {},
+    'import.meta.env.VITE_BUILD_TARGET': JSON.stringify(process.env.VITE_BUILD_TARGET || 'web'),
+    'import.meta.env.VITE_IS_APP_BUILD': JSON.stringify(isAppBuild),
+  },
   plugins: [
     // Docs: https://github.com/posva/unplugin-vue-router
     // ℹ️ This plugin should be placed before vue plugin
@@ -23,6 +32,19 @@ export default defineConfig({
           .replace(/([a-z\d])([A-Z])/g, '$1-$2')
           .toLowerCase()
       },
+      // 앱 빌드 모드에서 창고관리자에게 불필요한 페이지 제외
+      ...(process.env.VITE_BUILD_TARGET === 'app' || process.env.NODE_ENV === 'app' ? {
+        exclude: [
+          'src/pages/report.vue',
+          'src/pages/branch-management.vue',
+          'src/pages/branch-stock-list.vue',
+          'src/pages/order-list.vue',
+          'src/pages/order-approval.vue',
+          'src/pages/user-list.vue',
+          'src/pages/user-detail/**/*.vue',
+          'src/pages/part-detail/**/*.vue',
+        ],
+      } : {}),
     }),
     vue({
       template: {
@@ -80,8 +102,59 @@ export default defineConfig({
       },
     }),
     svgLoader(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['favicon.ico', 'robots.txt', 'apple-touch-icon.png'],
+      manifest: {
+        name: 'Stock Mate - 창고 관리 시스템',
+        short_name: 'Stock Mate',
+        description: '창고 재고 관리 및 주문 관리 시스템',
+        theme_color: '#696CFF',
+        background_color: '#FFFFFF',
+        display: 'standalone',
+        orientation: 'portrait',
+        scope: '/',
+        start_url: '/',
+        icons: [
+          {
+            src: 'pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+          },
+          {
+            src: 'pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+          },
+          {
+            src: 'pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any maskable',
+          },
+        ],
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/api\./i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-cache',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 * 24, // 24 hours
+              },
+            },
+          },
+        ],
+      },
+      devOptions: {
+        enabled: false,
+      },
+    }),
   ],
-  define: { 'process.env': {} },
   assetsInclude: ['**/*.dae', '**/*.gltf', '**/*.glb', '**/*.obj', '**/*.fbx'],
   resolve: {
     alias: {

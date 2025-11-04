@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Stock Mate</string>
+    <string name="title_activity_main">Stock Mate</string>
+    <string name="package_name">com.stockmate.app</string>
+    <string name="custom_url_scheme">com.stockmate.app</string>
+</resources>

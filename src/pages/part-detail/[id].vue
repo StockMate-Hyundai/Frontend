@@ -1,6 +1,6 @@
 <!-- File: src/pages/part-detail/[id].vue -->
 <script setup>
-import { getPartById } from '@/api/parts'
+import { getPartById, getPartDistribution } from '@/api/parts'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -25,6 +25,14 @@ const partId = computed(() => String(route.params.id ?? ''))
 const loading = ref(true)
 const errorMsg = ref('')
 const part = ref(null)
+const distribution = ref(null)
+const loadingDistribution = ref(false)
+const partTab = ref(0)
+
+const tabs = [
+  { icon: 'bx-cube', title: '창고 위치' },
+  { icon: 'bx-store', title: '재고 분포' },
+]
 
 /* 데이터 로드 */
 async function load() {
@@ -44,8 +52,28 @@ async function load() {
   }
 }
 
-onMounted(load)
-watch(() => route.params.id, load)
+async function loadDistribution() {
+  if (!partId.value || loadingDistribution.value) return
+  loadingDistribution.value = true
+  try {
+    const dist = await getPartDistribution(partId.value, { page: 0, size: 1000 })
+    distribution.value = dist
+  } catch (e) {
+    console.error('[PartDetail] loadDistribution error:', e)
+    distribution.value = null
+  } finally {
+    loadingDistribution.value = false
+  }
+}
+
+onMounted(() => {
+  load()
+  loadDistribution()
+})
+watch(() => route.params.id, () => {
+  load()
+  loadDistribution()
+})
 
 /* 액션 */
 function goBack() {
@@ -78,24 +106,55 @@ function goBack() {
       <div class="part-grid">
         <!-- 좌측 정보 패널 -->
         <div class="erp-info-card">
-          <PartBioPanel :part="part" />
+          <PartBioPanel
+            :part="part"
+            :distribution="distribution"
+            :loading-distribution="loadingDistribution"
+          />
         </div>
 
-        <!-- 우측 3D 창고 뷰어 -->
+        <!-- 우측 탭 -->
         <VCard class="erp-tabs-card">
-          <VCardTitle class="erp-card-title">
-            <VIcon
-              icon="bx-cube"
-              size="18"
-              class="me-2"
-            />
-            창고 위치
-          </VCardTitle>
           <VDivider />
           <VCardText class="erp-tabs-content">
-            <div class="warehouse-container">
-              <PartWarehouse3D :location="part.location" />
-            </div>
+            <VTabs
+              v-model="partTab"
+              class="erp-tabs"
+            >
+              <VTab
+                v-for="tab in tabs"
+                :key="tab.icon"
+                class="erp-tab"
+              >
+                <VIcon
+                  :size="16"
+                  :icon="tab.icon"
+                  class="me-2"
+                />
+                {{ tab.title }}
+              </VTab>
+            </VTabs>
+
+            <VWindow
+              v-model="partTab"
+              class="erp-tab-content"
+              :touch="false"
+            >
+              <VWindowItem>
+                <div class="warehouse-container pa-3">
+                  <PartWarehouse3D :location="part.location" />
+                </div>
+              </VWindowItem>
+              
+              <VWindowItem>
+                <PartBioPanel
+                  :part="part"
+                  :distribution="distribution"
+                  :loading-distribution="loadingDistribution"
+                  show-distribution-only
+                />
+              </VWindowItem>
+            </VWindow>
           </VCardText>
         </VCard>
       </div>
@@ -166,10 +225,31 @@ function goBack() {
   overflow: hidden;
 }
 
+.erp-tabs {
+  border-bottom: 1px solid #e0e0e0;
+  background: #f8f9fa;
+  padding: 16px 20px;
+  color: #2c3e50;
+  align-items: center;
+  height: 50px;
+}
+
+.erp-tab {
+  font-size: 13px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.erp-tab-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+
 .warehouse-container {
   width: 100%;
-  height: calc(85vh - 57px); /* 헤더 높이 제외 */
-  padding: 20px;
+  height: calc(85vh - 107px); /* 헤더 + 탭 높이 제외 */
 }
 
 /* 반응형 */

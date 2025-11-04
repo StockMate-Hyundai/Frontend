@@ -19,6 +19,16 @@ const props = defineProps({
     type: null,
     required: true,
   },
+  toggleIsOverlayNavActive: {
+    type: Function,
+    required: false,
+    default: null,
+  },
+  isOverlayNavActive: {
+    type: Boolean,
+    required: false,
+    default: false,
+  },
 })
 
 defineOptions({
@@ -186,6 +196,8 @@ watch(configStore.isVerticalNavMini(isVerticalNavHovered), val => {
           v-for="child in item.children"
           :key="child.title"
           :item="child"
+          :is-overlay-nav-active="props.isOverlayNavActive"
+          :toggle-is-overlay-nav-active="props.toggleIsOverlayNavActive"
         />
       </ul>
     </TransitionExpand>

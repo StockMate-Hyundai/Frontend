@@ -440,10 +440,21 @@ const widgetData = computed(() => [
         <div class="d-flex align-center justify-space-between">
           <span>전체 {{ totalUsers }}명</span>
           <div class="d-flex align-center gap-2">
+            <VBtn
+              color="primary"
+              variant="flat"
+              size="small"
+              @click="isAddNewUserDrawerVisible = true"
+            >
+              <VIcon
+                icon="bx-plus"
+                class="me-1"
+              />
+              사용자 추가
+            </VBtn>
             <ExportToExcel
               :items="users"
               :fields="excelFields"
-              :transform="transformForExcel"
               filename="사용자목록.xlsx"
               sheet-name="Users"
               size="small"
@@ -480,8 +491,8 @@ const widgetData = computed(() => [
             <col style="width: 20%">
             <col style="width: 15%">
             <col style="width: 15%">
-            <col style="width: 10%">
-            <col style="width: 10%">
+            <col style="width: 15%">
+            <col style="width: 5%">
             <col style="width: 15%">
           </template>
           <!-- User -->
@@ -580,12 +591,6 @@ const widgetData = computed(() => [
               <VIcon icon="bx-dots-vertical-rounded" />
               <VMenu activator="parent">
                 <VList>
-                  <VListItem :to="{ name: 'second-page' }">
-                    <template #prepend>
-                      <VIcon icon="bx-show" />
-                    </template>
-                    <VListItemTitle>View</VListItemTitle>
-                  </VListItem>
 
                   <!-- 메뉴에서도 수정 가능 -->
                   <VListItem

@@ -94,6 +94,7 @@ const totalQuantity = computed(() => {
     :width="$vuetify.display.smAndDown ? 'auto' : 900"
     :model-value="props.isDialogVisible"
     scrollable
+    class="history-detail-dialog"
     @update:model-value="dialogModelValueUpdate"
   >
     <DialogCloseBtn @click="dialogModelValueUpdate(false)" />
@@ -476,5 +477,14 @@ const totalQuantity = computed(() => {
   .history-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* 히스토리 상세 다이얼로그가 항상 최상위에 표시되도록 */
+.history-detail-dialog :deep(.v-overlay__content) {
+  z-index: 2001 !important;
+}
+
+.history-detail-dialog :deep(.v-overlay) {
+  z-index: 2000 !important;
 }
 </style>

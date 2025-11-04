@@ -685,7 +685,79 @@ const getOrderItemsCountText = item => {
   position: absolute;
   bottom: 12px;
   right: 7px;
-  z-index: 1;
+}
+
+/* 반응형 대응 */
+@media (max-width: 959.98px) {
+  .filter-section {
+    padding: 12px 16px !important;
+  }
+  
+  .filter-content {
+    padding: 8px 0;
+  }
+  
+  .filter-content .d-flex {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+  
+  .filter-label {
+    min-width: 60px;
+  }
+  
+  .table-container {
+    overflow-x: auto;
+  }
+  
+  .erp-table :deep(.v-table) {
+    min-width: 800px;
+  }
+}
+
+@media (max-width: 599.98px) {
+  .filter-section {
+    padding: 8px 12px !important;
+  }
+  
+  .filter-actions {
+    flex-direction: column;
+  }
+  
+  .filter-actions .v-btn {
+    width: 100%;
+  }
+  
+  .table-header {
+    padding: 8px 12px;
+  }
+  
+  .table-footer {
+    padding: 8px 12px;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .erp-table :deep(th),
+  .erp-table :deep(td) {
+    padding: 8px !important;
+    font-size: 0.75rem;
+  }
+  
+  .order-items-image-container {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .order-item-image {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .order-item-name {
+    max-width: 120px;
+  }
 }
 
 .order-items-badge :deep(.v-badge__badge) {
@@ -703,5 +775,78 @@ const getOrderItemsCountText = item => {
   top: 0;
   z-index: 3;
   background: var(--erp-bg-primary);
+}
+
+/* 반응형 대응 */
+@media (max-width: 959.98px) {
+  .filter-section {
+    padding: 12px 16px !important;
+  }
+  
+  .filter-content {
+    padding: 8px 0;
+  }
+  
+  .filter-content .d-flex {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+  
+  .filter-label {
+    min-width: 60px;
+  }
+  
+  .table-container {
+    overflow-x: auto;
+  }
+  
+  .erp-table :deep(.v-table) {
+    min-width: 800px;
+  }
+}
+
+@media (max-width: 599.98px) {
+  .filter-section {
+    padding: 8px 12px !important;
+  }
+  
+  .filter-actions {
+    flex-direction: column;
+  }
+  
+  .filter-actions .v-btn {
+    width: 100%;
+  }
+  
+  .table-header {
+    padding: 8px 12px;
+  }
+  
+  .table-footer {
+    padding: 8px 12px;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .erp-table :deep(th),
+  .erp-table :deep(td) {
+    padding: 8px !important;
+    font-size: 0.75rem;
+  }
+  
+  .order-items-image-container {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .order-item-image {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .order-item-name {
+    max-width: 120px;
+  }
 }
 </style>

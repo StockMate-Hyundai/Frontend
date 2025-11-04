@@ -50,9 +50,42 @@ const resolveNavItemComponent = item => {
 Close overlay vertical nav when link is clicked
 */
 const route = useRoute()
+const router = useRouter()
 
-watch(() => route.name, () => {
-  props.toggleIsOverlayNavActive(false)
+// 라우트 변경 감지 (즉시 닫기 - 강제 처리)
+const closeNavIfNeeded = () => {
+  if (configStore.isLessThanOverlayNavBreakpoint.value && props.isOverlayNavActive) {
+    // 즉시 닫기
+    props.toggleIsOverlayNavActive(false)
+    
+    // requestAnimationFrame으로도 처리
+    requestAnimationFrame(() => {
+      if (props.isOverlayNavActive) {
+        props.toggleIsOverlayNavActive(false)
+      }
+    })
+    
+    // setTimeout으로도 처리
+    setTimeout(() => {
+      if (props.isOverlayNavActive) {
+        props.toggleIsOverlayNavActive(false)
+      }
+    }, 0)
+  }
+}
+
+// 라우트 경로 변경 감지 (immediate: true로 즉시 감지)
+watch(() => route.fullPath, () => {
+  closeNavIfNeeded()
+}, { immediate: true, flush: 'sync' })
+
+// 라우터 이벤트로도 감지 (beforeEach에서 먼저 처리)
+router.beforeEach(() => {
+  closeNavIfNeeded()
+})
+
+router.afterEach(() => {
+  closeNavIfNeeded()
 })
 
 const isVerticalNavScrolled = ref(false)
@@ -139,6 +172,8 @@ const hideTitleAndIcon = configStore.isVerticalNavMini(isHovered)
           v-for="(item, index) in navItems"
           :key="index"
           :item="item"
+          :is-overlay-nav-active="props.isOverlayNavActive"
+          :toggle-is-overlay-nav-active="props.toggleIsOverlayNavActive"
         />
       </PerfectScrollbar>
     </slot>
