@@ -1,63 +1,170 @@
 package com.stockmate.app;
 
+import android.Manifest;
+import android.content.pm.PackageManager;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.content.Context;
+import android.os.Build;
+import android.util.Log;
+
+import androidx.core.content.ContextCompat;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.annotation.PermissionCallback;
 
-@CapacitorPlugin(name = "StepCounter")
+@CapacitorPlugin(
+    name = "StepCounter",
+    permissions = {
+        @Permission(
+            strings = { Manifest.permission.ACTIVITY_RECOGNITION },
+            alias = "activity_recognition"
+        )
+    }
+)
 public class StepCounterPlugin extends Plugin implements SensorEventListener {
 
+    private static final String TAG = "StepCounterPlugin";
+    
     private SensorManager sensorManager;
     private Sensor stepCounterSensor;
     private int totalSteps = 0;
     private int initialSteps = 0;
     private boolean isTracking = false;
+    private boolean isRequestingPermission = false;
 
     @Override
     public void load() {
         super.load();
+        Log.d(TAG, "[load] 플러그인 로드 시작");
+        Log.d(TAG, "[load] Android 버전: " + Build.VERSION.SDK_INT);
+        
+        // 권한 확인
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (ContextCompat.checkSelfPermission(getContext(), Manifest.permission.ACTIVITY_RECOGNITION) 
+                    != PackageManager.PERMISSION_GRANTED) {
+                Log.w(TAG, "[load] ACTIVITY_RECOGNITION 권한이 없습니다. 런타임 권한 요청 필요");
+            } else {
+                Log.d(TAG, "[load] ACTIVITY_RECOGNITION 권한이 있습니다");
+            }
+        } else {
+            Log.d(TAG, "[load] Android 10 미만이므로 권한이 필요 없습니다");
+        }
+        
         sensorManager = (SensorManager) getContext().getSystemService(Context.SENSOR_SERVICE);
         if (sensorManager != null) {
             stepCounterSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
+            if (stepCounterSensor != null) {
+                Log.d(TAG, "[load] Step Counter 센서 발견: " + stepCounterSensor.getName());
+            } else {
+                Log.e(TAG, "[load] Step Counter 센서를 찾을 수 없습니다");
+            }
+        } else {
+            Log.e(TAG, "[load] SensorManager를 가져올 수 없습니다");
         }
     }
-
-    @PluginMethod
-    public void getSteps(PluginCall call) {
+    
+    /**
+     * 권한 확인 및 요청
+     */
+    private boolean checkPermission(PluginCall call) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (ContextCompat.checkSelfPermission(getContext(), Manifest.permission.ACTIVITY_RECOGNITION) 
+                    != PackageManager.PERMISSION_GRANTED) {
+                if (!isRequestingPermission) {
+                    Log.d(TAG, "[checkPermission] 권한 요청 필요");
+                    isRequestingPermission = true;
+                    requestPermissionForAlias("activity_recognition", call, "activityRecognitionPermsCallback");
+                }
+                return false;
+            } else {
+                Log.d(TAG, "[checkPermission] 권한이 있습니다");
+                isRequestingPermission = false;
+                return true;
+            }
+        }
+        // Android 10 미만에서는 권한 불필요
+        return true;
+    }
+    
+    @PermissionCallback
+    private void activityRecognitionPermsCallback(PluginCall call) {
+        isRequestingPermission = false;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (ContextCompat.checkSelfPermission(getContext(), Manifest.permission.ACTIVITY_RECOGNITION) 
+                    == PackageManager.PERMISSION_GRANTED) {
+                Log.d(TAG, "[activityRecognitionPermsCallback] 권한 승인됨");
+                // 권한이 승인되면 원래 작업 계속 (재귀 방지를 위해 직접 실행)
+                String methodName = call.getMethodName();
+                if ("getSteps".equals(methodName)) {
+                    // getSteps 직접 실행 (권한 체크 건너뛰기)
+                    executeGetSteps(call);
+                } else if ("startTracking".equals(methodName)) {
+                    // startTracking 직접 실행 (권한 체크 건너뛰기)
+                    executeStartTracking(call);
+                }
+            } else {
+                Log.e(TAG, "[activityRecognitionPermsCallback] 권한 거부됨");
+                call.reject("ACTIVITY_RECOGNITION 권한이 필요합니다");
+            }
+        }
+    }
+    
+    /**
+     * getSteps 실행 (권한 체크 없이)
+     */
+    private void executeGetSteps(PluginCall call) {
         if (stepCounterSensor == null) {
+            Log.e(TAG, "[executeGetSteps] Step Counter 센서를 사용할 수 없습니다");
             call.reject("Step Counter 센서를 사용할 수 없습니다");
             return;
         }
 
-        // 센서 리스너 등록 (한 번만)
         if (!isTracking) {
-            sensorManager.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_NORMAL);
-            isTracking = true;
+            Log.d(TAG, "[executeGetSteps] 센서 리스너 등록 시작");
+            boolean registered = sensorManager.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_NORMAL);
+            if (registered) {
+                Log.d(TAG, "[executeGetSteps] 센서 리스너 등록 성공");
+                isTracking = true;
+            } else {
+                Log.e(TAG, "[executeGetSteps] 센서 리스너 등록 실패");
+            }
         }
 
         JSObject ret = new JSObject();
         ret.put("steps", totalSteps);
+        Log.d(TAG, "[executeGetSteps] 걸음수 반환: " + totalSteps);
         call.resolve(ret);
     }
-
-    @PluginMethod
-    public void startTracking(PluginCall call) {
+    
+    /**
+     * startTracking 실행 (권한 체크 없이)
+     */
+    private void executeStartTracking(PluginCall call) {
         if (stepCounterSensor == null) {
+            Log.e(TAG, "[executeStartTracking] Step Counter 센서를 사용할 수 없습니다");
             call.reject("Step Counter 센서를 사용할 수 없습니다");
             return;
         }
 
-        sensorManager.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_NORMAL);
-        initialSteps = totalSteps;
-        isTracking = true;
+        boolean registered = sensorManager.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_NORMAL);
+        if (registered) {
+            Log.d(TAG, "[executeStartTracking] 센서 리스너 등록 성공");
+            initialSteps = totalSteps;
+            isTracking = true;
+            Log.d(TAG, "[executeStartTracking] 초기 걸음수: " + initialSteps + ", 현재 총 걸음수: " + totalSteps);
+        } else {
+            Log.e(TAG, "[executeStartTracking] 센서 리스너 등록 실패");
+            call.reject("센서 리스너 등록 실패");
+            return;
+        }
 
         JSObject ret = new JSObject();
         ret.put("initialSteps", initialSteps);
@@ -65,10 +172,40 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
     }
 
     @PluginMethod
+    public void getSteps(PluginCall call) {
+        Log.d(TAG, "[getSteps] 걸음수 요청");
+        
+        // 권한 확인
+        if (!checkPermission(call)) {
+            Log.d(TAG, "[getSteps] 권한 요청 중...");
+            return; // 권한 요청 중이면 여기서 종료
+        }
+        
+        // 권한이 있으면 실행
+        executeGetSteps(call);
+    }
+
+    @PluginMethod
+    public void startTracking(PluginCall call) {
+        Log.d(TAG, "[startTracking] 추적 시작 요청");
+        
+        // 권한 확인
+        if (!checkPermission(call)) {
+            Log.d(TAG, "[startTracking] 권한 요청 중...");
+            return; // 권한 요청 중이면 여기서 종료
+        }
+        
+        // 권한이 있으면 실행
+        executeStartTracking(call);
+    }
+
+    @PluginMethod
     public void stopTracking(PluginCall call) {
+        Log.d(TAG, "[stopTracking] 추적 중지 요청");
         if (sensorManager != null && isTracking) {
             sensorManager.unregisterListener(this);
             isTracking = false;
+            Log.d(TAG, "[stopTracking] 센서 리스너 해제 완료");
         }
         call.resolve();
     }
@@ -76,25 +213,31 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
     @Override
     public void onSensorChanged(SensorEvent event) {
         if (event.sensor.getType() == Sensor.TYPE_STEP_COUNTER) {
-            totalSteps = (int) event.values[0];
-            
-            // JavaScript로 이벤트 전송
-            JSObject ret = new JSObject();
-            ret.put("steps", totalSteps);
-            notifyListeners("stepUpdate", ret);
+            int newSteps = (int) event.values[0];
+            if (newSteps != totalSteps) {
+                totalSteps = newSteps;
+                Log.d(TAG, "[onSensorChanged] 걸음수 업데이트: " + totalSteps + " (초기: " + initialSteps + ", 차이: " + (totalSteps - initialSteps) + ")");
+                
+                // JavaScript로 이벤트 전송
+                JSObject ret = new JSObject();
+                ret.put("steps", totalSteps);
+                notifyListeners("stepUpdate", ret);
+            }
         }
     }
 
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
-        // 정확도 변경 처리 (필요시)
+        Log.d(TAG, "[onAccuracyChanged] 센서 정확도 변경: " + accuracy);
     }
 
     @Override
     protected void handleOnDestroy() {
         super.handleOnDestroy();
+        Log.d(TAG, "[handleOnDestroy] 플러그인 종료");
         if (sensorManager != null && isTracking) {
             sensorManager.unregisterListener(this);
+            isTracking = false;
         }
     }
 }

@@ -462,15 +462,21 @@ async function startNavigation() {
       
       // 걸음수 업데이트 콜백 설정
       pedometer.value.onStepUpdate(steps => {
+        console.log('[startNavigation] [콜백] 걸음수 업데이트:', steps)
         stepCount.value = steps
+        console.log('[startNavigation] [콜백] stepCount.value 업데이트:', stepCount.value)
         
         // 스탭에 따라 경로를 따라 이동
         if (warehouse3DRef.value) {
+          console.log('[startNavigation] [콜백] moveAlongPathBySteps 호출, steps:', stepCount.value)
           warehouse3DRef.value.moveAlongPathBySteps(stepCount.value)
+        } else {
+          console.warn('[startNavigation] [콜백] warehouse3DRef.value가 없음')
         }
         
         // 경로가 끝나면 정지
         if (warehouse3DRef.value && warehouse3DRef.value.isPathComplete()) {
+          console.log('[startNavigation] [콜백] 경로 완료, 네비게이션 중지')
           stopNavigation()
         }
       })
@@ -483,8 +489,9 @@ async function startNavigation() {
       warehouse3DRef.value.showCurrentPosition(true)
       
       // 걸음수 측정 시작
+      console.log('[startNavigation] startTracking() 호출 전')
       await pedometer.value.startTracking()
-      
+      console.log('[startNavigation] startTracking() 완료')
       console.log('[startNavigation] 네비게이션 시작, 걸음수 측정 활성화')
     } catch (error) {
       console.error('[startNavigation] 네비게이션 시작 실패:', error)
