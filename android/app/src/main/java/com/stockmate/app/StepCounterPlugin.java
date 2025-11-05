@@ -154,12 +154,18 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
             return;
         }
 
+        // 센서 리스너 등록
+        // TYPE_STEP_COUNTER는 리스너 등록 시 즉시 현재 값을 반환합니다
         boolean registered = sensorManager.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_NORMAL);
         if (registered) {
             Log.d(TAG, "[executeStartTracking] 센서 리스너 등록 성공");
-            initialSteps = totalSteps;
             isTracking = true;
-            Log.d(TAG, "[executeStartTracking] 초기 걸음수: " + initialSteps + ", 현재 총 걸음수: " + totalSteps);
+            
+            // 초기값은 onSensorChanged에서 첫 번째 값으로 설정됨
+            // 여기서는 0으로 초기화하고, 센서가 값을 반환할 때까지 대기
+            initialSteps = 0;
+            totalSteps = 0;
+            Log.d(TAG, "[executeStartTracking] 센서 리스너 등록 완료, 초기값 대기 중...");
         } else {
             Log.e(TAG, "[executeStartTracking] 센서 리스너 등록 실패");
             call.reject("센서 리스너 등록 실패");
@@ -168,6 +174,7 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
 
         JSObject ret = new JSObject();
         ret.put("initialSteps", initialSteps);
+        ret.put("status", "tracking_started");
         call.resolve(ret);
     }
 
@@ -213,14 +220,26 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
     @Override
     public void onSensorChanged(SensorEvent event) {
         if (event.sensor.getType() == Sensor.TYPE_STEP_COUNTER) {
-            int newSteps = (int) event.values[0];
+            // TYPE_STEP_COUNTER는 부팅 이후 누적 걸음수 (float 값)
+            float stepCountSinceBoot = event.values[0];
+            int newSteps = (int) stepCountSinceBoot;
+            
+            // 초기값이 설정되지 않았으면 첫 번째 값을 초기값으로 설정
+            if (initialSteps == 0 && newSteps > 0) {
+                initialSteps = newSteps;
+                totalSteps = newSteps;
+                Log.d(TAG, "[onSensorChanged] 초기 걸음수 설정: " + initialSteps);
+            }
+            
             if (newSteps != totalSteps) {
                 totalSteps = newSteps;
-                Log.d(TAG, "[onSensorChanged] 걸음수 업데이트: " + totalSteps + " (초기: " + initialSteps + ", 차이: " + (totalSteps - initialSteps) + ")");
+                int stepsSinceStart = totalSteps - initialSteps;
+                Log.d(TAG, "[onSensorChanged] 걸음수 업데이트 - 누적: " + totalSteps + ", 초기: " + initialSteps + ", 시작 이후: " + stepsSinceStart);
                 
-                // JavaScript로 이벤트 전송
+                // JavaScript로 이벤트 전송 (시작 이후 걸음수)
                 JSObject ret = new JSObject();
                 ret.put("steps", totalSteps);
+                ret.put("stepsSinceStart", stepsSinceStart);
                 notifyListeners("stepUpdate", ret);
             }
         }

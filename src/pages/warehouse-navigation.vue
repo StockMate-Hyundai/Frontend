@@ -36,6 +36,10 @@ const stepCount = ref(0) // 스탭 카운터
 const isNavigating = ref(false) // 네비게이션 진행 중 여부
 const navigationInterval = ref(null) // 스탭 증가 인터벌
 const pedometer = ref(null) // 걸음수 측정 인스턴스
+const pedometerConnectionStatus = ref({
+  text: '연결 확인 중...',
+  class: 'text-warning',
+}) // 걸음수 측정 연결 상태
 
 // 최근 주문 목록
 const recentOrders = ref([])
@@ -466,6 +470,15 @@ async function startNavigation() {
         stepCount.value = steps
         console.log('[startNavigation] [콜백] stepCount.value 업데이트:', stepCount.value)
         
+        // 첫 번째 걸음수 업데이트 시 연결 성공으로 표시
+        if (pedometerConnectionStatus.value.text !== '✓ 센서 연결됨' && steps >= 0) {
+          pedometerConnectionStatus.value = {
+            text: '✓ 센서 연결됨 (데이터 수신 중)',
+            class: 'text-success',
+          }
+          console.log('[startNavigation] [콜백] ✓ 센서 데이터 수신 확인, 첫 걸음수:', steps)
+        }
+        
         // 스탭에 따라 경로를 따라 이동
         if (warehouse3DRef.value) {
           console.log('[startNavigation] [콜백] moveAlongPathBySteps 호출, steps:', stepCount.value)
@@ -490,9 +503,40 @@ async function startNavigation() {
       
       // 걸음수 측정 시작
       console.log('[startNavigation] startTracking() 호출 전')
-      await pedometer.value.startTracking()
-      console.log('[startNavigation] startTracking() 완료')
-      console.log('[startNavigation] 네비게이션 시작, 걸음수 측정 활성화')
+      pedometerConnectionStatus.value = {
+        text: '센서 연결 시도 중...',
+        class: 'text-warning',
+      }
+      
+      try {
+        await pedometer.value.startTracking()
+        console.log('[startNavigation] startTracking() 완료')
+        console.log('[startNavigation] 네비게이션 시작, 걸음수 측정 활성화')
+        
+        // 연결 성공 확인을 위해 잠시 대기 후 상태 확인
+        setTimeout(() => {
+          if (pedometer.value && pedometer.value.trackingStatus) {
+            pedometerConnectionStatus.value = {
+              text: '✓ 센서 연결됨',
+              class: 'text-success',
+            }
+            console.log('[startNavigation] ✓ 센서 연결 확인 완료')
+          } else {
+            pedometerConnectionStatus.value = {
+              text: '⚠ 센서 연결 실패 (데이터 수신 대기 중...)',
+              class: 'text-warning',
+            }
+            console.warn('[startNavigation] ⚠ 센서 데이터 수신 대기 중...')
+          }
+        }, 2000)
+      } catch (trackingError) {
+        pedometerConnectionStatus.value = {
+          text: '✗ 센서 연결 오류',
+          class: 'text-error',
+        }
+        console.error('[startNavigation] 센서 연결 오류:', trackingError)
+        throw trackingError
+      }
     } catch (error) {
       console.error('[startNavigation] 네비게이션 시작 실패:', error)
 
@@ -500,6 +544,10 @@ async function startNavigation() {
       if (error.message.includes('초기화') || error.message.includes('사용할 수 없')) {
         // 폴백: 시간 기반 시뮬레이션
         console.warn('[startNavigation] 폴백 모드: 시간 기반 시뮬레이션 사용')
+        pedometerConnectionStatus.value = {
+          text: '⚠ 시뮬레이션 모드 (실제 센서 사용 불가)',
+          class: 'text-warning',
+        }
         stepCount.value = 0
         isNavigating.value = true
         warehouse3DRef.value.showCurrentPosition(true)
@@ -555,15 +603,19 @@ function stopStepAnimation() {
 }
 
 function stopNavigation() {
+  console.log('[stopNavigation] 네비게이션 중지 시작')
+  
   // 시간 기반 인터벌 정리
   if (navigationInterval.value) {
     clearInterval(navigationInterval.value)
     navigationInterval.value = null
+    console.log('[stopNavigation] 인터벌 정리 완료')
   }
   
   // 걸음수 측정 중지
   if (pedometer.value) {
     pedometer.value.stopTracking()
+    console.log('[stopNavigation] 걸음수 측정 중지')
   }
   
   isNavigating.value = false
@@ -571,6 +623,14 @@ function stopNavigation() {
     warehouse3DRef.value.showCurrentPosition(false)
   }
   stepCount.value = 0
+  
+  // 연결 상태 초기화
+  pedometerConnectionStatus.value = {
+    text: '연결 확인 중...',
+    class: 'text-warning',
+  }
+  
+  console.log('[stopNavigation] 네비게이션 중지 완료')
 }
 
 function resetCamera() {
@@ -912,8 +972,11 @@ const formatDistance = distance => {
                       <div class="text-h6 text-primary mb-1">
                         {{ stepCount }} 스탭
                       </div>
-                      <div class="text-caption text-medium-emphasis">
+                      <div class="text-caption text-medium-emphasis mb-1">
                         경로 진행 중...
+                      </div>
+                      <div class="text-caption" :class="pedometerConnectionStatus.class">
+                        {{ pedometerConnectionStatus.text }}
                       </div>
                     </div>
                     
