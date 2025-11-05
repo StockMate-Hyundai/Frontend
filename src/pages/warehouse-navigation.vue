@@ -36,6 +36,7 @@ const stepCount = ref(0) // 스탭 카운터
 const isNavigating = ref(false) // 네비게이션 진행 중 여부
 const navigationInterval = ref(null) // 스탭 증가 인터벌
 const pedometer = ref(null) // 걸음수 측정 인스턴스
+
 const pedometerConnectionStatus = ref({
   text: '연결 확인 중...',
   class: 'text-warning',
@@ -581,6 +582,7 @@ async function startNavigation() {
         }, 1000)
       } else {
         const alertMessage = `걸음수 측정을 시작할 수 없습니다.\n\n플랫폼: ${platform}\n네이티브: ${isNative}\n에러: ${errorMessage}\n\n앱 환경에서 실행해주세요.`
+
         console.error('[startNavigation]', alertMessage)
         alert(alertMessage)
       }
@@ -991,9 +993,12 @@ const formatDistance = distance => {
                         {{ stepCount }} 스탭
                       </div>
                       <div class="text-caption text-medium-emphasis mb-1">
-                        경로 진행 중...
+                        경로 진행 중...test
                       </div>
-                      <div class="text-caption" :class="pedometerConnectionStatus.class">
+                      <div
+                        class="text-caption"
+                        :class="pedometerConnectionStatus.class"
+                      >
                         {{ pedometerConnectionStatus.text }}
                       </div>
                     </div>
