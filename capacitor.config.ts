@@ -9,7 +9,7 @@ const config: CapacitorConfig = {
     // 실제 기기: 192.168.x.x 형식의 로컬 IP 주소 사용
     // 에뮬레이터: 10.0.2.2 (localhost를 가리킴)
     // iOS 시뮬레이터: localhost 사용 가능
-    url: process.env.CAPACITOR_SERVER_URL || 'http://192.168.202.64:5173',
+    // url: process.env.CAPACITOR_SERVER_URL || 'http://localhost:5173',
     cleartext: true, // HTTP 허용 (개발 환경)
     
     // 프로덕션: 외부 API 허용
