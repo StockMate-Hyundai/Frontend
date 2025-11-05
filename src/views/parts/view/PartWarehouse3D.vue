@@ -35,6 +35,7 @@ let initialCameraPosition = null // 초기 카메라 위치
 let initialCameraTarget = null // 초기 카메라 타겟
 let currentPositionMarker = null // 현재 위치 마커
 let currentPathPosition = 0 // 경로상 현재 위치 (인덱스)
+let isNavigationMode = false // 네비게이션 모드 여부
 
 // 창고 레이아웃 상수
 const MM = 0.001
@@ -773,6 +774,33 @@ function buildScene() {
 // ===== Animation =====
 function animate() {
   animId = requestAnimationFrame(animate)
+  
+  // 네비게이션 모드일 때 카메라 타겟과 위치를 부드럽게 따라가도록
+  // 카메라 거리는 유지하면서 타겟만 따라가도록
+  if (isNavigationMode && currentPositionMarker && camera && controls) {
+    const currentPos = currentPositionMarker.position.clone()
+    
+    // 타겟만 부드럽게 따라가도록 (매우 부드럽게)
+    controls.target.lerp(currentPos, 0.05)
+    
+    // 카메라 거리 유지 (점점 가까워지는 것 방지)
+    // 현재 카메라와 타겟 사이의 거리를 계산
+    const currentDistance = camera.position.distanceTo(controls.target)
+    const desiredDistance = 35 // 원하는 거리 (높이와 비슷하게)
+    
+    // 거리가 너무 가까워지면 카메라를 뒤로 이동
+    if (currentDistance < desiredDistance * 0.8) {
+      const direction = new THREE.Vector3()
+      direction.subVectors(camera.position, controls.target).normalize()
+      
+      // 원하는 거리로 카메라 위치 조정
+      const desiredCameraPos = controls.target.clone().add(direction.multiplyScalar(desiredDistance))
+      desiredCameraPos.y = 35 // 높이 유지
+      camera.position.lerp(desiredCameraPos, 0.1)
+    }
+    
+    controls.update()
+  }
   
   // 화살표 위아래 움직임
   if (arrowMarker) {
@@ -1876,11 +1904,28 @@ function startStepAnimation() {
   }
   
   isStepAnimationActive = true
-  currentStepIndex = -1 // -1로 시작하여 처음 nextStep() 호출 시 0번째로 이동
   
-  // 첫 번째 경유지로 이동
-  nextStep()
-  console.log('[startStepAnimation] 경유지별 애니메이션 시작, 총 경유지:', props.optimizedRoute.length)
+  // 문이나 포장대가 아닌 첫 번째 실제 위치 찾기
+  let firstRealIndex = -1
+  for (let i = 0; i < props.optimizedRoute.length; i++) {
+    const step = props.optimizedRoute[i]
+    const location = typeof step === 'string' ? step : step.location
+    if (location && location !== '문' && location !== 'door' && location !== '포장대' && location !== 'workarea') {
+      firstRealIndex = i
+      break
+    }
+  }
+  
+  if (firstRealIndex === -1) {
+    console.warn('[startStepAnimation] 실제 경유지를 찾을 수 없습니다')
+    currentStepIndex = -1
+    nextStep() // 첫 번째로 이동 시도
+  } else {
+    currentStepIndex = firstRealIndex - 1 // nextStep() 호출 시 firstRealIndex로 이동
+    nextStep()
+  }
+  
+  console.log('[startStepAnimation] 경유지별 애니메이션 시작, 총 경로:', props.optimizedRoute.length, ', 첫 번째 실제 위치 인덱스:', firstRealIndex)
 }
 
 /**
@@ -2120,6 +2165,7 @@ function showCurrentPosition(show) {
       return
     }
     
+    // fullPath의 첫 번째 위치 사용 (문일 수도 있지만 네비게이션 시작점)
     const startPoint = props.fullPath[0]
     if (!startPoint) return
     
@@ -2186,8 +2232,9 @@ function createCurrentPositionMarker() {
 /**
  * 스탭에 따라 경로를 따라 이동
  * @param {number} steps - 현재 스탭 수
+ * @param {boolean} stepChanged - 스탭이 변경되었는지 여부
  */
-function moveAlongPathBySteps(steps) {
+function moveAlongPathBySteps(steps, stepChanged = true) {
   if (!props.fullPath || props.fullPath.length === 0 || !currentPositionMarker) {
     return
   }
@@ -2260,6 +2307,140 @@ function moveAlongPathBySteps(steps) {
       const angle = Math.atan2(direction.x, direction.z)
       arrow.rotation.y = angle
     }
+    
+    // 네비게이션 모드일 때 스탭이 변경되면 카메라 위치 자연스럽게 이동
+    if (isNavigationMode && camera && controls && stepChanged) {
+      // 이동 방향이 화면 위쪽을 향하도록 카메라 위치 조정
+      const direction = new THREE.Vector3()
+      if (nextWorldPos) {
+        direction.subVectors(nextWorldPos, targetPos).normalize()
+      } else {
+        // 다음 위치가 없으면 현재 방향 유지
+        return
+      }
+      
+      const cameraHeight = 40 // 카메라 높이 증가 (35 -> 40)
+      const cameraOffset = direction.clone().multiplyScalar(-15) // 이동 방향 반대로 15m 뒤로 (더 멀리)
+      const desiredCameraPos = targetPos.clone().add(cameraOffset)
+      desiredCameraPos.y = cameraHeight
+      
+      // 카메라 위치를 부드럽게 이동 (더 큰 lerp factor로 한번에 확 움직이되 자연스럽게)
+      camera.position.lerp(desiredCameraPos, 0.6)
+      
+      // 타겟은 항상 현재 위치 (정중앙) - 더 빠르게 따라가도록
+      controls.target.lerp(targetPos, 0.6)
+      controls.update()
+    }
+  }
+}
+
+let lastFixedStep = -1 // 마지막으로 위치 고정한 스텝
+
+/**
+ * 네비게이션 모드에서 카메라를 위치를 따라가도록 설정
+ * 위에서 90도로 내려보면서 이동 방향이 화면 위쪽을 향하도록 회전
+ */
+function followCameraToPosition(position, nextPosition, forceFix = false) {
+  if (!camera || !controls) return
+  
+  // 이동 방향 계산 (현재 위치에서 다음 위치로)
+  const direction = new THREE.Vector3()
+  direction.subVectors(nextPosition, position).normalize()
+  
+  // 위에서 내려보는 높이 (90도 top-down view) - 더 멀리 조정
+  const cameraHeight = 40 // 카메라 높이 (35 -> 40으로 증가)
+  
+  // 이동 방향이 화면 위쪽(음의 Z 방향)을 향하도록 카메라 위치 계산
+  // 이동 방향의 반대 방향으로 카메라를 배치하여 이동 방향이 위로 오도록
+  const cameraOffset = direction.clone().multiplyScalar(-15) // 이동 방향 반대로 15m 뒤로 (더 멀리)
+  const cameraPosition = position.clone().add(cameraOffset)
+  cameraPosition.y = cameraHeight
+  
+  // 카메라 타겟: 현재 위치 (정중앙에 위치)
+  const cameraTarget = position.clone()
+  
+  // 강제 고정이거나 스탭이 변경되었을 때만 위치 고정
+  const lerpFactor = forceFix ? 0.5 : 0.15 // 강제 고정 시 더 빠르게, 평소에는 부드럽게
+  
+  // 카메라 위치 업데이트
+  camera.position.lerp(cameraPosition, lerpFactor)
+  
+  // OrbitControls 타겟 업데이트 (항상 정중앙에 위치)
+  controls.target.lerp(cameraTarget, lerpFactor)
+  
+  // 카메라가 이동 방향을 향하도록 회전 (위에서 내려보는 각도 유지)
+  controls.update()
+}
+
+/**
+ * 네비게이션 모드 시작
+ */
+function startNavigationMode() {
+  isNavigationMode = true
+  lastFixedStep = -1
+  
+  if (currentPositionMarker) {
+    const pos = currentPositionMarker.position.clone()
+    let nextPos = pos.clone()
+    
+    // 다음 위치 찾기 (fullPath에서)
+    if (props.fullPath && props.fullPath.length > 1) {
+      // 첫 번째 실제 위치 찾기 (문이 아닌)
+      for (let i = 1; i < props.fullPath.length; i++) {
+        const nextPoint = props.fullPath[i]
+        const nextWorld = gridCoordToWorldCoord(nextPoint.row, nextPoint.col)
+        if (nextWorld) {
+          nextPos.copy(nextWorld)
+          nextPos.y = 0.5
+          break
+        }
+      }
+    }
+    
+    // 즉시 카메라를 시작 위치로 이동 (정중앙에, 이동 방향이 위로 오도록)
+    followCameraToPositionImmediate(pos, nextPos)
+  }
+  // OrbitControls 활성화 유지 (사용자가 수동 조작 가능)
+  if (controls) {
+    controls.enabled = true
+  }
+}
+
+/**
+ * 즉시 카메라를 위치로 이동 (정중앙에, 이동 방향이 위로 오도록)
+ */
+function followCameraToPositionImmediate(position, nextPosition) {
+  if (!camera || !controls) return
+  
+  // 이동 방향 계산
+  const direction = new THREE.Vector3()
+  direction.subVectors(nextPosition, position).normalize()
+  
+  // 위에서 내려보는 높이 (90도 top-down view) - 더 멀리 조정
+  const cameraHeight = 40 // 카메라 높이 (35 -> 40으로 증가)
+  
+  // 이동 방향의 반대 방향으로 카메라를 배치하여 이동 방향이 위로 오도록
+  const cameraOffset = direction.clone().multiplyScalar(-15) // 이동 방향 반대로 15m 뒤로 (더 멀리)
+  const cameraPosition = position.clone().add(cameraOffset)
+  cameraPosition.y = cameraHeight
+  
+  // 카메라 타겟: 현재 위치 (정중앙)
+  const cameraTarget = position.clone()
+  
+  // 즉시 이동
+  camera.position.copy(cameraPosition)
+  controls.target.copy(cameraTarget)
+  controls.update()
+}
+
+/**
+ * 네비게이션 모드 종료
+ */
+function stopNavigationMode() {
+  isNavigationMode = false
+  // OrbitControls 다시 활성화
+  if (controls) {
+    controls.enabled = true
   }
 }
 
@@ -2286,6 +2467,8 @@ defineExpose({
   showCurrentPosition,
   moveAlongPathBySteps,
   isPathComplete,
+  startNavigationMode,
+  stopNavigationMode,
   getCurrentStepIndex: () => currentStepIndex,
   getIsStepAnimationActive: () => isStepAnimationActive,
 })

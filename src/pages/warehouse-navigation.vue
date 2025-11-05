@@ -37,6 +37,8 @@ const isNavigating = ref(false) // 네비게이션 진행 중 여부
 const navigationInterval = ref(null) // 스탭 증가 인터벌
 const pedometer = ref(null) // 걸음수 측정 인스턴스
 const showNavigationInfo = ref(true) // 네비게이션 정보 표시 여부
+const showControlButtons = ref(true) // 버튼 컨트롤 표시 여부
+const showRouteInfo = ref(true) // 경로 정보 표시 여부
 
 const pedometerConnectionStatus = ref({
   text: '연결 확인 중...',
@@ -469,6 +471,10 @@ async function startNavigation() {
       // 걸음수 업데이트 콜백 설정 (stepCount, distance)
       pedometer.value.onStepUpdate((stepCountValue, distance) => {
         console.log('[startNavigation] [콜백] 걸음수 업데이트:', stepCountValue, ', 거리:', distance)
+        
+        // 스탭이 변경되었는지 확인
+        const stepChanged = stepCount.value !== stepCountValue
+
         stepCount.value = stepCountValue
         console.log('[startNavigation] [콜백] stepCount.value 업데이트:', stepCount.value)
         
@@ -481,10 +487,10 @@ async function startNavigation() {
           console.log('[startNavigation] [콜백] ✓ 센서 데이터 수신 확인, 첫 걸음수:', stepCountValue)
         }
         
-        // 스탭에 따라 경로를 따라 이동
+        // 스탭에 따라 경로를 따라 이동 (스탭이 변경되었을 때만 위치 고정)
         if (warehouse3DRef.value) {
           console.log('[startNavigation] [콜백] moveAlongPathBySteps 호출, steps:', stepCount.value)
-          warehouse3DRef.value.moveAlongPathBySteps(stepCount.value)
+          warehouse3DRef.value.moveAlongPathBySteps(stepCount.value, stepChanged)
         } else {
           console.warn('[startNavigation] [콜백] warehouse3DRef.value가 없음')
         }
@@ -500,8 +506,14 @@ async function startNavigation() {
       stepCount.value = 0
       isNavigating.value = true
       
-      // 시작 위치에 현재 위치 마커 표시
+      // 네비게이션 시작 시 컨트롤 영역 자동으로 펼치기
+      showControlButtons.value = true
+      
+      // 시작 위치에 현재 위치 마커 표시 (fullPath의 첫 번째 위치)
       warehouse3DRef.value.showCurrentPosition(true)
+      
+      // 네비게이션 모드 시작 (카메라 팔로잉 활성화)
+      warehouse3DRef.value.startNavigationMode()
       
       // 걸음수 측정 시작 (시뮬레이션 모드)
       console.log('[startNavigation] startTracking() 호출')
@@ -567,6 +579,11 @@ function stopStepAnimation() {
 
 function stopNavigation() {
   console.log('[stopNavigation] 네비게이션 중지 시작')
+  
+  // 네비게이션 모드 종료 (카메라 팔로잉 비활성화)
+  if (warehouse3DRef.value) {
+    warehouse3DRef.value.stopNavigationMode()
+  }
   
   // 시간 기반 인터벌 정리
   if (navigationInterval.value) {
@@ -833,315 +850,289 @@ const formatDistance = distance => {
                   class="animation-controls"
                   style="position: absolute; top: 10px; right: 10px; z-index: 1000; background: white; padding: 12px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);"
                 >
-                  <!-- 일반 애니메이션 컨트롤 -->
+                  <!-- 버튼 토글 헤더 -->
                   <div
-                    v-if="!isStepAnimationActive"
-                    class="d-flex align-center gap-2 mb-2 flex-wrap"
+                    class="d-flex align-center justify-space-between mb-2"
+                    style="cursor: pointer;"
+                    @click="showControlButtons = !showControlButtons"
                   >
-                    <VBtn
-                      size="small"
-                      color="primary"
-                      :disabled="isAnimating"
-                      @click="startAnimation"
-                    >
-                      경로 재생
-                    </VBtn>
-                    <VBtn
-                      size="small"
-                      color="error"
-                      :disabled="!isAnimating"
-                      @click="stopAnimation"
-                    >
-                      중지
-                    </VBtn>
-                    <VBtn
-                      v-if="routeSteps.length > 0"
-                      size="small"
-                      color="secondary"
-                      :disabled="isAnimating || isNavigating"
-                      @click="startStepAnimation"
-                    >
-                      경유지별 이동
-                    </VBtn>
-                    <VBtn
-                      v-if="routeSteps.length > 0"
-                      size="small"
-                      color="success"
-                      :disabled="isAnimating || isStepAnimationActive || isNavigating"
-                      @click="startNavigation"
-                    >
-                      네비게이션 시작
-                    </VBtn>
-                    <VBtn
-                      size="small"
-                      color="info"
-                      :disabled="isNavigating"
-                      @click="resetCamera"
-                    >
-                      카메라 리셋
-                    </VBtn>
+                    <span class="text-caption font-weight-medium">
+                      {{ isNavigating ? '네비게이션' : '컨트롤' }}
+                    </span>
+                    <VIcon size="16">
+                      {{ showControlButtons ? 'bx-chevron-up' : 'bx-chevron-down' }}
+                    </VIcon>
                   </div>
                   
-                  <!-- 경유지별 이동 컨트롤 -->
-                  <div
-                    v-if="isStepAnimationActive && !isNavigating"
-                    class="d-flex flex-column gap-2"
-                  >
-                    <div class="text-caption text-center mb-1">
-                      경유지 {{ currentStepIndex + 1 }} / {{ routeSteps.length }}
-                    </div>
-                    <div class="d-flex align-center gap-2 flex-wrap">
+                  <!-- 일반 애니메이션 컨트롤 -->
+                  <VExpandTransition>
+                    <div
+                      v-if="showControlButtons && !isStepAnimationActive && !isNavigating"
+                      class="d-flex align-center gap-2 mb-2 flex-wrap"
+                    >
                       <VBtn
                         size="small"
                         color="primary"
-                        :disabled="currentStepIndex <= 0"
-                        @click="previousStep"
+                        :disabled="isAnimating"
+                        @click="startAnimation"
                       >
-                        <VIcon>mdi-chevron-left</VIcon>
-                        이전
-                      </VBtn>
-                      <VBtn
-                        size="small"
-                        color="primary"
-                        :disabled="currentStepIndex >= routeSteps.length - 1"
-                        @click="nextStep"
-                      >
-                        다음
-                        <VIcon>mdi-chevron-right</VIcon>
+                        경로 재생
                       </VBtn>
                       <VBtn
                         size="small"
                         color="error"
-                        @click="stopStepAnimation"
+                        :disabled="!isAnimating"
+                        @click="stopAnimation"
                       >
-                        <VIcon start>
-                          mdi-stop
-                        </VIcon>
-                        종료
+                        중지
+                      </VBtn>
+                      <VBtn
+                        v-if="routeSteps.length > 0"
+                        size="small"
+                        color="secondary"
+                        :disabled="isAnimating || isNavigating"
+                        @click="startStepAnimation"
+                      >
+                        경유지별 이동
+                      </VBtn>
+                      <VBtn
+                        v-if="routeSteps.length > 0"
+                        size="small"
+                        color="success"
+                        :disabled="isAnimating || isStepAnimationActive || isNavigating"
+                        @click="startNavigation"
+                      >
+                        네비게이션 시작
+                      </VBtn>
+                      <VBtn
+                        size="small"
+                        color="info"
+                        :disabled="isNavigating"
+                        @click="resetCamera"
+                      >
+                        카메라 리셋
                       </VBtn>
                     </div>
-                  </div>
                   
-                  <!-- 네비게이션 진행 중 컨트롤 -->
-                  <div
-                    v-if="isNavigating"
-                    class="d-flex flex-column gap-2"
-                  >
-                    <!-- 네비게이션 정보 토글 헤더 -->
-                    <div
-                      class="d-flex align-center justify-space-between pa-2"
-                      style="background: #e3f2fd; border-radius: 8px; cursor: pointer;"
-                      @click="showNavigationInfo = !showNavigationInfo"
-                    >
-                      <span class="text-body-2 font-weight-medium">
-                        네비게이션 정보
-                      </span>
-                      <VIcon size="20">
-                        {{ showNavigationInfo ? 'bx-chevron-up' : 'bx-chevron-down' }}
-                      </VIcon>
-                    </div>
-                    
-                    <!-- 네비게이션 정보 (토글 가능) -->
+                    <!-- 경유지별 이동 컨트롤 -->
                     <VExpandTransition>
                       <div
-                        v-if="showNavigationInfo"
+                        v-if="showControlButtons && isStepAnimationActive && !isNavigating"
                         class="d-flex flex-column gap-2"
                       >
-                        <!-- 스탭 카운터 표시 -->
-                        <div
-                          class="d-flex flex-column align-center mb-2 pa-2"
-                          style="background: #f5f5f5; border-radius: 8px;"
-                        >
-                          <div class="text-h6 text-primary mb-1">
-                            {{ stepCount }} 스탭
-                          </div>
-                          <div class="text-caption text-medium-emphasis mb-1">
-                            경로 진행 중...
-                          </div>
-                          <div
-                            class="text-caption"
-                            :class="pedometerConnectionStatus.class"
+                        <div class="text-caption text-center mb-1">
+                          경유지 {{ currentStepIndex + 1 }} / {{ routeSteps.length }}
+                        </div>
+                        <div class="d-flex align-center gap-2 flex-wrap">
+                          <VBtn
+                            size="small"
+                            color="primary"
+                            :disabled="currentStepIndex <= 0"
+                            @click="previousStep"
                           >
-                            {{ pedometerConnectionStatus.text }}
-                          </div>
+                            <VIcon>mdi-chevron-left</VIcon>
+                            이전
+                          </VBtn>
+                          <VBtn
+                            size="small"
+                            color="primary"
+                            :disabled="currentStepIndex >= routeSteps.length - 1"
+                            @click="nextStep"
+                          >
+                            다음
+                            <VIcon>mdi-chevron-right</VIcon>
+                          </VBtn>
+                          <VBtn
+                            size="small"
+                            color="error"
+                            @click="stopStepAnimation"
+                          >
+                            <VIcon start>
+                              mdi-stop
+                            </VIcon>
+                            종료
+                          </VBtn>
                         </div>
                       </div>
                     </VExpandTransition>
-                    
-                    <VBtn
-                      size="small"
-                      color="error"
-                      @click="stopNavigation"
-                    >
-                      네비게이션 중지
-                    </VBtn>
-                  </div>
                   
-                  <!-- 경유지별 이동 모드에서 카메라 리셋 버튼 -->
-                  <div
-                    v-if="isStepAnimationActive && !isNavigating"
-                    class="d-flex justify-center mt-2"
-                  >
-                    <VBtn
-                      size="small"
-                      color="info"
-                      variant="outlined"
-                      @click="resetCamera"
-                    >
-                      <VIcon start>
-                        mdi-camera-control
-                      </VIcon>
-                      카메라 리셋
-                    </VBtn>
-                  </div>
+                    <!-- 경유지별 이동 모드에서 카메라 리셋 버튼 -->
+                    <VExpandTransition>
+                      <div
+                        v-if="showControlButtons && isStepAnimationActive && !isNavigating"
+                        class="d-flex justify-center mt-2"
+                      >
+                        <VBtn
+                          size="small"
+                          color="info"
+                          variant="outlined"
+                          @click="resetCamera"
+                        >
+                          <VIcon start>
+                            mdi-camera-control
+                          </VIcon>
+                          카메라 리셋
+                        </VBtn>
+                      </div>
+                    </VExpandTransition>
+                    
+                    <!-- 네비게이션 진행 중 컨트롤 -->
+                    <VExpandTransition>
+                      <div
+                        v-if="showControlButtons && isNavigating"
+                        class="d-flex flex-column gap-2"
+                      >
+                        <!-- 스탭 카운터 -->
+                        <div
+                          class="d-flex align-center justify-center gap-2 pa-2 mb-2"
+                          style="background: #f5f5f5; border-radius: 8px;"
+                        >
+                          <VIcon
+                            size="20"
+                            color="primary"
+                          >
+                            mdi-walk
+                          </VIcon>
+                          <div class="d-flex flex-column align-center">
+                            <span class="text-h6 font-weight-bold text-primary">
+                              {{ stepCount }}
+                            </span>
+                            <span class="text-caption text-medium-emphasis">
+                              걸음
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <!-- 상태 표시 -->
+                        <div
+                          class="text-caption text-center pa-2 mb-2"
+                          :class="pedometerConnectionStatus.class"
+                          style="background: #f5f5f5; border-radius: 8px;"
+                        >
+                          {{ pedometerConnectionStatus.text }}
+                        </div>
+                        
+                        <!-- 중지 버튼 -->
+                        <VBtn
+                          size="small"
+                          color="error"
+                          block
+                          @click="stopNavigation"
+                        >
+                          <VIcon start>
+                            mdi-stop
+                          </VIcon>
+                          네비게이션 중지
+                        </VBtn>
+                      </div>
+                    </VExpandTransition>
+                  </VExpandTransition>
                 </div>
-              </div>
+              </div> 
             </VCardText>
           </VCard>
         </div>
         
-        <!-- 경로 정보 탭들 -->
+        <!-- 경로 정보 (하나의 카드에 합쳐서 표시) -->
         <div
-          v-if="routeTabs.length > 0"
+          v-if="navigationResult && (navigationResult.optimizedRoute || navigationResult.totalDistance)"
           class="route-tabs-section"
         >
           <VCard>
             <VCardText class="pa-0">
-              <div class="route-tabs-container">
+              <!-- 경로 정보 토글 헤더 -->
+              <div
+                class="route-info-header d-flex align-center justify-space-between pa-3"
+                style="cursor: pointer; border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));"
+                @click="showRouteInfo = !showRouteInfo"
+              >
+                <span class="text-body-1 font-weight-medium">경로 정보</span>
+                <VIcon size="20">
+                  {{ showRouteInfo ? 'bx-chevron-down' : 'bx-chevron-right' }}
+                </VIcon>
+              </div>
+              
+              <VExpandTransition>
                 <div
-                  v-for="(tab, index) in routeTabs"
-                  :key="tab.id"
-                  class="route-tab-item"
+                  v-if="showRouteInfo"
+                  class="d-flex"
+                  style="min-height: 200px;"
                 >
+                  <!-- 좌측: 전체 경로 정보 -->
                   <div
-                    class="route-tab-header"
-                    @click="toggleTab(index)"
+                    class="route-overview-section"
+                    style="flex: 1; padding: 16px; border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));"
                   >
-                    <div class="route-tab-title">
-                      <VIcon
-                        :icon="isTabExpanded(index) ? 'bx-chevron-down' : 'bx-chevron-right'"
-                        size="20"
-                        class="me-2"
-                      />
-                      <span>{{ tab.title }}</span>
+                    <div class="route-overview">
+                      <div class="route-info-grid">
+                        <div class="route-info-item">
+                          <span class="route-info-label">알고리즘:</span>
+                          <span class="route-info-value">{{ algorithmType }}</span>
+                        </div>
+                        <div class="route-info-item">
+                          <span class="route-info-label">총 거리:</span>
+                          <span class="route-info-value">{{ formatDistance(totalDistance) }}</span>
+                        </div>
+                        <div class="route-info-item">
+                          <span class="route-info-label">예상 소요 시간:</span>
+                          <span class="route-info-value">{{ formatTime(estimatedTime) }}</span>
+                        </div>
+                        <div class="route-info-item">
+                          <span class="route-info-label">이동 시간:</span>
+                          <span class="route-info-value">{{ formatTime(walkingTime) }}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   
-                  <VExpandTransition>
+                  <!-- 우측: 경로 단계 -->
+                  <div
+                    class="route-steps-section"
+                    style="flex: 1; padding: 16px; max-height: 400px; overflow-y: auto;"
+                  >
                     <div
-                      v-if="isTabExpanded(index)"
-                      class="route-tab-content"
+                      v-if="routeSteps && routeSteps.length > 0"
+                      class="route-steps"
                     >
-                      <!-- 전체 경로 정보 -->
-                      <div
-                        v-if="tab.type === 'overview'"
-                        class="route-overview"
+                      <VTimeline
+                        side="end"
+                        align="start"
+                        density="compact"
                       >
-                        <div class="route-info-grid">
-                          <div class="route-info-item">
-                            <span class="route-info-label">알고리즘:</span>
-                            <span class="route-info-value">{{ algorithmType }}</span>
-                          </div>
-                          <div class="route-info-item">
-                            <span class="route-info-label">총 거리:</span>
-                            <span class="route-info-value">{{ formatDistance(totalDistance) }}</span>
-                          </div>
-                          <div class="route-info-item">
-                            <span class="route-info-label">예상 소요 시간:</span>
-                            <span class="route-info-value">{{ formatTime(estimatedTime) }}</span>
-                          </div>
-                          <div class="route-info-item">
-                            <span class="route-info-label">이동 시간:</span>
-                            <span class="route-info-value">{{ formatTime(walkingTime) }}</span>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <!-- 경로 단계 -->
-                      <div
-                        v-if="tab.type === 'steps'"
-                        class="route-steps"
-                      >
-                        <VTimeline
-                          side="end"
-                          align="start"
-                          density="compact"
+                        <VTimelineItem
+                          v-for="step in routeSteps"
+                          :key="step.sequence || step.location"
+                          :dot-color="step.location === '문' || step.location === '포장대' ? 'success' : 'primary'"
+                          size="small"
                         >
-                          <VTimelineItem
-                            v-for="step in tab.data"
-                            :key="step.sequence"
-                            :dot-color="step.location === '문' || step.location === '포장대' ? 'success' : 'primary'"
-                            size="small"
-                          >
-                            <div class="d-flex justify-space-between align-center">
-                              <div>
-                                <div class="font-weight-medium">
-                                  {{ step.sequence }}. {{ step.location }}
-                                </div>
-                                <div
-                                  v-if="step.description"
-                                  class="text-caption text-medium-emphasis"
-                                >
-                                  {{ step.description }}
-                                </div>
-                                <div
-                                  v-if="step.orderNumber"
-                                  class="text-caption text-primary"
-                                >
-                                  주문: {{ step.orderNumber }}
-                                </div>
+                          <div class="d-flex justify-space-between align-center">
+                            <div>
+                              <div class="font-weight-medium">
+                                {{ step.sequence || '' }}. {{ step.location }}
                               </div>
-                              <div class="text-caption text-medium-emphasis">
-                                {{ formatDistance(step.cumulativeDistance) }}
+                              <div
+                                v-if="step.description"
+                                class="text-caption text-medium-emphasis"
+                              >
+                                {{ step.description }}
+                              </div>
+                              <div
+                                v-if="step.orderNumber"
+                                class="text-caption text-primary"
+                              >
+                                주문: {{ step.orderNumber }}
                               </div>
                             </div>
-                          </VTimelineItem>
-                        </VTimeline>
-                      </div>
-                      
-                      <!-- 주문별 상세 정보 -->
-                      <div
-                        v-if="tab.type === 'order'"
-                        class="route-order-detail"
-                      >
-                        <div class="order-detail-header mb-3">
-                          <VChip
-                            color="primary"
-                            variant="tonal"
-                          >
-                            {{ tab.data.orderNumber }}
-                          </VChip>
-                          <span class="text-caption text-medium-emphasis ms-2">
-                            {{ tab.data.items.length }}개 부품
-                          </span>
-                        </div>
-                        <VList density="compact">
-                          <VListItem
-                            v-for="(item, idx) in tab.data.items"
-                            :key="idx"
-                          >
-                            <VListItemTitle>
-                              {{ item.partDetail?.korName || item.partDetail?.engName || item.partDetail?.name || '이름 없음' }}
-                            </VListItemTitle>
-                            <VListItemSubtitle>
-                              위치: {{ item.partDetail?.location || '-' }}
-                            </VListItemSubtitle>
-                            <template #append>
-                              <VChip
-                                size="small"
-                                color="primary"
-                                variant="tonal"
-                              >
-                                수량: {{ item.quantity || 0 }}
-                              </VChip>
-                            </template>
-                          </VListItem>
-                        </VList>
-                      </div>
+                            <div class="text-caption text-medium-emphasis">
+                              {{ formatDistance(step.cumulativeDistance) }}
+                            </div>
+                          </div>
+                        </VTimelineItem>
+                      </VTimeline>
                     </div>
-                  </VExpandTransition>
+                  </div>
                 </div>
-              </div>
+              </VExpandTransition>
             </VCardText>
           </VCard>
         </div>
@@ -1416,7 +1407,6 @@ const formatDistance = distance => {
 
 .route-tabs-section {
   max-height: 400px;
-  min-height: 100px;
   padding: 0 16px 16px 16px;
   overflow: hidden;
   display: flex;
