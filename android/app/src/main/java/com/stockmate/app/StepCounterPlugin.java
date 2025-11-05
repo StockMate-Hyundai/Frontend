@@ -146,6 +146,7 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
     
     /**
      * startTracking 실행 (권한 체크 없이)
+     * Android 공식 문서 참고: https://developer.android.com/health-and-fitness/guides/basic-fitness-app/read-step-count-data
      */
     private void executeStartTracking(PluginCall call) {
         if (stepCounterSensor == null) {
@@ -154,8 +155,19 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
             return;
         }
 
+        // 이미 추적 중이면 다시 등록하지 않음
+        if (isTracking) {
+            Log.d(TAG, "[executeStartTracking] 이미 추적 중입니다");
+            JSObject ret = new JSObject();
+            ret.put("initialSteps", initialSteps);
+            ret.put("status", "already_tracking");
+            call.resolve(ret);
+            return;
+        }
+
         // 센서 리스너 등록
         // TYPE_STEP_COUNTER는 리스너 등록 시 즉시 현재 값을 반환합니다
+        // Android 공식 문서: Sensor.TYPE_STEP_COUNTER는 부팅 이후 누적 걸음수 (float 값)
         boolean registered = sensorManager.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_NORMAL);
         if (registered) {
             Log.d(TAG, "[executeStartTracking] 센서 리스너 등록 성공");

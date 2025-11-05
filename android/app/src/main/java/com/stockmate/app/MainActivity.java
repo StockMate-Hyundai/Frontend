@@ -1,9 +1,22 @@
 package com.stockmate.app;
 
+import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.Plugin;
+import com.stockmate.app.StepCounterPlugin;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MainActivity extends BridgeActivity {
-    // @CapacitorPlugin 어노테이션이 있는 플러그인은 자동으로 스캔됩니다
-    // StepCounterPlugin은 @CapacitorPlugin(name = "StepCounter")로 선언되어 있으므로
-    // 별도의 수동 등록이 필요 없습니다
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        
+        // StepCounter 플러그인 수동 등록
+        // Capacitor는 node_modules에 설치된 플러그인만 자동 스캔하므로,
+        // 앱 패키지 내의 커스텀 플러그인은 수동으로 등록해야 합니다
+        List<Class<? extends Plugin>> plugins = new ArrayList<>();
+        plugins.add(StepCounterPlugin.class);
+        this.init(savedInstanceState, plugins);
+    }
 }
