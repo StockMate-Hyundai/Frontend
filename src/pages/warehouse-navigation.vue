@@ -465,19 +465,19 @@ async function startNavigation() {
       pedometer.value = getPedometer()
       await pedometer.value.initialize()
       
-      // 걸음수 업데이트 콜백 설정
-      pedometer.value.onStepUpdate(steps => {
-        console.log('[startNavigation] [콜백] 걸음수 업데이트:', steps)
-        stepCount.value = steps
+      // 걸음수 업데이트 콜백 설정 (stepCount, distance)
+      pedometer.value.onStepUpdate((stepCountValue, distance) => {
+        console.log('[startNavigation] [콜백] 걸음수 업데이트:', stepCountValue, ', 거리:', distance)
+        stepCount.value = stepCountValue
         console.log('[startNavigation] [콜백] stepCount.value 업데이트:', stepCount.value)
         
         // 첫 번째 걸음수 업데이트 시 연결 성공으로 표시
-        if (pedometerConnectionStatus.value.text !== '✓ 센서 연결됨' && steps >= 0) {
+        if (pedometerConnectionStatus.value.text !== '✓ 센서 연결됨' && stepCountValue >= 0) {
           pedometerConnectionStatus.value = {
             text: '✓ 센서 연결됨 (데이터 수신 중)',
             class: 'text-success',
           }
-          console.log('[startNavigation] [콜백] ✓ 센서 데이터 수신 확인, 첫 걸음수:', steps)
+          console.log('[startNavigation] [콜백] ✓ 센서 데이터 수신 확인, 첫 걸음수:', stepCountValue)
         }
         
         // 스탭에 따라 경로를 따라 이동
@@ -993,7 +993,7 @@ const formatDistance = distance => {
                         {{ stepCount }} 스탭
                       </div>
                       <div class="text-caption text-medium-emphasis mb-1">
-                        경로 진행 중...test
+                        경로 진행 중...testttt
                       </div>
                       <div
                         class="text-caption"
