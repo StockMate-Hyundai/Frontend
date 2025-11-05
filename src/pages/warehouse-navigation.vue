@@ -539,11 +539,27 @@ async function startNavigation() {
       }
     } catch (error) {
       console.error('[startNavigation] 네비게이션 시작 실패:', error)
+      console.error('[startNavigation] 에러 메시지:', error.message)
+      console.error('[startNavigation] 에러 스택:', error.stack)
+      
+      // 플랫폼 확인
+      const { Capacitor } = await import('@capacitor/core')
+      const platform = Capacitor.getPlatform()
+      const isNative = Capacitor.isNativePlatform()
+      
+      console.error('[startNavigation] 현재 플랫폼:', platform)
+      console.error('[startNavigation] 네이티브 여부:', isNative)
 
       // 웹 환경이거나 플러그인을 사용할 수 없는 경우 폴백
-      if (error.message.includes('초기화') || error.message.includes('사용할 수 없')) {
+      const errorMessage = error.message || ''
+      const isWebEnvironment = !isNative || platform === 'web'
+      const isInitializationError = errorMessage.includes('초기화') || errorMessage.includes('사용할 수 없') || errorMessage.includes('플러그인')
+      
+      if (isWebEnvironment || isInitializationError) {
         // 폴백: 시간 기반 시뮬레이션
         console.warn('[startNavigation] 폴백 모드: 시간 기반 시뮬레이션 사용')
+        console.warn('[startNavigation] 이유 - 플랫폼:', platform, ', 네이티브:', isNative, ', 에러:', errorMessage)
+        
         pedometerConnectionStatus.value = {
           text: '⚠ 시뮬레이션 모드 (실제 센서 사용 불가)',
           class: 'text-warning',
@@ -564,7 +580,9 @@ async function startNavigation() {
           }
         }, 1000)
       } else {
-        alert('걸음수 측정을 시작할 수 없습니다. 앱 환경에서 실행해주세요.')
+        const alertMessage = `걸음수 측정을 시작할 수 없습니다.\n\n플랫폼: ${platform}\n네이티브: ${isNative}\n에러: ${errorMessage}\n\n앱 환경에서 실행해주세요.`
+        console.error('[startNavigation]', alertMessage)
+        alert(alertMessage)
       }
     }
   }
