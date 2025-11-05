@@ -1,9 +1,7 @@
 /**
  * 안드로이드 걸음수 측정 유틸리티
- * @capawesome-team/capacitor-pedometer 사용
+ * 커스텀 Pedometer 플러그인 사용 (TYPE_STEP_DETECTOR 기반)
  */
-
-import { Pedometer } from '@capawesome-team/capacitor-pedometer'
 
 /**
  * 걸음수 측정 클래스
@@ -15,6 +13,7 @@ export class PedometerManager {
     this.distance = 0
     this.startTime = null
     this.isTracking = false
+    this.nativePlugin = null
     this.listener = null
     this.onStepUpdateCallback = null
   }
@@ -30,18 +29,29 @@ export class PedometerManager {
     }
 
     try {
-      // Pedometer 플러그인 사용 가능 여부 확인
-      const { stepCounting } = await Pedometer.isAvailable()
-      console.log('[Pedometer] 걸음수 카운팅 사용 가능:', stepCounting)
+      // Capacitor 플랫폼 확인
+      const { Capacitor } = await import('@capacitor/core')
+      const { registerPlugin } = await import('@capacitor/core')
+      const platform = Capacitor.getPlatform()
+      const isNative = Capacitor.isNativePlatform()
       
-      if (!stepCounting) {
-        console.warn('[Pedometer] 이 기기에서는 걸음수 카운팅을 사용할 수 없습니다')
+      console.log('[Pedometer] Capacitor 플랫폼:', platform)
+      console.log('[Pedometer] 네이티브 플랫폼 여부:', isNative)
+      
+      // 안드로이드 또는 iOS인 경우에만 초기화 시도
+      if (platform === 'android' || platform === 'ios') {
+        console.log('[Pedometer] 네이티브 플랫폼 감지됨:', platform)
+        // Pedometer 플러그인 등록
+        const result = await this.initializeNative(registerPlugin, Capacitor)
+        console.log('[Pedometer] initializeNative() 결과:', result)
+        return result
+      } else if (!isNative && platform === 'web') {
+        console.warn('[Pedometer] 웹 환경에서는 걸음수 측정을 사용할 수 없습니다')
+        return false
+      } else {
+        console.warn('[Pedometer] 알 수 없는 플랫폼:', platform)
         return false
       }
-
-      this.isInitialized = true
-      console.log('[Pedometer] 초기화 완료')
-      return true
     } catch (error) {
       console.error('[Pedometer] 초기화 실패:', error)
       console.error('[Pedometer] 에러 메시지:', error.message)
@@ -51,29 +61,88 @@ export class PedometerManager {
   }
 
   /**
-   * 권한 확인
+   * 네이티브 Pedometer 플러그인 초기화
    */
-  async checkPermissions() {
+  async initializeNative(registerPlugin, Capacitor) {
+    console.log('[Pedometer] initializeNative() 시작')
     try {
-      const status = await Pedometer.checkPermissions()
-      console.log('[Pedometer] 권한 상태:', status)
-      return status.activityRecognition === 'granted'
-    } catch (error) {
-      console.error('[Pedometer] 권한 확인 실패:', error)
-      return false
-    }
-  }
+      const platform = Capacitor.getPlatform()
+      
+      console.log('[Pedometer] 현재 플랫폼:', platform)
+      
+      if (platform !== 'android') {
+        console.warn('[Pedometer] 안드로이드 플랫폼이 아닙니다. 현재:', platform)
+        return false
+      }
 
-  /**
-   * 권한 요청
-   */
-  async requestPermissions() {
-    try {
-      const status = await Pedometer.requestPermissions()
-      console.log('[Pedometer] 권한 요청 결과:', status)
-      return status.activityRecognition === 'granted'
+      try {
+        // Pedometer 플러그인 등록
+        console.log('[Pedometer] Pedometer 플러그인 등록 시도...')
+        
+        let Pedometer
+        if (platform === 'android' || platform === 'ios') {
+          // 먼저 Capacitor.Plugins에서 찾기
+          if (Capacitor.Plugins && Capacitor.Plugins.Pedometer) {
+            console.log('[Pedometer] ✓ Capacitor.Plugins.Pedometer 발견!')
+            Pedometer = Capacitor.Plugins.Pedometer
+          } else {
+            // registerPlugin로 등록
+            console.log('[Pedometer] registerPlugin() 시도...')
+            Pedometer = registerPlugin('Pedometer')
+          }
+        } else {
+          // 웹 플랫폼에서는 웹 구현 사용
+          Pedometer = registerPlugin('Pedometer', {
+            web: () => import('./pedometer.web').then(m => new m.PedometerWeb()),
+          })
+        }
+        
+        console.log('[Pedometer] Pedometer 플러그인 객체:', Pedometer)
+        
+        // 플러그인이 실제로 등록되었는지 확인
+        if (!Pedometer) {
+          console.error('[Pedometer] 플러그인 객체가 null입니다')
+          throw new Error('플러그인 객체가 null입니다')
+        }
+        
+        // 플러그인 메서드 확인
+        const hasStartTracking = typeof Pedometer.startTracking === 'function'
+        const hasGetStepCount = typeof Pedometer.getStepCount === 'function'
+        
+        console.log('[Pedometer] startTracking 메서드 존재:', hasStartTracking)
+        console.log('[Pedometer] getStepCount 메서드 존재:', hasGetStepCount)
+        
+        if (!hasStartTracking || !hasGetStepCount) {
+          console.error('[Pedometer] 필수 메서드를 찾을 수 없습니다')
+          throw new Error('필수 메서드를 찾을 수 없습니다. 플러그인이 제대로 등록되지 않았습니다.')
+        }
+        
+        // 이벤트 리스너 등록
+        Pedometer.addListener('stepUpdate', (data) => {
+          console.log('[Pedometer] [리스너] 걸음수 업데이트:', data)
+          this.stepCount = data.stepCount || 0
+          this.distance = data.distance || 0
+          
+          if (this.onStepUpdateCallback) {
+            this.onStepUpdateCallback(this.stepCount, this.distance)
+          }
+        })
+        
+        this.nativePlugin = Pedometer
+        this.isInitialized = true
+        console.log('[Pedometer] Pedometer 플러그인 등록 완료, 초기화 상태:', this.isInitialized)
+        return true
+      } catch (error) {
+        console.error('[Pedometer] 플러그인 등록 실패:', error)
+        console.error('[Pedometer] 에러 메시지:', error.message)
+        console.error('[Pedometer] 에러 스택:', error.stack)
+        this.isInitialized = false
+        return false
+      }
     } catch (error) {
-      console.error('[Pedometer] 권한 요청 실패:', error)
+      console.error('[Pedometer] 네이티브 초기화 실패:', error)
+      console.error('[Pedometer] 에러 메시지:', error.message)
+      console.error('[Pedometer] 에러 스택:', error.stack)
       return false
     }
   }
@@ -83,12 +152,17 @@ export class PedometerManager {
    */
   async startTracking() {
     console.log('[Pedometer] startTracking() 호출됨')
+    console.log('[Pedometer] 초기화 상태:', this.isInitialized)
+    console.log('[Pedometer] 추적 상태:', this.isTracking)
     
     if (!this.isInitialized) {
       console.log('[Pedometer] 초기화되지 않음. 초기화 시작...')
       const initialized = await this.initialize()
+      console.log('[Pedometer] 초기화 결과:', initialized)
       if (!initialized) {
-        throw new Error('걸음수 측정을 초기화할 수 없습니다')
+        const error = new Error('걸음수 측정을 초기화할 수 없습니다')
+        console.error('[Pedometer] 초기화 실패 에러:', error)
+        throw error
       }
     }
 
@@ -98,47 +172,22 @@ export class PedometerManager {
     }
 
     try {
-      // 권한 확인 및 요청
-      const hasPermission = await this.checkPermissions()
-      if (!hasPermission) {
-        console.log('[Pedometer] 권한 없음. 권한 요청 중...')
-        const granted = await this.requestPermissions()
-        if (!granted) {
-          throw new Error('걸음수 측정 권한이 필요합니다')
-        }
-      }
-
-      // 이벤트 리스너 등록
-      this.listener = await Pedometer.addListener('measurement', (event) => {
-        console.log('[Pedometer] [리스너] 걸음수 업데이트:', event)
-        this.stepCount = event.numberOfSteps || 0
-        this.distance = event.distance || 0
-        
-        if (this.onStepUpdateCallback) {
-          this.onStepUpdateCallback(this.stepCount, this.distance)
-        }
-      })
-
-      // 측정 시작
-      await Pedometer.startMeasurementUpdates()
-      console.log('[Pedometer] 측정 업데이트 시작')
-      
-      // 초기값 가져오기
-      try {
-        const measurement = await Pedometer.getMeasurement()
-        this.stepCount = measurement.numberOfSteps || 0
-        this.distance = measurement.distance || 0
-        console.log('[Pedometer] 초기 걸음수:', this.stepCount, ', 거리:', this.distance)
-      } catch (error) {
-        console.warn('[Pedometer] 초기 측정값 가져오기 실패 (Android에서는 정상):', error)
-        // Android에서는 getMeasurement()가 시간 범위를 요구하므로 초기값은 0으로 설정
-        this.stepCount = 0
-        this.distance = 0
+      if (!this.nativePlugin) {
+        throw new Error('Pedometer 플러그인을 사용할 수 없습니다. 플러그인이 초기화되지 않았습니다.')
       }
       
+      console.log('[Pedometer] startTracking() 호출 중...')
+      const result = await this.nativePlugin.startTracking()
+      
+      console.log('[Pedometer] startTracking() 결과:', result)
+      
+      this.stepCount = result?.stepCount || 0
+      this.distance = result?.distance || 0
       this.startTime = Date.now()
       this.isTracking = true
+      
       console.log('[Pedometer] 추적 상태 설정 완료. startTime:', this.startTime)
+      console.log('[Pedometer] 초기 걸음수:', this.stepCount, ', 거리:', this.distance)
     } catch (error) {
       console.error('[Pedometer] 추적 시작 실패:', error)
       console.error('[Pedometer] 에러 메시지:', error.message)
@@ -152,14 +201,35 @@ export class PedometerManager {
    */
   async getCurrentStepCount() {
     try {
-      if (!this.isTracking) {
+      const { Capacitor } = await import('@capacitor/core')
+      const platform = Capacitor.getPlatform()
+      
+      if (platform !== 'android') {
+        console.log('[Pedometer] [getCurrentStepCount] 안드로이드 플랫폼이 아님:', platform)
         return this.stepCount
       }
 
-      // 실시간 업데이트는 리스너를 통해 받으므로 현재 저장된 값 반환
+      // Pedometer 플러그인 사용
+      if (this.nativePlugin) {
+        try {
+          const result = await this.nativePlugin.getStepCount()
+          this.stepCount = result?.stepCount || 0
+          this.distance = result?.distance || 0
+          console.log('[Pedometer] [getCurrentStepCount] 걸음수 가져오기 성공:', this.stepCount, ', 거리:', this.distance)
+          return this.stepCount
+        } catch (error) {
+          console.error('[Pedometer] [getCurrentStepCount] 플러그인에서 걸음수 가져오기 실패:', error)
+          console.error('[Pedometer] [getCurrentStepCount] 에러 메시지:', error.message)
+          return this.stepCount
+        }
+      }
+      
+      // 플러그인이 없으면 현재 저장된 값 반환
+      console.warn('[Pedometer] [getCurrentStepCount] 플러그인이 없음, 저장된 값 반환')
       return this.stepCount
     } catch (error) {
       console.error('[Pedometer] [getCurrentStepCount] 걸음수 가져오기 실패:', error)
+      console.error('[Pedometer] [getCurrentStepCount] 에러 메시지:', error.message)
       return this.stepCount
     }
   }
@@ -172,6 +242,7 @@ export class PedometerManager {
       return 0
     }
 
+    // 이벤트 리스너로 업데이트된 값을 반환
     return this.stepCount
   }
 
@@ -181,18 +252,13 @@ export class PedometerManager {
   async stopTracking() {
     if (!this.isTracking) return
 
-    try {
-      // 이벤트 리스너 제거
-      if (this.listener) {
-        await this.listener.remove()
-        this.listener = null
+    if (this.nativePlugin) {
+      try {
+        await this.nativePlugin.stopTracking()
+        console.log('[Pedometer] 네이티브 추적 중지 완료')
+      } catch (error) {
+        console.error('[Pedometer] 네이티브 추적 중지 실패:', error)
       }
-
-      // 측정 중지
-      await Pedometer.stopMeasurementUpdates()
-      console.log('[Pedometer] 측정 업데이트 중지')
-    } catch (error) {
-      console.error('[Pedometer] 추적 중지 실패:', error)
     }
 
     this.isTracking = false
