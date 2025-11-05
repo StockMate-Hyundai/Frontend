@@ -13,6 +13,7 @@ declare global {
   const ORDER_STATUS_INFO: typeof import('./src/utils/orderStatus.js')['ORDER_STATUS_INFO']
   const ORDER_STATUS_OPTIONS: typeof import('./src/utils/orderStatus.js')['ORDER_STATUS_OPTIONS']
   const Pedometer: typeof import('./src/utils/pedometer.js')['Pedometer']
+  const PedometerManager: typeof import('./src/utils/pedometer.js')['PedometerManager']
   const StepCounterWeb: typeof import('./src/utils/pedometer.web.js')['StepCounterWeb']
   const acceptHMRUpdate: typeof import('pinia')['acceptHMRUpdate']
   const alphaDashValidator: typeof import('./src/@core/utils/validators.js')['alphaDashValidator']
@@ -376,7 +377,7 @@ declare global {
   export type { Component, ComponentPublicInstance, ComputedRef, DirectiveBinding, ExtractDefaultPropTypes, ExtractPropTypes, ExtractPublicPropTypes, InjectionKey, PropType, Ref, MaybeRef, MaybeRefOrGetter, VNode, WritableComputedRef } from 'vue'
   import('vue')
   // @ts-ignore
-  export type { Pedometer } from './src/utils/pedometer.js'
+  export type { PedometerManager } from './src/utils/pedometer.js'
   import('./src/utils/pedometer.js')
   // @ts-ignore
   export type { StepCounterWeb } from './src/utils/pedometer.web.js'
@@ -394,7 +395,7 @@ declare module 'vue' {
     readonly ORDER_STATUS: UnwrapRef<typeof import('./src/utils/orderStatus.js')['ORDER_STATUS']>
     readonly ORDER_STATUS_INFO: UnwrapRef<typeof import('./src/utils/orderStatus.js')['ORDER_STATUS_INFO']>
     readonly ORDER_STATUS_OPTIONS: UnwrapRef<typeof import('./src/utils/orderStatus.js')['ORDER_STATUS_OPTIONS']>
-    readonly Pedometer: UnwrapRef<typeof import('./src/utils/pedometer.js')['Pedometer']>
+    readonly PedometerManager: UnwrapRef<typeof import('./src/utils/pedometer.js')['PedometerManager']>
     readonly StepCounterWeb: UnwrapRef<typeof import('./src/utils/pedometer.web.js')['StepCounterWeb']>
     readonly acceptHMRUpdate: UnwrapRef<typeof import('pinia')['acceptHMRUpdate']>
     readonly alphaDashValidator: UnwrapRef<typeof import('./src/@core/utils/validators.js')['alphaDashValidator']>

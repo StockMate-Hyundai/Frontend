@@ -376,6 +376,7 @@
     "calculateOptimalPath": true,
     "Pedometer": true,
     "getPedometer": true,
-    "StepCounterWeb": true
+    "StepCounterWeb": true,
+    "PedometerManager": true
   }
 }
