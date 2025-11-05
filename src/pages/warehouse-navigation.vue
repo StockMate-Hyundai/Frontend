@@ -6,6 +6,7 @@ import { calculateOptimalPath } from '@/utils/pathfinding'
 import { getPedometer } from '@/utils/pedometer'
 import PartWarehouse3D from '@/views/parts/view/PartWarehouse3D.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { PerfectScrollbar } from 'vue3-perfect-scrollbar'
 
 definePage({
   meta: {
@@ -39,6 +40,23 @@ const pedometer = ref(null) // 걸음수 측정 인스턴스
 // 최근 주문 목록
 const recentOrders = ref([])
 const loadingOrders = ref(false)
+
+// 경로 정보 탭 관리
+const expandedTabs = ref([]) // 확장된 탭들의 인덱스 배열
+const routeTabs = ref([]) // 경로 정보 탭 데이터 배열
+
+function toggleTab(index) {
+  const idx = expandedTabs.value.indexOf(index)
+  if (idx > -1) {
+    expandedTabs.value.splice(idx, 1)
+  } else {
+    expandedTabs.value.push(index)
+  }
+}
+
+function isTabExpanded(index) {
+  return expandedTabs.value.includes(index)
+}
 
 /* =========================
    최근 주문 목록 로드
@@ -97,6 +115,8 @@ function clearOrderNumbers() {
   navigationResult.value = null
   comparisonResult.value = null
   highlightLocations.value = []
+  routeTabs.value = []
+  expandedTabs.value = []
 }
 
 /* =========================
@@ -296,13 +316,76 @@ async function calculateRoute() {
     // 경로 표시 확인
     console.log('[calculateRoute] 최종 navigationResult:', navigationResult.value)
     console.log('[calculateRoute] optimizedRoute:', navigationResult.value?.optimizedRoute)
+    
+    // 경로 정보 탭 생성
+    createRouteTabs()
   } catch (e) {
     console.error('[calculateRoute] error:', e)
     errorMsg.value = e?.message || '경로 계산 중 오류가 발생했습니다.'
     navigationResult.value = null
+    routeTabs.value = []
   } finally {
     loading.value = false
   }
+}
+
+/* =========================
+   경로 정보 탭 생성
+========================= */
+function createRouteTabs() {
+  if (!navigationResult.value) {
+    routeTabs.value = []
+    
+    return
+  }
+  
+  // 각 주문별로 탭 생성 또는 전체 경로를 하나의 탭으로 생성
+  const tabs = []
+  
+  // 전체 경로 정보 탭
+  tabs.push({
+    id: 'overview',
+    title: '전체 경로 정보',
+    type: 'overview',
+    data: navigationResult.value,
+  })
+  
+  // 경로 단계별 탭
+  if (navigationResult.value.optimizedRoute && navigationResult.value.optimizedRoute.length > 0) {
+    tabs.push({
+      id: 'route-steps',
+      title: '경로 단계',
+      type: 'steps',
+      data: navigationResult.value.optimizedRoute,
+    })
+  }
+  
+  // 주문별 상세 정보 탭
+  if (navigationResult.value.orderItems && navigationResult.value.orderItems.length > 0) {
+    const orderGroups = {}
+
+    navigationResult.value.orderItems.forEach(item => {
+      const orderNum = item.orderNumber || '미지정'
+      if (!orderGroups[orderNum]) {
+        orderGroups[orderNum] = []
+      }
+      orderGroups[orderNum].push(item)
+    })
+    
+    Object.entries(orderGroups).forEach(([orderNum, items]) => {
+      tabs.push({
+        id: `order-${orderNum}`,
+        title: `주문 ${orderNum}`,
+        type: 'order',
+        data: { orderNumber: orderNum, items },
+      })
+    })
+  }
+  
+  routeTabs.value = tabs
+
+  // 기본적으로 첫 번째 탭만 확장
+  expandedTabs.value = [0]
 }
 
 /* =========================
@@ -378,7 +461,7 @@ async function startNavigation() {
       await pedometer.value.initialize()
       
       // 걸음수 업데이트 콜백 설정
-      pedometer.value.onStepUpdate((steps) => {
+      pedometer.value.onStepUpdate(steps => {
         stepCount.value = steps
         
         // 스탭에 따라 경로를 따라 이동
@@ -405,6 +488,7 @@ async function startNavigation() {
       console.log('[startNavigation] 네비게이션 시작, 걸음수 측정 활성화')
     } catch (error) {
       console.error('[startNavigation] 네비게이션 시작 실패:', error)
+
       // 웹 환경이거나 플러그인을 사용할 수 없는 경우 폴백
       if (error.message.includes('초기화') || error.message.includes('사용할 수 없')) {
         // 폴백: 시간 기반 시뮬레이션
@@ -529,440 +613,498 @@ const formatDistance = distance => {
 </script>
 
 <template>
-  <div class="page-container warehouse-navigation-page">
-    <VRow>
-      <!-- 좌측 컨트롤 패널 -->
-      <VCol
-        cols="12"
-        md="4"
-      >
-        <VCard>
-          <VCardTitle class="d-flex align-center">
-            <VIcon
-              icon="bx-navigation"
-              class="me-2"
-            />
-            창고 네비게이션
-          </VCardTitle>
-          
-          <VDivider />
-          
-          <VCardText>
-            <!-- 주문 번호 입력 -->
-            <div class="mb-4">
-              <VLabel class="mb-2">
-                주문 번호 입력
-              </VLabel>
-              <VTextField
-                v-model="orderNumberInput"
-                placeholder="주문 번호를 입력하세요 (예: SMO-1)"
-                variant="outlined"
-                density="compact"
-                hide-details
-                @keyup.enter="addOrderNumber"
-              >
-                <template #append-inner>
-                  <VBtn
-                    icon="bx-plus"
-                    size="small"
-                    variant="text"
-                    @click="addOrderNumber"
-                  />
-                </template>
-              </VTextField>
-            </div>
-            
-            <!-- 선택된 주문 번호 목록 -->
-            <div
-              v-if="orderNumbers.length > 0"
-              class="mb-4"
-            >
-              <VLabel class="mb-2">
-                선택된 주문 번호 ({{ orderNumbers.length }})
-              </VLabel>
-              <VChipGroup>
-                <VChip
-                  v-for="num in orderNumbers"
-                  :key="num"
-                  closable
-                  color="primary"
-                  @click:close="removeOrderNumber(num)"
-                >
-                  {{ num }}
-                </VChip>
-              </VChipGroup>
-              
+  <div class="warehouse-navigation-page">
+    <div class="page-content">
+      <!-- 좌측: 주문 선택 사이드바 -->
+      <div class="order-selector">
+        <div class="order-header">
+          <span class="order-title">주문 선택</span>
+        </div>
+        
+        <div class="order-input-section">
+          <VTextField
+            v-model="orderNumberInput"
+            placeholder="주문 번호 입력"
+            variant="outlined"
+            density="compact"
+            hide-details
+            class="order-input-field"
+            @keyup.enter="addOrderNumber"
+          >
+            <template #append-inner>
               <VBtn
-                class="mt-2"
+                icon="bx-plus"
                 size="small"
                 variant="text"
-                color="error"
-                @click="clearOrderNumbers"
-              >
-                전체 삭제
-              </VBtn>
-            </div>
-            
-            <!-- 최근 주문 목록 -->
-            <div class="mb-4">
-              <VLabel class="mb-2">
-                최근 주문 목록
-              </VLabel>
-              <VList
-                v-if="!loadingOrders && recentOrders.length > 0"
-                density="compact"
-                class="border rounded"
-                style="max-height: 200px; overflow-y: auto;"
-              >
-                <VListItem
-                  v-for="order in recentOrders"
-                  :key="order.orderId"
-                  :title="order.orderNumber"
-                  @click="addOrderFromList(order.orderNumber)"
-                >
-                  <template #append>
-                    <VIcon
-                      icon="bx-plus"
-                      size="small"
-                    />
-                  </template>
-                </VListItem>
-              </VList>
-              <VProgressLinear
-                v-else-if="loadingOrders"
-                indeterminate
-                color="primary"
+                @click="addOrderNumber"
               />
-              <VAlert
-                v-else
-                type="info"
-                variant="tonal"
-                density="compact"
-              >
-                최근 주문이 없습니다.
-              </VAlert>
-            </div>
-            
-            <!-- 액션 버튼 -->
-            <div class="d-flex gap-2 flex-wrap">
-              <VBtn
-                color="primary"
-                :loading="loading"
-                :disabled="orderNumbers.length === 0"
-                @click="calculateRoute"
-              >
-                <VIcon
-                  icon="bx-route"
-                  class="me-2"
-                />
-                최적 경로 계산
-              </VBtn>
-              
-              <VBtn
-                color="secondary"
-                variant="outlined"
-                :loading="loading"
-                :disabled="orderNumbers.length === 0"
-                @click="compareAlgorithms"
-              >
-                <VIcon
-                  icon="bx-bar-chart-alt-2"
-                  class="me-2"
-                />
-                알고리즘 비교
-              </VBtn>
-            </div>
-            
-            <!-- 에러 메시지 -->
-            <VAlert
-              v-if="errorMsg"
-              type="error"
-              variant="tonal"
-              density="compact"
-              class="mt-4"
-            >
-              {{ errorMsg }}
-            </VAlert>
-            
-            <!-- 경로 정보 -->
-            <VCard
-              v-if="navigationResult"
-              class="mt-4"
-              variant="tonal"
-            >
-              <VCardTitle class="text-h6">
-                경로 정보
-              </VCardTitle>
-              <VCardText>
-                <div class="d-flex flex-column gap-2">
-                  <div>
-                    <strong>알고리즘:</strong> {{ algorithmType }}
-                  </div>
-                  <div>
-                    <strong>총 거리:</strong> {{ formatDistance(totalDistance) }}
-                  </div>
-                  <div>
-                    <strong>예상 소요 시간:</strong> {{ formatTime(estimatedTime) }}
-                  </div>
-                  <div>
-                    <strong>이동 시간:</strong> {{ formatTime(walkingTime) }}
-                  </div>
-                  <div>
-                    <strong>피킹 시간:</strong> {{ formatTime(pickingTime) }}
-                  </div>
-                </div>
-              </VCardText>
-            </VCard>
-          </VCardText>
-        </VCard>
+            </template>
+          </VTextField>
+        </div>
         
-        <!-- 경로 단계 목록 -->
-        <VCard
-          v-if="routeSteps.length > 0"
-          class="mt-4"
+        <!-- 선택된 주문 목록 -->
+        <div
+          v-if="orderNumbers.length > 0"
+          class="selected-orders-section"
         >
-          <VCardTitle class="d-flex align-center">
-            <VIcon
-              icon="bx-list-ul"
-              class="me-2"
-            />
-            경로 단계
-          </VCardTitle>
-          
-          <VDivider />
-          
-          <VCardText>
-            <VTimeline
-              side="end"
-              align="start"
-              density="compact"
+          <div class="selected-orders-header">
+            <span class="selected-orders-title">선택된 주문 ({{ orderNumbers.length }})</span>
+            <VBtn
+              icon
+              size="x-small"
+              variant="text"
+              color="error"
+              @click="clearOrderNumbers"
             >
-              <VTimelineItem
-                v-for="step in routeSteps"
-                :key="step.sequence"
-                :dot-color="step.location === '문' || step.location === '포장대' ? 'success' : 'primary'"
-                size="small"
-              >
-                <div class="d-flex justify-space-between align-center">
-                  <div>
-                    <div class="font-weight-medium">
-                      {{ step.sequence }}. {{ step.location }}
-                    </div>
-                    <div
-                      v-if="step.description"
-                      class="text-caption text-medium-emphasis"
-                    >
-                      {{ step.description }}
-                    </div>
-                    <div
-                      v-if="step.orderNumber"
-                      class="text-caption text-primary"
-                    >
-                      주문: {{ step.orderNumber }}
-                    </div>
-                  </div>
-                  <div class="text-caption text-medium-emphasis">
-                    {{ formatDistance(step.cumulativeDistance) }}
-                  </div>
-                </div>
-              </VTimelineItem>
-            </VTimeline>
-          </VCardText>
-        </VCard>
-      </VCol>
-      
-      <!-- 우측 3D 창고 뷰 -->
-      <VCol
-        cols="12"
-        md="8"
-      >
-        <VCard>
-          <VCardTitle class="d-flex align-center">
-            <VIcon
-              icon="bx-cube"
-              class="me-2"
-            />
-            3D 창고 뷰
-          </VCardTitle>
-          
-          <VDivider />
-          
-          <VCardText
-            class="pa-0"
-            style="position: relative;"
+              <VIcon size="16">
+                bx-trash
+              </VIcon>
+            </VBtn>
+          </div>
+          <div class="selected-orders-chips">
+            <VChip
+              v-for="num in orderNumbers"
+              :key="num"
+              closable
+              size="small"
+              color="primary"
+              variant="tonal"
+              class="order-chip"
+              @click:close="removeOrderNumber(num)"
+            >
+              {{ num }}
+            </VChip>
+          </div>
+        </div>
+        
+        <!-- 액션 버튼 -->
+        <div class="action-buttons">
+          <VBtn
+            color="primary"
+            block
+            :loading="loading"
+            :disabled="orderNumbers.length === 0"
+            @click="calculateRoute"
           >
-            <div class="warehouse-container">
-              <PartWarehouse3D 
-                ref="warehouse3DRef" 
-                :highlight-locations="highlightLocations"
-                :optimized-route="routeSteps"
-                :full-path="navigationResult?.fullPath || []"
-                :show-grid="false"
-                :grid-cols="25"
-                :grid-rows="38"
-                :pathfinding-grid="pathfindingGrid"
-              />
-              
-              <!-- 애니메이션 컨트롤 -->
-              <div
-                class="animation-controls"
-                style="position: absolute; top: 10px; right: 10px; z-index: 1000; background: white; padding: 12px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);"
-              >
-                <!-- 일반 애니메이션 컨트롤 -->
+            최적 경로 계산
+          </VBtn>
+          
+          <VBtn
+            color="secondary"
+            variant="outlined"
+            block
+            class="mt-2"
+            :loading="loading"
+            :disabled="orderNumbers.length === 0"
+            @click="compareAlgorithms"
+          >
+            알고리즘 비교
+          </VBtn>
+        </div>
+        
+        <!-- 에러 메시지 -->
+        <VAlert
+          v-if="errorMsg"
+          type="error"
+          variant="tonal"
+          density="compact"
+          class="mt-2"
+        >
+          {{ errorMsg }}
+        </VAlert>
+        
+        <!-- 최근 주문 목록 -->
+        <div class="recent-orders-section">
+          <div class="recent-orders-header">
+            <span class="recent-orders-title">최근 주문</span>
+          </div>
+          <div class="recent-orders-container">
+            <PerfectScrollbar
+              :options="{ wheelPropagation: false, suppressScrollX: true }"
+              class="recent-orders-scroll"
+            >
+              <div class="recent-orders-content">
                 <div
-                  v-if="!isStepAnimationActive"
-                  class="d-flex align-center gap-2 mb-2 flex-wrap"
+                  v-if="loadingOrders"
+                  class="d-flex align-center justify-center py-8"
                 >
-                  <VBtn
-                    size="small"
+                  <VProgressCircular
+                    indeterminate
                     color="primary"
-                    :disabled="isAnimating"
-                    @click="startAnimation"
-                  >
-                    경로 재생
-                  </VBtn>
-                  <VBtn
-                    size="small"
-                    color="error"
-                    :disabled="!isAnimating"
-                    @click="stopAnimation"
-                  >
-                    중지
-                  </VBtn>
-                  <VBtn
-                    v-if="routeSteps.length > 0"
-                    size="small"
-                    color="secondary"
-                    :disabled="isAnimating || isNavigating"
-                    @click="startStepAnimation"
-                  >
-                    경유지별 이동
-                  </VBtn>
-                  <VBtn
-                    v-if="routeSteps.length > 0"
-                    size="small"
-                    color="success"
-                    :disabled="isAnimating || isStepAnimationActive || isNavigating"
-                    @click="startNavigation"
-                  >
-                    네비게이션 시작
-                  </VBtn>
-                  <VBtn
-                    size="small"
-                    color="info"
-                    :disabled="isNavigating"
-                    @click="resetCamera"
-                  >
-                    카메라 리셋
-                  </VBtn>
+                    size="20"
+                  />
                 </div>
                 
-                <!-- 경유지별 이동 컨트롤 -->
-                <div
-                  v-if="isStepAnimationActive && !isNavigating"
-                  class="d-flex flex-column gap-2"
-                >
-                  <div class="text-caption text-center mb-1">
-                    경유지 {{ currentStepIndex + 1 }} / {{ routeSteps.length }}
+                <template v-else-if="recentOrders.length > 0">
+                  <div
+                    v-for="order in recentOrders"
+                    :key="order.orderId"
+                    class="order-item"
+                    :class="{ selected: orderNumbers.includes(order.orderNumber) }"
+                    @click="addOrderFromList(order.orderNumber)"
+                  >
+                    <div class="order-item-dot" />
+                    <span class="order-item-name">{{ order.orderNumber }}</span>
                   </div>
-                  <div class="d-flex align-center gap-2 flex-wrap">
+                </template>
+                
+                <div
+                  v-else
+                  class="d-flex flex-column align-center justify-center py-8 text-center"
+                >
+                  <VIcon
+                    icon="bx-package"
+                    size="32"
+                    class="mb-2 text-medium-emphasis"
+                  />
+                  <div class="text-caption text-medium-emphasis">
+                    최근 주문이 없습니다
+                  </div>
+                </div>
+              </div>
+            </PerfectScrollbar>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 우측: 3D 뷰 및 경로 정보 -->
+      <div class="main-content">
+        <!-- 3D 창고 뷰 -->
+        <div class="warehouse-view-section">
+          <VCard>
+            <VCardTitle class="d-flex align-center">
+              <VIcon
+                icon="bx-cube"
+                class="me-2"
+              />
+              3D 창고 뷰
+            </VCardTitle>
+            
+            <VDivider />
+            
+            <VCardText
+              class="pa-0"
+              style="position: relative;"
+            >
+              <div class="warehouse-container">
+                <PartWarehouse3D 
+                  ref="warehouse3DRef" 
+                  :highlight-locations="highlightLocations"
+                  :optimized-route="routeSteps"
+                  :full-path="navigationResult?.fullPath || []"
+                  :show-grid="false"
+                  :grid-cols="25"
+                  :grid-rows="38"
+                  :pathfinding-grid="pathfindingGrid"
+                />
+                
+                <!-- 애니메이션 컨트롤 -->
+                <div
+                  class="animation-controls"
+                  style="position: absolute; top: 10px; right: 10px; z-index: 1000; background: white; padding: 12px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);"
+                >
+                  <!-- 일반 애니메이션 컨트롤 -->
+                  <div
+                    v-if="!isStepAnimationActive"
+                    class="d-flex align-center gap-2 mb-2 flex-wrap"
+                  >
                     <VBtn
                       size="small"
                       color="primary"
-                      :disabled="currentStepIndex <= 0"
-                      @click="previousStep"
+                      :disabled="isAnimating"
+                      @click="startAnimation"
                     >
-                      <VIcon>mdi-chevron-left</VIcon>
-                      이전
-                    </VBtn>
-                    <VBtn
-                      size="small"
-                      color="primary"
-                      :disabled="currentStepIndex >= routeSteps.length - 1"
-                      @click="nextStep"
-                    >
-                      다음
-                      <VIcon>mdi-chevron-right</VIcon>
+                      경로 재생
                     </VBtn>
                     <VBtn
                       size="small"
                       color="error"
-                      @click="stopStepAnimation"
+                      :disabled="!isAnimating"
+                      @click="stopAnimation"
+                    >
+                      중지
+                    </VBtn>
+                    <VBtn
+                      v-if="routeSteps.length > 0"
+                      size="small"
+                      color="secondary"
+                      :disabled="isAnimating || isNavigating"
+                      @click="startStepAnimation"
+                    >
+                      경유지별 이동
+                    </VBtn>
+                    <VBtn
+                      v-if="routeSteps.length > 0"
+                      size="small"
+                      color="success"
+                      :disabled="isAnimating || isStepAnimationActive || isNavigating"
+                      @click="startNavigation"
+                    >
+                      네비게이션 시작
+                    </VBtn>
+                    <VBtn
+                      size="small"
+                      color="info"
+                      :disabled="isNavigating"
+                      @click="resetCamera"
+                    >
+                      카메라 리셋
+                    </VBtn>
+                  </div>
+                  
+                  <!-- 경유지별 이동 컨트롤 -->
+                  <div
+                    v-if="isStepAnimationActive && !isNavigating"
+                    class="d-flex flex-column gap-2"
+                  >
+                    <div class="text-caption text-center mb-1">
+                      경유지 {{ currentStepIndex + 1 }} / {{ routeSteps.length }}
+                    </div>
+                    <div class="d-flex align-center gap-2 flex-wrap">
+                      <VBtn
+                        size="small"
+                        color="primary"
+                        :disabled="currentStepIndex <= 0"
+                        @click="previousStep"
+                      >
+                        <VIcon>mdi-chevron-left</VIcon>
+                        이전
+                      </VBtn>
+                      <VBtn
+                        size="small"
+                        color="primary"
+                        :disabled="currentStepIndex >= routeSteps.length - 1"
+                        @click="nextStep"
+                      >
+                        다음
+                        <VIcon>mdi-chevron-right</VIcon>
+                      </VBtn>
+                      <VBtn
+                        size="small"
+                        color="error"
+                        @click="stopStepAnimation"
+                      >
+                        <VIcon start>
+                          mdi-stop
+                        </VIcon>
+                        종료
+                      </VBtn>
+                    </div>
+                  </div>
+                  
+                  <!-- 네비게이션 진행 중 컨트롤 -->
+                  <div
+                    v-if="isNavigating"
+                    class="d-flex flex-column gap-2"
+                  >
+                    <!-- 스탭 카운터 표시 -->
+                    <div
+                      class="d-flex flex-column align-center mb-2 pa-2"
+                      style="background: #f5f5f5; border-radius: 8px;"
+                    >
+                      <div class="text-h6 text-primary mb-1">
+                        {{ stepCount }} 스탭
+                      </div>
+                      <div class="text-caption text-medium-emphasis">
+                        경로 진행 중...
+                      </div>
+                    </div>
+                    
+                    <VBtn
+                      size="small"
+                      color="error"
+                      @click="stopNavigation"
                     >
                       <VIcon start>
                         mdi-stop
                       </VIcon>
-                      종료
+                      네비게이션 중지
+                    </VBtn>
+                    
+                    <!-- 네비게이션 모드에서 카메라 리셋 버튼 -->
+                    <VBtn
+                      size="small"
+                      color="info"
+                      variant="outlined"
+                      @click="resetCamera"
+                    >
+                      <VIcon start>
+                        mdi-camera-control
+                      </VIcon>
+                      카메라 리셋
+                    </VBtn>
+                  </div>
+                  
+                  <!-- 경유지별 이동 모드에서 카메라 리셋 버튼 -->
+                  <div
+                    v-if="isStepAnimationActive && !isNavigating"
+                    class="d-flex justify-center mt-2"
+                  >
+                    <VBtn
+                      size="small"
+                      color="info"
+                      variant="outlined"
+                      @click="resetCamera"
+                    >
+                      <VIcon start>
+                        mdi-camera-control
+                      </VIcon>
+                      카메라 리셋
                     </VBtn>
                   </div>
                 </div>
-                
-                <!-- 네비게이션 진행 중 컨트롤 -->
+              </div>
+            </VCardText>
+          </VCard>
+        </div>
+        
+        <!-- 경로 정보 탭들 -->
+        <div
+          v-if="routeTabs.length > 0"
+          class="route-tabs-section"
+        >
+          <VCard>
+            <VCardText class="pa-0">
+              <div class="route-tabs-container">
                 <div
-                  v-if="isNavigating"
-                  class="d-flex flex-column gap-2"
+                  v-for="(tab, index) in routeTabs"
+                  :key="tab.id"
+                  class="route-tab-item"
                 >
-                  <!-- 스탭 카운터 표시 -->
                   <div
-                    class="d-flex flex-column align-center mb-2 pa-2"
-                    style="background: #f5f5f5; border-radius: 8px;"
+                    class="route-tab-header"
+                    @click="toggleTab(index)"
                   >
-                    <div class="text-h6 text-primary mb-1">
-                      {{ stepCount }} 스탭
-                    </div>
-                    <div class="text-caption text-medium-emphasis">
-                      경로 진행 중...
+                    <div class="route-tab-title">
+                      <VIcon
+                        :icon="isTabExpanded(index) ? 'bx-chevron-down' : 'bx-chevron-right'"
+                        size="20"
+                        class="me-2"
+                      />
+                      <span>{{ tab.title }}</span>
                     </div>
                   </div>
                   
-                  <VBtn
-                    size="small"
-                    color="error"
-                    @click="stopNavigation"
-                  >
-                    <VIcon start>
-                      mdi-stop
-                    </VIcon>
-                    네비게이션 중지
-                  </VBtn>
-                  
-                  <!-- 네비게이션 모드에서 카메라 리셋 버튼 -->
-                  <VBtn
-                    size="small"
-                    color="info"
-                    variant="outlined"
-                    @click="resetCamera"
-                  >
-                    <VIcon start>
-                      mdi-camera-control
-                    </VIcon>
-                    카메라 리셋
-                  </VBtn>
-                </div>
-                
-                <!-- 경유지별 이동 모드에서 카메라 리셋 버튼 -->
-                <div
-                  v-if="isStepAnimationActive && !isNavigating"
-                  class="d-flex justify-center mt-2"
-                >
-                  <VBtn
-                    size="small"
-                    color="info"
-                    variant="outlined"
-                    @click="resetCamera"
-                  >
-                    <VIcon start>
-                      mdi-camera-control
-                    </VIcon>
-                    카메라 리셋
-                  </VBtn>
+                  <VExpandTransition>
+                    <div
+                      v-if="isTabExpanded(index)"
+                      class="route-tab-content"
+                    >
+                      <!-- 전체 경로 정보 -->
+                      <div
+                        v-if="tab.type === 'overview'"
+                        class="route-overview"
+                      >
+                        <div class="route-info-grid">
+                          <div class="route-info-item">
+                            <span class="route-info-label">알고리즘:</span>
+                            <span class="route-info-value">{{ algorithmType }}</span>
+                          </div>
+                          <div class="route-info-item">
+                            <span class="route-info-label">총 거리:</span>
+                            <span class="route-info-value">{{ formatDistance(totalDistance) }}</span>
+                          </div>
+                          <div class="route-info-item">
+                            <span class="route-info-label">예상 소요 시간:</span>
+                            <span class="route-info-value">{{ formatTime(estimatedTime) }}</span>
+                          </div>
+                          <div class="route-info-item">
+                            <span class="route-info-label">이동 시간:</span>
+                            <span class="route-info-value">{{ formatTime(walkingTime) }}</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <!-- 경로 단계 -->
+                      <div
+                        v-if="tab.type === 'steps'"
+                        class="route-steps"
+                      >
+                        <VTimeline
+                          side="end"
+                          align="start"
+                          density="compact"
+                        >
+                          <VTimelineItem
+                            v-for="step in tab.data"
+                            :key="step.sequence"
+                            :dot-color="step.location === '문' || step.location === '포장대' ? 'success' : 'primary'"
+                            size="small"
+                          >
+                            <div class="d-flex justify-space-between align-center">
+                              <div>
+                                <div class="font-weight-medium">
+                                  {{ step.sequence }}. {{ step.location }}
+                                </div>
+                                <div
+                                  v-if="step.description"
+                                  class="text-caption text-medium-emphasis"
+                                >
+                                  {{ step.description }}
+                                </div>
+                                <div
+                                  v-if="step.orderNumber"
+                                  class="text-caption text-primary"
+                                >
+                                  주문: {{ step.orderNumber }}
+                                </div>
+                              </div>
+                              <div class="text-caption text-medium-emphasis">
+                                {{ formatDistance(step.cumulativeDistance) }}
+                              </div>
+                            </div>
+                          </VTimelineItem>
+                        </VTimeline>
+                      </div>
+                      
+                      <!-- 주문별 상세 정보 -->
+                      <div
+                        v-if="tab.type === 'order'"
+                        class="route-order-detail"
+                      >
+                        <div class="order-detail-header mb-3">
+                          <VChip
+                            color="primary"
+                            variant="tonal"
+                          >
+                            {{ tab.data.orderNumber }}
+                          </VChip>
+                          <span class="text-caption text-medium-emphasis ms-2">
+                            {{ tab.data.items.length }}개 부품
+                          </span>
+                        </div>
+                        <VList density="compact">
+                          <VListItem
+                            v-for="(item, idx) in tab.data.items"
+                            :key="idx"
+                          >
+                            <VListItemTitle>
+                              {{ item.partDetail?.korName || item.partDetail?.engName || item.partDetail?.name || '이름 없음' }}
+                            </VListItemTitle>
+                            <VListItemSubtitle>
+                              위치: {{ item.partDetail?.location || '-' }}
+                            </VListItemSubtitle>
+                            <template #append>
+                              <VChip
+                                size="small"
+                                color="primary"
+                                variant="tonal"
+                              >
+                                수량: {{ item.quantity || 0 }}
+                              </VChip>
+                            </template>
+                          </VListItem>
+                        </VList>
+                      </div>
+                    </div>
+                  </VExpandTransition>
                 </div>
               </div>
-            </div>
-          </VCardText>
-        </VCard>
-      </VCol>
-    </VRow>
+            </VCardText>
+          </VCard>
+        </div>
+      </div>
+    </div>
     
     <!-- 알고리즘 비교 다이얼로그 -->
     <VDialog
@@ -1054,19 +1196,296 @@ const formatDistance = distance => {
 
 <style scoped>
 .warehouse-navigation-page {
-  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 100px);
+  background: rgb(var(--v-theme-surface));
+}
+
+.page-content {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 좌측: 주문 선택 사이드바 */
+.order-selector {
+  width: 250px;
+  min-width: 250px;
+  border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  background: rgb(var(--v-theme-surface));
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.order-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.order-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.order-input-section {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.order-input-field {
+  width: 100%;
+}
+
+.selected-orders-section {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.selected-orders-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.selected-orders-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.selected-orders-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.order-chip {
+  font-size: 12px;
+}
+
+.action-buttons {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.recent-orders-section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 16px;
+}
+
+.recent-orders-header {
+  margin-bottom: 8px;
+}
+
+.recent-orders-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.recent-orders-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.recent-orders-scroll {
+  flex: 1;
+  min-height: 0;
+}
+
+.recent-orders-content {
+  padding: 4px 0;
+}
+
+.order-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.order-item:hover {
+  background: rgba(var(--v-theme-primary), 0.08);
+}
+
+.order-item.selected {
+  background: rgba(var(--v-theme-primary), 0.12);
+}
+
+.order-item.selected .order-item-dot {
+  background: rgb(var(--v-theme-primary));
+}
+
+.order-item-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(var(--v-theme-on-surface), 0.3);
+  flex-shrink: 0;
+}
+
+.order-item-name {
+  font-size: 13px;
+  color: rgb(var(--v-theme-on-surface));
+  user-select: none;
+}
+
+.order-item.selected .order-item-name {
+  font-weight: 500;
+  color: rgb(var(--v-theme-primary));
+}
+
+/* 우측: 메인 컨텐츠 */
+.main-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.warehouse-view-section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  overflow: hidden;
 }
 
 .warehouse-container {
   width: 100%;
-  height: 80vh;
+  height: 100%;
   min-height: 500px;
 }
 
+.route-tabs-section {
+  max-height: 400px;
+  min-height: 100px;
+  padding: 0 16px 16px 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.route-tabs-container {
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+.route-tab-item {
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.route-tab-item:last-child {
+  border-bottom: none;
+}
+
+.route-tab-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  user-select: none;
+}
+
+.route-tab-header:hover {
+  background: rgba(var(--v-theme-primary), 0.04);
+}
+
+.route-tab-title {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 500;
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.route-tab-content {
+  padding: 16px;
+  background: rgba(var(--v-theme-surface), 0.5);
+}
+
+.route-overview {
+  width: 100%;
+}
+
+.route-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.route-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.route-info-label {
+  font-size: 12px;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+
+.route-info-value {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.route-steps {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.route-order-detail {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.order-detail-header {
+  display: flex;
+  align-items: center;
+}
+
 @media (max-width: 960px) {
+  .page-content {
+    flex-direction: column;
+  }
+  
+  .order-selector {
+    width: 100%;
+    min-width: unset;
+    max-height: 250px;
+    border-right: none;
+    border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  }
+  
+  .warehouse-view-section {
+    padding: 12px;
+  }
+  
   .warehouse-container {
-    height: 60vh;
     min-height: 400px;
+  }
+  
+  .route-tabs-section {
+    max-height: 300px;
   }
 }
 </style>
