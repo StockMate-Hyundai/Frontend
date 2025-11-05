@@ -20,6 +20,11 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 
+/**
+ * 안드로이드 내장 Pedometer 센서를 사용한 이동 거리 측정
+ * TYPE_STEP_DETECTOR를 사용하여 각 스텝 감지 시마다 카운팅
+ * 시작 시점부터의 스텝만 계산하므로 정확함
+ */
 @CapacitorPlugin(
     name = "StepCounter",
     permissions = {
@@ -34,13 +39,19 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
     private static final String TAG = "StepCounterPlugin";
     
     private SensorManager sensorManager;
-    private Sensor stepCounterSensor;
-    private Sensor stepDetectorSensor; // STEP_DETECTOR 센서 추가
-    private int totalSteps = 0;
-    private int initialSteps = 0;
+    private Sensor stepDetectorSensor; // TYPE_STEP_DETECTOR만 사용
+    
+    // 스텝 관련
+    private int stepCount = 0;
+    private float totalDistance = 0f;
+    
+    // 스텝 길이 (미터) - 평균 성인 보행 길이
+    // 사용자 키에 따라 조정 가능
+    private float stepLength = 0.7f;  // 기본값: 70cm
+    private float estimatedStepLength = 0.7f;
+    
     private boolean isTracking = false;
     private boolean isRequestingPermission = false;
-    private boolean useStepDetector = false; // STEP_DETECTOR 사용 여부
 
     @Override
     public void load() {
@@ -62,21 +73,15 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
         
         sensorManager = (SensorManager) getContext().getSystemService(Context.SENSOR_SERVICE);
         if (sensorManager != null) {
-            // 먼저 TYPE_STEP_COUNTER 시도
-            stepCounterSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
-            if (stepCounterSensor != null) {
-                Log.d(TAG, "[load] Step Counter 센서 발견: " + stepCounterSensor.getName());
-                useStepDetector = false;
+            // TYPE_STEP_DETECTOR만 사용
+            stepDetectorSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR);
+            if (stepDetectorSensor != null) {
+                Log.d(TAG, "[load] Step Detector 센서 발견: " + stepDetectorSensor.getName());
+                Log.d(TAG, "[load] 센서 정보 - Type: " + stepDetectorSensor.getType() + 
+                    ", Power: " + stepDetectorSensor.getPower() + 
+                    ", Vendor: " + stepDetectorSensor.getVendor());
             } else {
-                Log.w(TAG, "[load] Step Counter 센서를 찾을 수 없습니다. Step Detector 시도...");
-                // TYPE_STEP_COUNTER가 없으면 TYPE_STEP_DETECTOR 사용
-                stepDetectorSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR);
-                if (stepDetectorSensor != null) {
-                    Log.d(TAG, "[load] Step Detector 센서 발견: " + stepDetectorSensor.getName());
-                    useStepDetector = true;
-                } else {
-                    Log.e(TAG, "[load] Step Counter 및 Step Detector 센서를 모두 찾을 수 없습니다");
-                }
+                Log.e(TAG, "[load] Step Detector 센서를 찾을 수 없습니다");
             }
         } else {
             Log.e(TAG, "[load] SensorManager를 가져올 수 없습니다");
@@ -113,13 +118,11 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
             if (ContextCompat.checkSelfPermission(getContext(), Manifest.permission.ACTIVITY_RECOGNITION) 
                     == PackageManager.PERMISSION_GRANTED) {
                 Log.d(TAG, "[activityRecognitionPermsCallback] 권한 승인됨");
-                // 권한이 승인되면 원래 작업 계속 (재귀 방지를 위해 직접 실행)
+                // 권한이 승인되면 원래 작업 계속
                 String methodName = call.getMethodName();
                 if ("getSteps".equals(methodName)) {
-                    // getSteps 직접 실행 (권한 체크 건너뛰기)
                     executeGetSteps(call);
                 } else if ("startTracking".equals(methodName)) {
-                    // startTracking 직접 실행 (권한 체크 건너뛰기)
                     executeStartTracking(call);
                 }
             } else {
@@ -133,39 +136,27 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
      * getSteps 실행 (권한 체크 없이)
      */
     private void executeGetSteps(PluginCall call) {
-        Sensor sensor = useStepDetector ? stepDetectorSensor : stepCounterSensor;
-        if (sensor == null) {
-            Log.e(TAG, "[executeGetSteps] 걸음 센서를 사용할 수 없습니다");
-            call.reject("걸음 센서를 사용할 수 없습니다");
+        if (stepDetectorSensor == null) {
+            Log.e(TAG, "[executeGetSteps] Step Detector 센서를 사용할 수 없습니다");
+            call.reject("Step Detector 센서를 사용할 수 없습니다");
             return;
         }
 
-        if (!isTracking) {
-            Log.d(TAG, "[executeGetSteps] 센서 리스너 등록 시작 (타입: " + (useStepDetector ? "STEP_DETECTOR" : "STEP_COUNTER") + ")");
-            boolean registered = sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL);
-            if (registered) {
-                Log.d(TAG, "[executeGetSteps] 센서 리스너 등록 성공");
-                isTracking = true;
-            } else {
-                Log.e(TAG, "[executeGetSteps] 센서 리스너 등록 실패");
-            }
-        }
-
         JSObject ret = new JSObject();
-        ret.put("steps", totalSteps);
-        Log.d(TAG, "[executeGetSteps] 걸음수 반환: " + totalSteps);
+        ret.put("steps", stepCount);
+        ret.put("distance", totalDistance);
+        Log.d(TAG, "[executeGetSteps] 걸음수 반환: " + stepCount + ", 거리: " + totalDistance + " m");
         call.resolve(ret);
     }
     
     /**
      * startTracking 실행 (권한 체크 없이)
-     * Android 공식 문서 참고: https://developer.android.com/health-and-fitness/guides/basic-fitness-app/read-step-count-data
+     * TYPE_STEP_DETECTOR: 각 스텝이 감지될 때마다 이벤트 발생
      */
     private void executeStartTracking(PluginCall call) {
-        Sensor sensor = useStepDetector ? stepDetectorSensor : stepCounterSensor;
-        if (sensor == null) {
-            Log.e(TAG, "[executeStartTracking] 걸음 센서를 사용할 수 없습니다");
-            call.reject("걸음 센서를 사용할 수 없습니다");
+        if (stepDetectorSensor == null) {
+            Log.e(TAG, "[executeStartTracking] Step Detector 센서를 사용할 수 없습니다");
+            call.reject("Step Detector 센서를 사용할 수 없습니다");
             return;
         }
 
@@ -173,32 +164,48 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
         if (isTracking) {
             Log.d(TAG, "[executeStartTracking] 이미 추적 중입니다");
             JSObject ret = new JSObject();
-            ret.put("initialSteps", initialSteps);
+            ret.put("steps", stepCount);
+            ret.put("distance", totalDistance);
             ret.put("status", "already_tracking");
             call.resolve(ret);
             return;
         }
 
-        // 센서 리스너 등록
-        // TYPE_STEP_COUNTER: 리스너 등록 시 즉시 현재 값 반환 (부팅 이후 누적 걸음수)
-        // TYPE_STEP_DETECTOR: 매 걸음마다 이벤트 발생 (1씩 증가)
-        Log.d(TAG, "[executeStartTracking] 센서 타입: " + (useStepDetector ? "STEP_DETECTOR" : "STEP_COUNTER"));
-        boolean registered = sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL);
+        // 스텝 카운터 초기화
+        stepCount = 0;
+        totalDistance = 0f;
+        Log.d(TAG, "[executeStartTracking] startTracking() 호출됨");
+        Log.d(TAG, "[executeStartTracking] Step Detector 센서 등록 시도: " + stepDetectorSensor.getName());
+        Log.d(TAG, "[executeStartTracking] 센서 정보 - Type: " + stepDetectorSensor.getType() + 
+            ", Power: " + stepDetectorSensor.getPower() + 
+            ", Vendor: " + stepDetectorSensor.getVendor());
+
+        // 여러 지연 옵션 시도
+        boolean registered = sensorManager.registerListener(this, stepDetectorSensor, SensorManager.SENSOR_DELAY_UI);
+        if (!registered) {
+            Log.d(TAG, "[executeStartTracking] SENSOR_DELAY_UI 실패, SENSOR_DELAY_NORMAL 시도");
+            registered = sensorManager.registerListener(this, stepDetectorSensor, SensorManager.SENSOR_DELAY_NORMAL);
+        }
+        if (!registered) {
+            Log.d(TAG, "[executeStartTracking] SENSOR_DELAY_NORMAL 실패, SENSOR_DELAY_GAME 시도");
+            registered = sensorManager.registerListener(this, stepDetectorSensor, SensorManager.SENSOR_DELAY_GAME);
+        }
+        if (!registered) {
+            Log.d(TAG, "[executeStartTracking] SENSOR_DELAY_GAME 실패, SENSOR_DELAY_FASTEST 시도");
+            registered = sensorManager.registerListener(this, stepDetectorSensor, SensorManager.SENSOR_DELAY_FASTEST);
+        }
+
+        Log.d(TAG, "[executeStartTracking] 최종 센서 등록 결과: " + registered);
+
         if (registered) {
-            Log.d(TAG, "[executeStartTracking] 센서 리스너 등록 성공");
             isTracking = true;
+            Log.d(TAG, "[executeStartTracking] 센서 리스너 등록 성공");
             
-            // STEP_DETECTOR를 사용하는 경우 초기값을 0으로 설정
-            if (useStepDetector) {
-                initialSteps = 0;
-                totalSteps = 0;
-                Log.d(TAG, "[executeStartTracking] STEP_DETECTOR 사용, 초기값 0으로 설정");
-            } else {
-                // STEP_COUNTER는 onSensorChanged에서 첫 번째 값으로 초기값 설정
-                initialSteps = 0;
-                totalSteps = 0;
-                Log.d(TAG, "[executeStartTracking] STEP_COUNTER 사용, 초기값 대기 중...");
-            }
+            // 초기값 전송
+            JSObject initialRet = new JSObject();
+            initialRet.put("steps", 0);
+            initialRet.put("distance", 0f);
+            notifyListeners("stepUpdate", initialRet);
         } else {
             Log.e(TAG, "[executeStartTracking] 센서 리스너 등록 실패");
             call.reject("센서 리스너 등록 실패");
@@ -206,9 +213,10 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
         }
 
         JSObject ret = new JSObject();
-        ret.put("initialSteps", initialSteps);
+        ret.put("steps", stepCount);
+        ret.put("distance", totalDistance);
         ret.put("status", "tracking_started");
-        ret.put("sensorType", useStepDetector ? "step_detector" : "step_counter");
+        ret.put("sensorType", "step_detector");
         call.resolve(ret);
     }
 
@@ -251,42 +259,47 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
         call.resolve();
     }
 
+    @PluginMethod
+    public void reset(PluginCall call) {
+        Log.d(TAG, "[reset] reset() 호출됨 - 스텝 초기화");
+        stepCount = 0;
+        totalDistance = 0f;
+        JSObject ret = new JSObject();
+        ret.put("steps", stepCount);
+        ret.put("distance", totalDistance);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void setStepLength(PluginCall call) {
+        Float length = call.getFloat("length");
+        if (length != null && length > 0) {
+            this.stepLength = length;
+            this.estimatedStepLength = length;
+            Log.d(TAG, "[setStepLength] 스텝 길이 설정: " + length + " m");
+            JSObject ret = new JSObject();
+            ret.put("stepLength", estimatedStepLength);
+            call.resolve(ret);
+        } else {
+            call.reject("유효하지 않은 스텝 길이입니다");
+        }
+    }
+
     @Override
     public void onSensorChanged(SensorEvent event) {
-        if (event.sensor.getType() == Sensor.TYPE_STEP_COUNTER) {
-            // TYPE_STEP_COUNTER: 부팅 이후 누적 걸음수 (float 값)
-            float stepCountSinceBoot = event.values[0];
-            int newSteps = (int) stepCountSinceBoot;
-            
-            // 초기값이 설정되지 않았으면 첫 번째 값을 초기값으로 설정
-            if (initialSteps == 0 && newSteps > 0) {
-                initialSteps = newSteps;
-                totalSteps = newSteps;
-                Log.d(TAG, "[onSensorChanged] [STEP_COUNTER] 초기 걸음수 설정: " + initialSteps);
-            }
-            
-            if (newSteps != totalSteps) {
-                totalSteps = newSteps;
-                int stepsSinceStart = totalSteps - initialSteps;
-                Log.d(TAG, "[onSensorChanged] [STEP_COUNTER] 걸음수 업데이트 - 누적: " + totalSteps + ", 초기: " + initialSteps + ", 시작 이후: " + stepsSinceStart);
-                
-                // JavaScript로 이벤트 전송 (시작 이후 걸음수)
-                JSObject ret = new JSObject();
-                ret.put("steps", totalSteps);
-                ret.put("stepsSinceStart", stepsSinceStart);
-                notifyListeners("stepUpdate", ret);
-            }
-        } else if (event.sensor.getType() == Sensor.TYPE_STEP_DETECTOR) {
-            // TYPE_STEP_DETECTOR: 매 걸음마다 이벤트 발생 (값은 항상 1.0)
-            // 부팅 이후 누적이 아니라, 매 걸음마다 1씩 증가
-            totalSteps++;
-            int stepsSinceStart = totalSteps - initialSteps; // initialSteps는 0이므로 totalSteps와 같음
-            Log.d(TAG, "[onSensorChanged] [STEP_DETECTOR] 걸음 감지! 총 걸음수: " + totalSteps + ", 시작 이후: " + stepsSinceStart);
+        if (event.sensor.getType() == Sensor.TYPE_STEP_DETECTOR) {
+            // TYPE_STEP_DETECTOR: 각 스텝이 감지될 때마다 호출됨
+            // 값은 항상 1.0 (걸음 하나 감지)
+            stepCount++;
+            totalDistance = stepCount * estimatedStepLength;
+
+            Log.d(TAG, "[onSensorChanged] [STEP_DETECTOR] 스텝 감지: " + stepCount + ", 거리: " + totalDistance + " m");
             
             // JavaScript로 이벤트 전송
             JSObject ret = new JSObject();
-            ret.put("steps", totalSteps);
-            ret.put("stepsSinceStart", stepsSinceStart);
+            ret.put("steps", stepCount);
+            ret.put("distance", totalDistance);
+            ret.put("stepsSinceStart", stepCount); // 시작 이후 걸음수
             notifyListeners("stepUpdate", ret);
         }
     }
@@ -306,4 +319,3 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
         }
     }
 }
-
