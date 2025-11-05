@@ -36,6 +36,7 @@ const stepCount = ref(0) // 스탭 카운터
 const isNavigating = ref(false) // 네비게이션 진행 중 여부
 const navigationInterval = ref(null) // 스탭 증가 인터벌
 const pedometer = ref(null) // 걸음수 측정 인스턴스
+const showNavigationInfo = ref(true) // 네비게이션 정보 표시 여부
 
 const pedometerConnectionStatus = ref({
   text: '연결 확인 중...',
@@ -515,7 +516,7 @@ async function startNavigation() {
       
       // 연결 성공 상태로 표시
       pedometerConnectionStatus.value = {
-        text: '✓ 시뮬레이션 모드 작동 중',
+        text: pedometer.value.isNative ? '✓ 센서 연결됨' : '✓ 시뮬레이션 모드 작동 중',
         class: 'text-success',
       }
     } catch (error) {
@@ -926,47 +927,53 @@ const formatDistance = distance => {
                     v-if="isNavigating"
                     class="d-flex flex-column gap-2"
                   >
-                    <!-- 스탭 카운터 표시 -->
+                    <!-- 네비게이션 정보 토글 헤더 -->
                     <div
-                      class="d-flex flex-column align-center mb-2 pa-2"
-                      style="background: #f5f5f5; border-radius: 8px;"
+                      class="d-flex align-center justify-space-between pa-2"
+                      style="background: #e3f2fd; border-radius: 8px; cursor: pointer;"
+                      @click="showNavigationInfo = !showNavigationInfo"
                     >
-                      <div class="text-h6 text-primary mb-1">
-                        {{ stepCount }} 스탭
-                      </div>
-                      <div class="text-caption text-medium-emphasis mb-1">
-                        경로 진행 중...testttt
-                      </div>
-                      <div
-                        class="text-caption"
-                        :class="pedometerConnectionStatus.class"
-                      >
-                        {{ pedometerConnectionStatus.text }}
-                      </div>
+                      <span class="text-body-2 font-weight-medium">
+                        네비게이션 정보
+                      </span>
+                      <VIcon size="20">
+                        {{ showNavigationInfo ? 'bx-chevron-up' : 'bx-chevron-down' }}
+                      </VIcon>
                     </div>
+                    
+                    <!-- 네비게이션 정보 (토글 가능) -->
+                    <VExpandTransition>
+                      <div
+                        v-if="showNavigationInfo"
+                        class="d-flex flex-column gap-2"
+                      >
+                        <!-- 스탭 카운터 표시 -->
+                        <div
+                          class="d-flex flex-column align-center mb-2 pa-2"
+                          style="background: #f5f5f5; border-radius: 8px;"
+                        >
+                          <div class="text-h6 text-primary mb-1">
+                            {{ stepCount }} 스탭
+                          </div>
+                          <div class="text-caption text-medium-emphasis mb-1">
+                            경로 진행 중...
+                          </div>
+                          <div
+                            class="text-caption"
+                            :class="pedometerConnectionStatus.class"
+                          >
+                            {{ pedometerConnectionStatus.text }}
+                          </div>
+                        </div>
+                      </div>
+                    </VExpandTransition>
                     
                     <VBtn
                       size="small"
                       color="error"
                       @click="stopNavigation"
                     >
-                      <VIcon start>
-                        mdi-stop
-                      </VIcon>
                       네비게이션 중지
-                    </VBtn>
-                    
-                    <!-- 네비게이션 모드에서 카메라 리셋 버튼 -->
-                    <VBtn
-                      size="small"
-                      color="info"
-                      variant="outlined"
-                      @click="resetCamera"
-                    >
-                      <VIcon start>
-                        mdi-camera-control
-                      </VIcon>
-                      카메라 리셋
                     </VBtn>
                   </div>
                   
