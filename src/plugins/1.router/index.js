@@ -37,6 +37,7 @@ const WAREHOUSE_ALLOWED_ROUTES = [
   'order-history',           // 입출고 히스토리
   'order-history-calendar',  // 입출고 히스토리 캘린더
   'warehouse-viewer',        // 3D 뷰어
+  'warehouse-navigation',    // 3D 네비게이션
 ]
 
 /** ✅ 인증 가드 */

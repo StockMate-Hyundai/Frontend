@@ -12,6 +12,8 @@ declare global {
   const ORDER_STATUS: typeof import('./src/utils/orderStatus.js')['ORDER_STATUS']
   const ORDER_STATUS_INFO: typeof import('./src/utils/orderStatus.js')['ORDER_STATUS_INFO']
   const ORDER_STATUS_OPTIONS: typeof import('./src/utils/orderStatus.js')['ORDER_STATUS_OPTIONS']
+  const Pedometer: typeof import('./src/utils/pedometer.js')['Pedometer']
+  const StepCounterWeb: typeof import('./src/utils/pedometer.web.js')['StepCounterWeb']
   const acceptHMRUpdate: typeof import('pinia')['acceptHMRUpdate']
   const alphaDashValidator: typeof import('./src/@core/utils/validators.js')['alphaDashValidator']
   const alphaValidator: typeof import('./src/@core/utils/validators.js')['alphaValidator']
@@ -19,6 +21,7 @@ declare global {
   const autoResetRef: typeof import('@vueuse/core')['autoResetRef']
   const avatarText: typeof import('./src/@core/utils/formatters.js')['avatarText']
   const betweenValidator: typeof import('./src/@core/utils/validators.js')['betweenValidator']
+  const calculateOptimalPath: typeof import('./src/utils/pathfinding.js')['calculateOptimalPath']
   const computed: typeof import('vue')['computed']
   const computedAsync: typeof import('@vueuse/core')['computedAsync']
   const computedEager: typeof import('@vueuse/core')['computedEager']
@@ -59,6 +62,7 @@ declare global {
   const getActivePinia: typeof import('pinia')['getActivePinia']
   const getCurrentInstance: typeof import('vue')['getCurrentInstance']
   const getCurrentScope: typeof import('vue')['getCurrentScope']
+  const getPedometer: typeof import('./src/utils/pedometer.js')['getPedometer']
   const h: typeof import('vue')['h']
   const hexToRgb: typeof import('./src/@core/utils/colorConverter.js')['hexToRgb']
   const ignorableWatch: typeof import('@vueuse/core')['ignorableWatch']
@@ -371,6 +375,12 @@ declare global {
   // @ts-ignore
   export type { Component, ComponentPublicInstance, ComputedRef, DirectiveBinding, ExtractDefaultPropTypes, ExtractPropTypes, ExtractPublicPropTypes, InjectionKey, PropType, Ref, MaybeRef, MaybeRefOrGetter, VNode, WritableComputedRef } from 'vue'
   import('vue')
+  // @ts-ignore
+  export type { Pedometer } from './src/utils/pedometer.js'
+  import('./src/utils/pedometer.js')
+  // @ts-ignore
+  export type { StepCounterWeb } from './src/utils/pedometer.web.js'
+  import('./src/utils/pedometer.web.js')
 }
 
 // for vue template auto import
@@ -384,6 +394,8 @@ declare module 'vue' {
     readonly ORDER_STATUS: UnwrapRef<typeof import('./src/utils/orderStatus.js')['ORDER_STATUS']>
     readonly ORDER_STATUS_INFO: UnwrapRef<typeof import('./src/utils/orderStatus.js')['ORDER_STATUS_INFO']>
     readonly ORDER_STATUS_OPTIONS: UnwrapRef<typeof import('./src/utils/orderStatus.js')['ORDER_STATUS_OPTIONS']>
+    readonly Pedometer: UnwrapRef<typeof import('./src/utils/pedometer.js')['Pedometer']>
+    readonly StepCounterWeb: UnwrapRef<typeof import('./src/utils/pedometer.web.js')['StepCounterWeb']>
     readonly acceptHMRUpdate: UnwrapRef<typeof import('pinia')['acceptHMRUpdate']>
     readonly alphaDashValidator: UnwrapRef<typeof import('./src/@core/utils/validators.js')['alphaDashValidator']>
     readonly alphaValidator: UnwrapRef<typeof import('./src/@core/utils/validators.js')['alphaValidator']>
@@ -391,6 +403,7 @@ declare module 'vue' {
     readonly autoResetRef: UnwrapRef<typeof import('@vueuse/core')['autoResetRef']>
     readonly avatarText: UnwrapRef<typeof import('./src/@core/utils/formatters.js')['avatarText']>
     readonly betweenValidator: UnwrapRef<typeof import('./src/@core/utils/validators.js')['betweenValidator']>
+    readonly calculateOptimalPath: UnwrapRef<typeof import('./src/utils/pathfinding.js')['calculateOptimalPath']>
     readonly computed: UnwrapRef<typeof import('vue')['computed']>
     readonly computedAsync: UnwrapRef<typeof import('@vueuse/core')['computedAsync']>
     readonly computedEager: UnwrapRef<typeof import('@vueuse/core')['computedEager']>
@@ -431,6 +444,7 @@ declare module 'vue' {
     readonly getActivePinia: UnwrapRef<typeof import('pinia')['getActivePinia']>
     readonly getCurrentInstance: UnwrapRef<typeof import('vue')['getCurrentInstance']>
     readonly getCurrentScope: UnwrapRef<typeof import('vue')['getCurrentScope']>
+    readonly getPedometer: UnwrapRef<typeof import('./src/utils/pedometer.js')['getPedometer']>
     readonly h: UnwrapRef<typeof import('vue')['h']>
     readonly hexToRgb: UnwrapRef<typeof import('./src/@core/utils/colorConverter.js')['hexToRgb']>
     readonly ignorableWatch: UnwrapRef<typeof import('@vueuse/core')['ignorableWatch']>

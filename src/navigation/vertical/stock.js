@@ -1,7 +1,7 @@
 export default [
   { heading: '입/출고 관리' },
   {
-    title: '본사 재고 관리',
+    title: '재고 관리',
     icon: { icon: 'bx-package' },
     children: [
       { title: '전체 재고 조회', to: 'stock-list' },
@@ -9,7 +9,6 @@ export default [
       { title: '지점별 재고 조회', to: 'branch-stock-list' },
     ],
   },
-
   {
     title: '주문 관리',
     icon: { icon: 'bx-cart' },

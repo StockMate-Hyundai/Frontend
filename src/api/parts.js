@@ -368,3 +368,41 @@ export async function getPartDistribution(partId, {
   // 응답 스펙: ApiResponsePartDistributionResponseDTO -> data: PartDistributionResponseDTO
   return res?.data?.data ?? null
 }
+
+/**
+ * 🧭 최적 경로 계산 API
+ * POST /api/v1/parts/navigation/optimal
+ * @param {string[]} orderNumbers - 주문 번호 리스트
+ * @returns {Promise<NavigationResponseDTO>} 최적 경로 정보
+ */
+export async function calculateOptimalRoute(orderNumbers = []) {
+  if (!Array.isArray(orderNumbers) || orderNumbers.length === 0) {
+    throw new Error('주문 번호 리스트가 필요합니다')
+  }
+
+  const res = await http.post('/api/v1/parts/navigation/optimal', {
+    orderNumbers,
+  })
+
+  // 응답 스펙: ApiResponseNavigationResponseDTO -> data: NavigationResponseDTO
+  return res?.data?.data ?? null
+}
+
+/**
+ * 🔬 알고리즘 비교 API
+ * POST /api/v1/parts/navigation/compare
+ * @param {string[]} orderNumbers - 주문 번호 리스트
+ * @returns {Promise<AlgorithmComparisonDTO>} 알고리즘 비교 결과
+ */
+export async function compareAllAlgorithms(orderNumbers = []) {
+  if (!Array.isArray(orderNumbers) || orderNumbers.length === 0) {
+    throw new Error('주문 번호 리스트가 필요합니다')
+  }
+
+  const res = await http.post('/api/v1/parts/navigation/compare', {
+    orderNumbers,
+  })
+
+  // 응답 스펙: ApiResponseAlgorithmComparisonDTO -> data: AlgorithmComparisonDTO
+  return res?.data?.data ?? null
+}
