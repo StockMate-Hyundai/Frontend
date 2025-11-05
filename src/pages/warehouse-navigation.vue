@@ -502,90 +502,32 @@ async function startNavigation() {
       // 시작 위치에 현재 위치 마커 표시
       warehouse3DRef.value.showCurrentPosition(true)
       
-      // 걸음수 측정 시작
-      console.log('[startNavigation] startTracking() 호출 전')
+      // 걸음수 측정 시작 (시뮬레이션 모드)
+      console.log('[startNavigation] startTracking() 호출')
       pedometerConnectionStatus.value = {
-        text: '센서 연결 시도 중...',
-        class: 'text-warning',
+        text: '시뮬레이션 모드 (1초에 1걸음)',
+        class: 'text-info',
       }
       
-      try {
-        await pedometer.value.startTracking()
-        console.log('[startNavigation] startTracking() 완료')
-        console.log('[startNavigation] 네비게이션 시작, 걸음수 측정 활성화')
-        
-        // 연결 성공 확인을 위해 잠시 대기 후 상태 확인
-        setTimeout(() => {
-          if (pedometer.value && pedometer.value.trackingStatus) {
-            pedometerConnectionStatus.value = {
-              text: '✓ 센서 연결됨',
-              class: 'text-success',
-            }
-            console.log('[startNavigation] ✓ 센서 연결 확인 완료')
-          } else {
-            pedometerConnectionStatus.value = {
-              text: '⚠ 센서 연결 실패 (데이터 수신 대기 중...)',
-              class: 'text-warning',
-            }
-            console.warn('[startNavigation] ⚠ 센서 데이터 수신 대기 중...')
-          }
-        }, 2000)
-      } catch (trackingError) {
-        pedometerConnectionStatus.value = {
-          text: '✗ 센서 연결 오류',
-          class: 'text-error',
-        }
-        console.error('[startNavigation] 센서 연결 오류:', trackingError)
-        throw trackingError
+      await pedometer.value.startTracking()
+      console.log('[startNavigation] startTracking() 완료')
+      console.log('[startNavigation] 네비게이션 시작, 시뮬레이션 모드 활성화')
+      
+      // 연결 성공 상태로 표시
+      pedometerConnectionStatus.value = {
+        text: '✓ 시뮬레이션 모드 작동 중',
+        class: 'text-success',
       }
     } catch (error) {
       console.error('[startNavigation] 네비게이션 시작 실패:', error)
       console.error('[startNavigation] 에러 메시지:', error.message)
       console.error('[startNavigation] 에러 스택:', error.stack)
       
-      // 플랫폼 확인
-      const { Capacitor } = await import('@capacitor/core')
-      const platform = Capacitor.getPlatform()
-      const isNative = Capacitor.isNativePlatform()
-      
-      console.error('[startNavigation] 현재 플랫폼:', platform)
-      console.error('[startNavigation] 네이티브 여부:', isNative)
-
-      // 웹 환경이거나 플러그인을 사용할 수 없는 경우 폴백
-      const errorMessage = error.message || ''
-      const isWebEnvironment = !isNative || platform === 'web'
-      const isInitializationError = errorMessage.includes('초기화') || errorMessage.includes('사용할 수 없') || errorMessage.includes('플러그인')
-      
-      if (isWebEnvironment || isInitializationError) {
-        // 폴백: 시간 기반 시뮬레이션
-        console.warn('[startNavigation] 폴백 모드: 시간 기반 시뮬레이션 사용')
-        console.warn('[startNavigation] 이유 - 플랫폼:', platform, ', 네이티브:', isNative, ', 에러:', errorMessage)
-        
-        pedometerConnectionStatus.value = {
-          text: '⚠ 시뮬레이션 모드 (실제 센서 사용 불가)',
-          class: 'text-warning',
-        }
-        stepCount.value = 0
-        isNavigating.value = true
-        warehouse3DRef.value.showCurrentPosition(true)
-        
-        navigationInterval.value = setInterval(() => {
-          stepCount.value++
-          
-          if (warehouse3DRef.value) {
-            warehouse3DRef.value.moveAlongPathBySteps(stepCount.value)
-          }
-          
-          if (warehouse3DRef.value && warehouse3DRef.value.isPathComplete()) {
-            stopNavigation()
-          }
-        }, 1000)
-      } else {
-        const alertMessage = `걸음수 측정을 시작할 수 없습니다.\n\n플랫폼: ${platform}\n네이티브: ${isNative}\n에러: ${errorMessage}\n\n앱 환경에서 실행해주세요.`
-
-        console.error('[startNavigation]', alertMessage)
-        alert(alertMessage)
+      pedometerConnectionStatus.value = {
+        text: '✗ 네비게이션 시작 오류',
+        class: 'text-error',
       }
+      alert('네비게이션을 시작할 수 없습니다.')
     }
   }
 }
