@@ -35,10 +35,12 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
     
     private SensorManager sensorManager;
     private Sensor stepCounterSensor;
+    private Sensor stepDetectorSensor; // STEP_DETECTOR 센서 추가
     private int totalSteps = 0;
     private int initialSteps = 0;
     private boolean isTracking = false;
     private boolean isRequestingPermission = false;
+    private boolean useStepDetector = false; // STEP_DETECTOR 사용 여부
 
     @Override
     public void load() {
@@ -60,11 +62,21 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
         
         sensorManager = (SensorManager) getContext().getSystemService(Context.SENSOR_SERVICE);
         if (sensorManager != null) {
+            // 먼저 TYPE_STEP_COUNTER 시도
             stepCounterSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
             if (stepCounterSensor != null) {
                 Log.d(TAG, "[load] Step Counter 센서 발견: " + stepCounterSensor.getName());
+                useStepDetector = false;
             } else {
-                Log.e(TAG, "[load] Step Counter 센서를 찾을 수 없습니다");
+                Log.w(TAG, "[load] Step Counter 센서를 찾을 수 없습니다. Step Detector 시도...");
+                // TYPE_STEP_COUNTER가 없으면 TYPE_STEP_DETECTOR 사용
+                stepDetectorSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR);
+                if (stepDetectorSensor != null) {
+                    Log.d(TAG, "[load] Step Detector 센서 발견: " + stepDetectorSensor.getName());
+                    useStepDetector = true;
+                } else {
+                    Log.e(TAG, "[load] Step Counter 및 Step Detector 센서를 모두 찾을 수 없습니다");
+                }
             }
         } else {
             Log.e(TAG, "[load] SensorManager를 가져올 수 없습니다");
@@ -121,15 +133,16 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
      * getSteps 실행 (권한 체크 없이)
      */
     private void executeGetSteps(PluginCall call) {
-        if (stepCounterSensor == null) {
-            Log.e(TAG, "[executeGetSteps] Step Counter 센서를 사용할 수 없습니다");
-            call.reject("Step Counter 센서를 사용할 수 없습니다");
+        Sensor sensor = useStepDetector ? stepDetectorSensor : stepCounterSensor;
+        if (sensor == null) {
+            Log.e(TAG, "[executeGetSteps] 걸음 센서를 사용할 수 없습니다");
+            call.reject("걸음 센서를 사용할 수 없습니다");
             return;
         }
 
         if (!isTracking) {
-            Log.d(TAG, "[executeGetSteps] 센서 리스너 등록 시작");
-            boolean registered = sensorManager.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_NORMAL);
+            Log.d(TAG, "[executeGetSteps] 센서 리스너 등록 시작 (타입: " + (useStepDetector ? "STEP_DETECTOR" : "STEP_COUNTER") + ")");
+            boolean registered = sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL);
             if (registered) {
                 Log.d(TAG, "[executeGetSteps] 센서 리스너 등록 성공");
                 isTracking = true;
@@ -149,9 +162,10 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
      * Android 공식 문서 참고: https://developer.android.com/health-and-fitness/guides/basic-fitness-app/read-step-count-data
      */
     private void executeStartTracking(PluginCall call) {
-        if (stepCounterSensor == null) {
-            Log.e(TAG, "[executeStartTracking] Step Counter 센서를 사용할 수 없습니다");
-            call.reject("Step Counter 센서를 사용할 수 없습니다");
+        Sensor sensor = useStepDetector ? stepDetectorSensor : stepCounterSensor;
+        if (sensor == null) {
+            Log.e(TAG, "[executeStartTracking] 걸음 센서를 사용할 수 없습니다");
+            call.reject("걸음 센서를 사용할 수 없습니다");
             return;
         }
 
@@ -166,18 +180,25 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
         }
 
         // 센서 리스너 등록
-        // TYPE_STEP_COUNTER는 리스너 등록 시 즉시 현재 값을 반환합니다
-        // Android 공식 문서: Sensor.TYPE_STEP_COUNTER는 부팅 이후 누적 걸음수 (float 값)
-        boolean registered = sensorManager.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_NORMAL);
+        // TYPE_STEP_COUNTER: 리스너 등록 시 즉시 현재 값 반환 (부팅 이후 누적 걸음수)
+        // TYPE_STEP_DETECTOR: 매 걸음마다 이벤트 발생 (1씩 증가)
+        Log.d(TAG, "[executeStartTracking] 센서 타입: " + (useStepDetector ? "STEP_DETECTOR" : "STEP_COUNTER"));
+        boolean registered = sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL);
         if (registered) {
             Log.d(TAG, "[executeStartTracking] 센서 리스너 등록 성공");
             isTracking = true;
             
-            // 초기값은 onSensorChanged에서 첫 번째 값으로 설정됨
-            // 여기서는 0으로 초기화하고, 센서가 값을 반환할 때까지 대기
-            initialSteps = 0;
-            totalSteps = 0;
-            Log.d(TAG, "[executeStartTracking] 센서 리스너 등록 완료, 초기값 대기 중...");
+            // STEP_DETECTOR를 사용하는 경우 초기값을 0으로 설정
+            if (useStepDetector) {
+                initialSteps = 0;
+                totalSteps = 0;
+                Log.d(TAG, "[executeStartTracking] STEP_DETECTOR 사용, 초기값 0으로 설정");
+            } else {
+                // STEP_COUNTER는 onSensorChanged에서 첫 번째 값으로 초기값 설정
+                initialSteps = 0;
+                totalSteps = 0;
+                Log.d(TAG, "[executeStartTracking] STEP_COUNTER 사용, 초기값 대기 중...");
+            }
         } else {
             Log.e(TAG, "[executeStartTracking] 센서 리스너 등록 실패");
             call.reject("센서 리스너 등록 실패");
@@ -187,6 +208,7 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
         JSObject ret = new JSObject();
         ret.put("initialSteps", initialSteps);
         ret.put("status", "tracking_started");
+        ret.put("sensorType", useStepDetector ? "step_detector" : "step_counter");
         call.resolve(ret);
     }
 
@@ -232,7 +254,7 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
     @Override
     public void onSensorChanged(SensorEvent event) {
         if (event.sensor.getType() == Sensor.TYPE_STEP_COUNTER) {
-            // TYPE_STEP_COUNTER는 부팅 이후 누적 걸음수 (float 값)
+            // TYPE_STEP_COUNTER: 부팅 이후 누적 걸음수 (float 값)
             float stepCountSinceBoot = event.values[0];
             int newSteps = (int) stepCountSinceBoot;
             
@@ -240,13 +262,13 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
             if (initialSteps == 0 && newSteps > 0) {
                 initialSteps = newSteps;
                 totalSteps = newSteps;
-                Log.d(TAG, "[onSensorChanged] 초기 걸음수 설정: " + initialSteps);
+                Log.d(TAG, "[onSensorChanged] [STEP_COUNTER] 초기 걸음수 설정: " + initialSteps);
             }
             
             if (newSteps != totalSteps) {
                 totalSteps = newSteps;
                 int stepsSinceStart = totalSteps - initialSteps;
-                Log.d(TAG, "[onSensorChanged] 걸음수 업데이트 - 누적: " + totalSteps + ", 초기: " + initialSteps + ", 시작 이후: " + stepsSinceStart);
+                Log.d(TAG, "[onSensorChanged] [STEP_COUNTER] 걸음수 업데이트 - 누적: " + totalSteps + ", 초기: " + initialSteps + ", 시작 이후: " + stepsSinceStart);
                 
                 // JavaScript로 이벤트 전송 (시작 이후 걸음수)
                 JSObject ret = new JSObject();
@@ -254,6 +276,18 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
                 ret.put("stepsSinceStart", stepsSinceStart);
                 notifyListeners("stepUpdate", ret);
             }
+        } else if (event.sensor.getType() == Sensor.TYPE_STEP_DETECTOR) {
+            // TYPE_STEP_DETECTOR: 매 걸음마다 이벤트 발생 (값은 항상 1.0)
+            // 부팅 이후 누적이 아니라, 매 걸음마다 1씩 증가
+            totalSteps++;
+            int stepsSinceStart = totalSteps - initialSteps; // initialSteps는 0이므로 totalSteps와 같음
+            Log.d(TAG, "[onSensorChanged] [STEP_DETECTOR] 걸음 감지! 총 걸음수: " + totalSteps + ", 시작 이후: " + stepsSinceStart);
+            
+            // JavaScript로 이벤트 전송
+            JSObject ret = new JSObject();
+            ret.put("steps", totalSteps);
+            ret.put("stepsSinceStart", stepsSinceStart);
+            notifyListeners("stepUpdate", ret);
         }
     }
 
