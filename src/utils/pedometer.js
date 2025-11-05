@@ -84,33 +84,42 @@ export class Pedometer {
         
         // Capacitor 플러그인 등록 방식 시도
         let StepCounter
-        try {
-          // 방법 1: registerPlugin 사용
+        const { Capacitor } = await import('@capacitor/core')
+        
+        // 네이티브 플랫폼에서는 Capacitor가 자동으로 등록한 플러그인 사용
+        if (platform === 'android' || platform === 'ios') {
+          // 방법 1: Capacitor.Plugins에서 직접 가져오기 (가장 확실한 방법)
+          console.log('[Pedometer] Capacitor.Plugins 확인:', Capacitor.Plugins)
+          if (Capacitor.Plugins) {
+            console.log('[Pedometer] Capacitor.Plugins 키:', Object.keys(Capacitor.Plugins))
+          }
+          console.log('[Pedometer] Capacitor.Plugins.StepCounter 존재:', !!(Capacitor.Plugins && Capacitor.Plugins.StepCounter))
+          
+          if (Capacitor.Plugins && Capacitor.Plugins.StepCounter) {
+            StepCounter = Capacitor.Plugins.StepCounter
+            console.log('[Pedometer] ✓ Capacitor.Plugins.StepCounter 사용 성공')
+          } else {
+            // 방법 2: registerPlugin 사용
+            // 중요: 네이티브 플랫폼에서는 웹 구현을 제공하지 않아야
+            // Capacitor가 자동으로 네이티브 구현을 찾습니다
+            console.log('[Pedometer] Capacitor.Plugins에서 찾지 못함, registerPlugin 시도...')
+            console.log('[Pedometer] 주의: 웹 구현을 제공하지 않아야 네이티브 구현이 사용됩니다')
+            
+            // 네이티브 플랫폼에서는 웹 구현 없이 registerPlugin 호출
+            // 그러면 Capacitor가 자동으로 Java 플러그인을 찾습니다
+            StepCounter = registerPlugin('StepCounter')
+            console.log('[Pedometer] registerPlugin() 호출 완료 (네이티브 구현 자동 감지)')
+          }
+        } else {
+          // 웹 플랫폼에서는 웹 구현만 사용
           StepCounter = registerPlugin('StepCounter', {
             web: () => import('./pedometer.web').then(m => new m.StepCounterWeb()),
           })
-          console.log('[Pedometer] 방법 1: registerPlugin 사용 성공')
-        } catch (regError) {
-          console.warn('[Pedometer] 방법 1 실패, 방법 2 시도:', regError.message)
-          // 방법 2: Capacitor.Plugins 직접 접근
-          const { Plugins } = await import('@capacitor/core')
-          if (Plugins && Plugins.StepCounter) {
-            StepCounter = Plugins.StepCounter
-            console.log('[Pedometer] 방법 2: Plugins.StepCounter 사용 성공')
-          } else {
-            throw new Error('Plugins.StepCounter를 찾을 수 없습니다')
-          }
+          console.log('[Pedometer] 웹 플랫폼: registerPlugin 사용 (웹 구현 포함)')
         }
         
         console.log('[Pedometer] StepCounter 플러그인 객체:', StepCounter)
         console.log('[Pedometer] StepCounter 타입:', typeof StepCounter)
-        console.log('[Pedometer] StepCounter 프로토타입:', Object.getPrototypeOf(StepCounter))
-        
-        // 플러그인 메서드 확인
-        const methods = Object.getOwnPropertyNames(StepCounter).concat(
-          Object.getOwnPropertyNames(Object.getPrototypeOf(StepCounter))
-        )
-        console.log('[Pedometer] StepCounter 플러그인 속성:', methods)
         
         // 플러그인이 실제로 등록되었는지 확인
         if (!StepCounter) {
@@ -118,9 +127,14 @@ export class Pedometer {
           throw new Error('플러그인 객체가 null입니다')
         }
         
+        // 플러그인 메서드 확인
+        const methods = Object.getOwnPropertyNames(StepCounter).concat(
+          Object.getOwnPropertyNames(Object.getPrototypeOf(StepCounter || {}))
+        )
+        console.log('[Pedometer] StepCounter 플러그인 속성:', methods)
+        
         // getSteps 메서드 확인 (다양한 방법 시도)
         const hasGetSteps = typeof StepCounter.getSteps === 'function' || 
-                           typeof StepCounter.getSteps?.call === 'function' ||
                            (StepCounter.getSteps && typeof StepCounter.getSteps === 'object')
         
         console.log('[Pedometer] getSteps 메서드 존재:', hasGetSteps)
