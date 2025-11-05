@@ -89,7 +89,11 @@ public class PedometerManager implements SensorEventListener {
             stepCount++;
             totalDistance = stepCount * estimatedStepLength;
             
-            Log.d(TAG, "스텝 감지: " + stepCount + ", 거리: " + totalDistance + " m");
+            // 스텝 감지 로그 (INFO 레벨로 더 눈에 띄게)
+            Log.i(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            Log.i(TAG, "📍 스텝 감지! 현재 걸음수: " + stepCount + " 걸음");
+            Log.i(TAG, "📏 누적 이동 거리: " + String.format("%.2f", totalDistance) + " m");
+            Log.i(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
             
             if (listener != null) {
                 listener.onStepCountUpdate(stepCount, totalDistance);

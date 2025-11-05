@@ -55,8 +55,12 @@ public class MainActivity extends BridgeActivity {
     public void onStart() {
         super.onStart();
         
-        // Bridge에서 WebView 가져오기 (약간의 지연 후 시도)
-        getBridge().getWebView().post(() -> {
+        // Bridge에서 WebView 가져오기
+        setupPedometerBridge();
+    }
+    
+    private void setupPedometerBridge() {
+        try {
             Bridge bridge = getBridge();
             if (bridge != null) {
                 webView = bridge.getWebView();
@@ -64,11 +68,39 @@ public class MainActivity extends BridgeActivity {
                     // JavaScript Bridge 추가
                     webView.addJavascriptInterface(new PedometerBridge(), "PedometerBridge");
                     Log.d(TAG, "PedometerBridge가 WebView에 추가되었습니다");
+                    
+                    // JavaScript에 Bridge가 준비되었음을 알림
+                    String jsCode = "console.log('PedometerBridge 준비됨');";
+                    webView.evaluateJavascript(jsCode, null);
                 } else {
-                    Log.w(TAG, "WebView를 가져올 수 없습니다");
+                    Log.w(TAG, "WebView를 가져올 수 없습니다. 잠시 후 다시 시도...");
+                    // WebView가 아직 준비되지 않았으면 잠시 후 다시 시도
+                    new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            setupPedometerBridge();
+                        }
+                    }, 500);
                 }
+            } else {
+                Log.w(TAG, "Bridge가 null입니다. 잠시 후 다시 시도...");
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        setupPedometerBridge();
+                    }
+                }, 500);
             }
-        });
+        } catch (Exception e) {
+            Log.e(TAG, "PedometerBridge 설정 중 오류:", e);
+            // 예외 발생 시 잠시 후 다시 시도
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    setupPedometerBridge();
+                }
+            }, 500);
+        }
     }
     
     @Override
@@ -92,17 +124,21 @@ public class MainActivity extends BridgeActivity {
                     public void onStepCountUpdate(int stepCount, float distance) {
                         // JavaScript로 데이터 전달
                         final String jsCode = String.format(
-                            "if (window.pedometerCallback) { window.pedometerCallback(%d, %f); }",
+                            "if (window.pedometerCallback) { window.pedometerCallback(%d, %f); } else { console.warn('pedometerCallback이 설정되지 않았습니다'); }",
                             stepCount, distance
                         );
                         runOnUiThread(() -> {
                             if (webView != null) {
                                 webView.evaluateJavascript(jsCode, null);
+                                Log.i(TAG, "→ JavaScript로 스텝 업데이트 전송: " + stepCount + " 걸음, " + String.format("%.2f", distance) + "m");
+                            } else {
+                                Log.w(TAG, "WebView가 null이어서 스텝 업데이트를 전송할 수 없습니다");
                             }
                         });
                     }
                 });
                 pedometerManager.startTracking();
+                Log.d(TAG, "PedometerManager.startTracking() 호출 완료");
             });
         }
         

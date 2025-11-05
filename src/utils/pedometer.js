@@ -10,10 +10,20 @@
 function isNativeAndroid() {
   try {
     // Android WebView에서 PedometerBridge가 있는지 확인
-    return typeof window !== 'undefined' && 
-           window.PedometerBridge && 
-           typeof window.PedometerBridge.startTracking === 'function'
-  } catch {
+    const isNative = typeof window !== 'undefined' && 
+                     window.PedometerBridge && 
+                     typeof window.PedometerBridge.startTracking === 'function'
+    
+    console.log('[Pedometer] 네이티브 환경 체크:', {
+      windowExists: typeof window !== 'undefined',
+      bridgeExists: !!window?.PedometerBridge,
+      startTrackingExists: typeof window?.PedometerBridge?.startTracking === 'function',
+      isNative
+    })
+    
+    return isNative
+  } catch (error) {
+    console.error('[Pedometer] 네이티브 환경 체크 오류:', error)
     return false
   }
 }
@@ -47,9 +57,14 @@ export class PedometerManager {
     if (this.isNative) {
       console.log('[Pedometer] Android 네이티브 센서 모드 감지')
       
-      // JavaScript 콜백 설정
+      // JavaScript 콜백 설정 (실제 센서 감지 시에만 로그 남김)
       window.pedometerCallback = (stepCount, distance) => {
-        console.log('[Pedometer] [네이티브 콜백] 걸음수:', stepCount, ', 거리:', distance, 'm')
+        // 실제 센서 감지 시에만 로그 출력
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log('📍 [Pedometer] 스텝 감지! 현재 걸음수:', stepCount, '걸음')
+        console.log('📏 [Pedometer] 누적 이동 거리:', distance.toFixed(2), 'm')
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        
         this.stepCount = stepCount
         this.distance = distance
         
@@ -58,7 +73,7 @@ export class PedometerManager {
         }
       }
     } else {
-      console.log('[Pedometer] 웹 환경 감지 - 시뮬레이션 모드 사용')
+      console.log('[Pedometer] 웹 환경 감지 - 시뮬레이션 모드 사용 (로그 없음)')
     }
 
     this.isInitialized = true
@@ -90,12 +105,37 @@ export class PedometerManager {
     this.startTime = Date.now()
     this.isTracking = true
     
+    // 네이티브 환경을 다시 확인 (WebView가 늦게 초기화될 수 있음)
+    const isNativeNow = isNativeAndroid()
+    this.isNative = isNativeNow
+    
+    console.log('[Pedometer] 네이티브 모드:', this.isNative)
+    console.log('[Pedometer] window.PedometerBridge:', window.PedometerBridge)
+    
     if (this.isNative && window.PedometerBridge) {
       // Android 네이티브 센서 사용
       console.log('[Pedometer] Android 네이티브 센서로 추적 시작')
       try {
+        // 콜백이 설정되어 있는지 확인 (이미 initialize에서 설정했을 수 있음)
+        if (!window.pedometerCallback) {
+          window.pedometerCallback = (stepCount, distance) => {
+            // 실제 센서 감지 시에만 로그 출력
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+            console.log('📍 [Pedometer] 스텝 감지! 현재 걸음수:', stepCount, '걸음')
+            console.log('📏 [Pedometer] 누적 이동 거리:', distance.toFixed(2), 'm')
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+            
+            this.stepCount = stepCount
+            this.distance = distance
+            
+            if (this.onStepUpdateCallback) {
+              this.onStepUpdateCallback(stepCount, distance)
+            }
+          }
+        }
+        
         window.PedometerBridge.startTracking()
-        console.log('[Pedometer] 네이티브 센서 시작 완료')
+        console.log('[Pedometer] 네이티브 센서 시작 완료 - 실제 걸음수 감지 시작')
         
         // 초기값 콜백 호출
         if (this.onStepUpdateCallback) {
@@ -103,13 +143,15 @@ export class PedometerManager {
         }
       } catch (error) {
         console.error('[Pedometer] 네이티브 센서 시작 실패:', error)
+        console.error('[Pedometer] 에러 상세:', error.message, error.stack)
         // 실패 시 시뮬레이션 모드로 전환
         this.isNative = false
         this.startTrackingSimulation()
       }
     } else {
       // 웹 환경: 시뮬레이션 모드
-      console.log('[Pedometer] 시뮬레이션 모드로 추적 시작')
+      console.warn('[Pedometer] 네이티브 환경이 아니므로 시뮬레이션 모드로 추적 시작')
+      console.warn('[Pedometer] window.PedometerBridge 존재 여부:', !!window.PedometerBridge)
       this.startTrackingSimulation()
     }
   }
@@ -118,20 +160,19 @@ export class PedometerManager {
    * 시뮬레이션 모드로 추적 시작
    */
   startTrackingSimulation() {
-    console.log('[Pedometer] 1초에 1걸음씩 증가 (시뮬레이션)')
+    console.log('[Pedometer] 시뮬레이션 모드 시작 (1초에 1걸음씩 증가) - 로그 없음')
     
     // 초기값 콜백 호출
     if (this.onStepUpdateCallback) {
       this.onStepUpdateCallback(this.stepCount, this.distance)
     }
     
-    // 1초마다 걸음수 증가
+    // 1초마다 걸음수 증가 (로그 없이 조용히 증가)
     this.interval = setInterval(() => {
       this.stepCount++
       this.distance = this.stepCount * 0.7 // 70cm per step
       
-      console.log('[Pedometer] [시뮬레이션] 걸음수:', this.stepCount, ', 거리:', this.distance.toFixed(2), 'm')
-      
+      // 시뮬레이션 모드에서는 로그를 남기지 않음
       if (this.onStepUpdateCallback) {
         this.onStepUpdateCallback(this.stepCount, this.distance)
       }
