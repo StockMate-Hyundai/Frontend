@@ -1,12 +1,12 @@
 package com.stockmate.app;
 
 import android.Manifest;
+import android.content.Context;
 import android.content.pm.PackageManager;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
-import android.content.Context;
 import android.os.Build;
 import android.util.Log;
 
@@ -26,7 +26,7 @@ import com.getcapacitor.annotation.PermissionCallback;
  * 시작 시점부터의 스텝만 계산하므로 정확함
  */
 @CapacitorPlugin(
-    name = "StepCounter",
+    name = "Pedometer",
     permissions = {
         @Permission(
             strings = { Manifest.permission.ACTIVITY_RECOGNITION },
@@ -34,12 +34,12 @@ import com.getcapacitor.annotation.PermissionCallback;
         )
     }
 )
-public class StepCounterPlugin extends Plugin implements SensorEventListener {
+public class PedometerPlugin extends Plugin implements SensorEventListener {
 
-    private static final String TAG = "StepCounterPlugin";
+    private static final String TAG = "PedometerPlugin";
     
     private SensorManager sensorManager;
-    private Sensor stepDetectorSensor; // TYPE_STEP_DETECTOR만 사용
+    private Sensor stepDetectorSensor;
     
     // 스텝 관련
     private int stepCount = 0;
@@ -120,33 +120,16 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
                 Log.d(TAG, "[activityRecognitionPermsCallback] 권한 승인됨");
                 // 권한이 승인되면 원래 작업 계속
                 String methodName = call.getMethodName();
-                if ("getSteps".equals(methodName)) {
-                    executeGetSteps(call);
-                } else if ("startTracking".equals(methodName)) {
+                if ("startTracking".equals(methodName)) {
                     executeStartTracking(call);
+                } else if ("getStepCount".equals(methodName)) {
+                    executeGetStepCount(call);
                 }
             } else {
                 Log.e(TAG, "[activityRecognitionPermsCallback] 권한 거부됨");
                 call.reject("ACTIVITY_RECOGNITION 권한이 필요합니다");
             }
         }
-    }
-    
-    /**
-     * getSteps 실행 (권한 체크 없이)
-     */
-    private void executeGetSteps(PluginCall call) {
-        if (stepDetectorSensor == null) {
-            Log.e(TAG, "[executeGetSteps] Step Detector 센서를 사용할 수 없습니다");
-            call.reject("Step Detector 센서를 사용할 수 없습니다");
-            return;
-        }
-
-        JSObject ret = new JSObject();
-        ret.put("steps", stepCount);
-        ret.put("distance", totalDistance);
-        Log.d(TAG, "[executeGetSteps] 걸음수 반환: " + stepCount + ", 거리: " + totalDistance + " m");
-        call.resolve(ret);
     }
     
     /**
@@ -164,7 +147,7 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
         if (isTracking) {
             Log.d(TAG, "[executeStartTracking] 이미 추적 중입니다");
             JSObject ret = new JSObject();
-            ret.put("steps", stepCount);
+            ret.put("stepCount", stepCount);
             ret.put("distance", totalDistance);
             ret.put("status", "already_tracking");
             call.resolve(ret);
@@ -203,7 +186,7 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
             
             // 초기값 전송
             JSObject initialRet = new JSObject();
-            initialRet.put("steps", 0);
+            initialRet.put("stepCount", 0);
             initialRet.put("distance", 0f);
             notifyListeners("stepUpdate", initialRet);
         } else {
@@ -213,25 +196,22 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
         }
 
         JSObject ret = new JSObject();
-        ret.put("steps", stepCount);
+        ret.put("stepCount", stepCount);
         ret.put("distance", totalDistance);
         ret.put("status", "tracking_started");
-        ret.put("sensorType", "step_detector");
         call.resolve(ret);
     }
 
-    @PluginMethod
-    public void getSteps(PluginCall call) {
-        Log.d(TAG, "[getSteps] 걸음수 요청");
-        
-        // 권한 확인
-        if (!checkPermission(call)) {
-            Log.d(TAG, "[getSteps] 권한 요청 중...");
-            return; // 권한 요청 중이면 여기서 종료
-        }
-        
-        // 권한이 있으면 실행
-        executeGetSteps(call);
+    /**
+     * getStepCount 실행 (권한 체크 없이)
+     */
+    private void executeGetStepCount(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("stepCount", stepCount);
+        ret.put("distance", totalDistance);
+        ret.put("stepLength", estimatedStepLength);
+        Log.d(TAG, "[executeGetStepCount] 걸음수 반환: " + stepCount + ", 거리: " + totalDistance + " m");
+        call.resolve(ret);
     }
 
     @PluginMethod
@@ -260,12 +240,26 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
     }
 
     @PluginMethod
+    public void getStepCount(PluginCall call) {
+        Log.d(TAG, "[getStepCount] 걸음수 요청");
+        
+        // 권한 확인
+        if (!checkPermission(call)) {
+            Log.d(TAG, "[getStepCount] 권한 요청 중...");
+            return;
+        }
+        
+        // 권한이 있으면 실행
+        executeGetStepCount(call);
+    }
+
+    @PluginMethod
     public void reset(PluginCall call) {
         Log.d(TAG, "[reset] reset() 호출됨 - 스텝 초기화");
         stepCount = 0;
         totalDistance = 0f;
         JSObject ret = new JSObject();
-        ret.put("steps", stepCount);
+        ret.put("stepCount", stepCount);
         ret.put("distance", totalDistance);
         call.resolve(ret);
     }
@@ -297,9 +291,8 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
             
             // JavaScript로 이벤트 전송
             JSObject ret = new JSObject();
-            ret.put("steps", stepCount);
+            ret.put("stepCount", stepCount);
             ret.put("distance", totalDistance);
-            ret.put("stepsSinceStart", stepCount); // 시작 이후 걸음수
             notifyListeners("stepUpdate", ret);
         }
     }
@@ -319,3 +312,4 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
         }
     }
 }
+
