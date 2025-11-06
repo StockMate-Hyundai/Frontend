@@ -2,6 +2,7 @@
 <script setup>
 import { fetchOrdersForTable } from '@/api/order'
 import { calculateOptimalRoute, compareAllAlgorithms } from '@/api/parts'
+import { ORDER_STATUS } from '@/utils/orderStatus'
 import { calculateOptimalPath } from '@/utils/pathfinding'
 import { getPedometer } from '@/utils/pedometer'
 import PartWarehouse3D from '@/views/parts/view/PartWarehouse3D.vue'
@@ -39,6 +40,9 @@ const pedometer = ref(null) // 걸음수 측정 인스턴스
 const showNavigationInfo = ref(true) // 네비게이션 정보 표시 여부
 const showControlButtons = ref(true) // 버튼 컨트롤 표시 여부
 const showRouteInfo = ref(true) // 경로 정보 표시 여부
+const showPOIDialog = ref(false) // POI 부품 정보 다이얼로그 표시 여부
+const selectedPOILocation = ref(null) // 선택된 POI 위치
+const selectedPOIParts = ref([]) // 선택된 POI의 부품 목록
 
 const pedometerConnectionStatus = ref({
   text: '연결 확인 중...',
@@ -75,17 +79,22 @@ async function loadRecentOrders() {
     const result = await fetchOrdersForTable({
       page: 1,
       itemsPerPage: 50,
-      filters: {},
+      filters: {
+        status: ORDER_STATUS.PENDING_SHIPPING, // 출고 대기 상태만 필터링
+      },
     })
     
-    recentOrders.value = (result.rows || []).map(order => ({
-      orderId: order.orderId,
-      orderNumber: order.orderNumber || `#${order.orderId}`,
-      createdAt: order.createdAt,
-      customer: order.customer || '-',
-    }))
+    // 주문 상태가 출고 대기인 것만 필터링 (추가 안전장치)
+    recentOrders.value = (result.rows || [])
+      .filter(order => order.orderStatus === ORDER_STATUS.PENDING_SHIPPING)
+      .map(order => ({
+        orderId: order.orderId,
+        orderNumber: order.orderNumber || `#${order.orderId}`,
+        createdAt: order.createdAt,
+        customer: order.customer || '-',
+      }))
   } catch (e) {
-    console.error('[loadRecentOrders] error:', e)
+    // 에러 처리
     recentOrders.value = []
   } finally {
     loadingOrders.value = false
@@ -143,22 +152,10 @@ async function calculateRoute() {
   
   try {
     // API에서 주문 정보 가져오기
-    console.log('[calculateRoute] API 호출 시작:', orderNumbers.value)
-    
     let apiResult = null
     try {
       apiResult = await calculateOptimalRoute(orderNumbers.value)
-      console.log('[calculateRoute] API 응답 (raw):', apiResult)
-      console.log('[calculateRoute] API 응답 타입:', typeof apiResult)
-      console.log('[calculateRoute] API 응답 구조:', {
-        optimizedRoute: apiResult?.optimizedRoute,
-        locations: apiResult?.locations,
-        orderItems: apiResult?.orderItems,
-        keys: apiResult ? Object.keys(apiResult) : [],
-      })
     } catch (apiError) {
-      console.error('[calculateRoute] API 호출 실패:', apiError)
-      console.error('[calculateRoute] API 에러 응답:', apiError?.response?.data)
       throw new Error(`API 호출 실패: ${apiError?.message || '알 수 없는 오류'}`)
     }
     
@@ -171,7 +168,6 @@ async function calculateRoute() {
     
     // API 응답 구조 확인 및 location 추출
     if (apiResult?.optimizedRoute && Array.isArray(apiResult.optimizedRoute)) {
-      console.log('[calculateRoute] optimizedRoute에서 locations 추출')
       locations = apiResult.optimizedRoute
         .filter(step => {
           const loc = typeof step === 'string' ? step : step.location
@@ -185,8 +181,6 @@ async function calculateRoute() {
           return loc ? loc.split('-')[0] : loc
         })
     } else if (apiResult?.locations && Array.isArray(apiResult.locations)) {
-      console.log('[calculateRoute] locations 필드에서 추출')
-
       // locations 필드가 직접 있는 경우
       locations = apiResult.locations
         .map(loc => {
@@ -195,8 +189,6 @@ async function calculateRoute() {
         })
         .filter(loc => loc && loc !== '문' && loc !== '포장대')
     } else if (apiResult?.orderItems && Array.isArray(apiResult.orderItems)) {
-      console.log('[calculateRoute] orderItems에서 locations 추출')
-
       // orderItems에서 location 추출
       locations = apiResult.orderItems
         .map(item => {
@@ -207,18 +199,12 @@ async function calculateRoute() {
         })
         .filter(loc => loc && loc !== '문' && loc !== '포장대')
     } else {
-      console.warn('[calculateRoute] 알 수 없는 API 응답 구조:', apiResult)
-
       // 마지막 시도: 모든 필드를 확인
       for (const key in apiResult) {
         if (Array.isArray(apiResult[key])) {
-          console.log(`[calculateRoute] 배열 필드 발견: ${key}`, apiResult[key])
-
           // 배열의 첫 번째 항목 구조 확인
           if (apiResult[key].length > 0) {
             const firstItem = apiResult[key][0]
-
-            console.log(`[calculateRoute] ${key}[0] 구조:`, firstItem)
             if (typeof firstItem === 'string' || firstItem?.location) {
               locations = apiResult[key]
                 .map(item => {
@@ -234,41 +220,28 @@ async function calculateRoute() {
       }
     }
     
-    console.log('[calculateRoute] 추출된 locations:', locations)
-     
-    if (locations.length === 0) {
-      console.warn('[calculateRoute] locations가 비어있습니다. API 응답 전체:', JSON.stringify(apiResult, null, 2))
-    }
-    
     // 프론트엔드 경로 탐색 알고리즘으로 경로 재계산 ('x' 장애물 처리)
     if (locations.length > 0) {
-      console.log('[calculateRoute] 경로 탐색 시작')
-
       const pathResult = calculateOptimalPath(locations)
-
-      console.log('[calculateRoute] 경로 탐색 결과:', pathResult)
+      
+      // API 원본 optimizedRoute 보존 (description, sequence, orderNumber, partId 등)
+      const originalRoute = apiResult?.optimizedRoute || []
       
       // API 결과와 프론트엔드 경로 결과 병합
+      // optimizedRoute는 원본 API 응답 사용 (부품 정보 포함)
       navigationResult.value = {
         ...apiResult,
-        optimizedRoute: pathResult.optimizedRoute,
+        optimizedRoute: originalRoute, // 원본 API 응답의 optimizedRoute 사용 (부품 정보 포함)
         totalDistance: pathResult.totalDistance,
         fullPath: pathResult.fullPath,
       }
       
       // 그리드 데이터를 3D 뷰에 전달
-      console.log('[calculateRoute] 그리드 데이터 전달:', pathResult.grid)
-      console.log('[calculateRoute] 그리드 타입:', typeof pathResult.grid, Array.isArray(pathResult.grid))
-      if (pathResult.grid) {
-        console.log('[calculateRoute] 그리드 크기:', pathResult.grid.length, 'x', pathResult.grid[0]?.length)
-      }
       pathfindingGrid.value = pathResult.grid
-      console.log('[calculateRoute] pathfindingGrid.value 설정됨:', pathfindingGrid.value)
       
       // DOM 업데이트 후 그리드 다시 그리기
       await nextTick()
     } else {
-      console.warn('[calculateRoute] locations가 없어 API 결과를 그대로 사용')
       navigationResult.value = apiResult
     }
     
@@ -318,17 +291,10 @@ async function calculateRoute() {
     }
     
     highlightLocations.value = Array.from(highlightSet)
-    console.log('[calculateRoute] 하이라이트 locations (중복 제거):', highlightLocations.value)
-    console.log('[calculateRoute] 하이라이트 locations 개수:', highlightLocations.value.length)
-    
-    // 경로 표시 확인
-    console.log('[calculateRoute] 최종 navigationResult:', navigationResult.value)
-    console.log('[calculateRoute] optimizedRoute:', navigationResult.value?.optimizedRoute)
     
     // 경로 정보 탭 생성
     createRouteTabs()
   } catch (e) {
-    console.error('[calculateRoute] error:', e)
     errorMsg.value = e?.message || '경로 계산 중 오류가 발생했습니다.'
     navigationResult.value = null
     routeTabs.value = []
@@ -416,7 +382,7 @@ async function compareAlgorithms() {
     comparisonResult.value = result
     showComparison.value = true
   } catch (e) {
-    console.error('[compareAlgorithms] error:', e)
+    // 에러 처리
     errorMsg.value = e?.message || '알고리즘 비교 중 오류가 발생했습니다.'
     comparisonResult.value = null
   } finally {
@@ -470,13 +436,10 @@ async function startNavigation() {
       
       // 걸음수 업데이트 콜백 설정 (stepCount, distance)
       pedometer.value.onStepUpdate((stepCountValue, distance) => {
-        console.log('[startNavigation] [콜백] 걸음수 업데이트:', stepCountValue, ', 거리:', distance)
-        
         // 스탭이 변경되었는지 확인
         const stepChanged = stepCount.value !== stepCountValue
 
         stepCount.value = stepCountValue
-        console.log('[startNavigation] [콜백] stepCount.value 업데이트:', stepCount.value)
         
         // 첫 번째 걸음수 업데이트 시 연결 성공으로 표시
         if (pedometerConnectionStatus.value.text !== '✓ 센서 연결됨' && stepCountValue >= 0) {
@@ -484,20 +447,15 @@ async function startNavigation() {
             text: '✓ 센서 연결됨 (데이터 수신 중)',
             class: 'text-success',
           }
-          console.log('[startNavigation] [콜백] ✓ 센서 데이터 수신 확인, 첫 걸음수:', stepCountValue)
         }
         
         // 스탭에 따라 경로를 따라 이동 (스탭이 변경되었을 때만 위치 고정)
         if (warehouse3DRef.value) {
-          console.log('[startNavigation] [콜백] moveAlongPathBySteps 호출, steps:', stepCount.value)
           warehouse3DRef.value.moveAlongPathBySteps(stepCount.value, stepChanged)
-        } else {
-          console.warn('[startNavigation] [콜백] warehouse3DRef.value가 없음')
         }
         
         // 경로가 끝나면 정지
         if (warehouse3DRef.value && warehouse3DRef.value.isPathComplete()) {
-          console.log('[startNavigation] [콜백] 경로 완료, 네비게이션 중지')
           stopNavigation()
         }
       })
@@ -515,16 +473,13 @@ async function startNavigation() {
       // 네비게이션 모드 시작 (카메라 팔로잉 활성화)
       warehouse3DRef.value.startNavigationMode()
       
-      // 걸음수 측정 시작 (시뮬레이션 모드)
-      console.log('[startNavigation] startTracking() 호출')
+      // 걸음수 측정 시작
       pedometerConnectionStatus.value = {
         text: '시뮬레이션 모드 (1초에 1걸음)',
         class: 'text-info',
       }
       
       await pedometer.value.startTracking()
-      console.log('[startNavigation] startTracking() 완료')
-      console.log('[startNavigation] 네비게이션 시작, 시뮬레이션 모드 활성화')
       
       // 연결 성공 상태로 표시
       pedometerConnectionStatus.value = {
@@ -532,9 +487,7 @@ async function startNavigation() {
         class: 'text-success',
       }
     } catch (error) {
-      console.error('[startNavigation] 네비게이션 시작 실패:', error)
-      console.error('[startNavigation] 에러 메시지:', error.message)
-      console.error('[startNavigation] 에러 스택:', error.stack)
+      // 에러 처리
       
       pedometerConnectionStatus.value = {
         text: '✗ 네비게이션 시작 오류',
@@ -578,7 +531,7 @@ function stopStepAnimation() {
 }
 
 function stopNavigation() {
-  console.log('[stopNavigation] 네비게이션 중지 시작')
+  // 네비게이션 중지
   
   // 네비게이션 모드 종료 (카메라 팔로잉 비활성화)
   if (warehouse3DRef.value) {
@@ -589,13 +542,11 @@ function stopNavigation() {
   if (navigationInterval.value) {
     clearInterval(navigationInterval.value)
     navigationInterval.value = null
-    console.log('[stopNavigation] 인터벌 정리 완료')
   }
   
   // 걸음수 측정 중지
   if (pedometer.value) {
     pedometer.value.stopTracking()
-    console.log('[stopNavigation] 걸음수 측정 중지')
   }
   
   isNavigating.value = false
@@ -610,7 +561,6 @@ function stopNavigation() {
     class: 'text-warning',
   }
   
-  console.log('[stopNavigation] 네비게이션 중지 완료')
 }
 
 function resetCamera() {
@@ -644,6 +594,40 @@ const pickingTime = computed(() => navigationResult.value?.pickingTimeSeconds ||
 const algorithmType = computed(() => navigationResult.value?.algorithmType || '')
 const routeSteps = computed(() => navigationResult.value?.optimizedRoute || [])
 
+// 각 위치별 부품 정보를 가져오는 함수 (optimizedRoute에서 직접 가져오기)
+function getPartsAtLocation(location) {
+  if (!navigationResult.value?.optimizedRoute) return []
+  
+  // location 형식 정규화 (A0-1, A0 등)
+  const normalizedLoc = location?.split('-')[0] || location
+  
+  return navigationResult.value.optimizedRoute
+    .filter(step => {
+      const stepLoc = typeof step === 'string' ? step : step.location
+      if (!stepLoc) return false
+      const stepNormalizedLoc = stepLoc.split('-')[0]
+      
+      return stepNormalizedLoc === normalizedLoc
+    })
+    .map(step => {
+      const stepObj = typeof step === 'string' ? { location: step } : step
+      
+      return {
+        name: stepObj.description || '이름 없음',
+        quantity: stepObj.sequence || 0,
+        orderNumber: stepObj.orderNumber || '-',
+        partId: stepObj.partId || null,
+      }
+    })
+}
+
+// POI 클릭 이벤트 핸들러
+function onPOIClick(location) {
+  selectedPOILocation.value = location
+  selectedPOIParts.value = getPartsAtLocation(location)
+  showPOIDialog.value = true
+}
+
 const formatTime = seconds => {
   const mins = Math.floor(seconds / 60)
   const secs = seconds % 60
@@ -655,6 +639,10 @@ const formatTime = seconds => {
 }
 
 const formatDistance = distance => {
+  if (distance === null || distance === undefined || isNaN(distance)) {
+    return '0m'
+  }
+  
   return `${distance}m`
 }
 </script>
@@ -843,6 +831,7 @@ const formatDistance = distance => {
                   :grid-cols="25"
                   :grid-rows="38"
                   :pathfinding-grid="pathfindingGrid"
+                  @poi-click="onPOIClick"
                 />
                 
                 <!-- 애니메이션 컨트롤 -->
@@ -857,7 +846,7 @@ const formatDistance = distance => {
                     @click="showControlButtons = !showControlButtons"
                   >
                     <span class="text-caption font-weight-medium">
-                      {{ isNavigating ? '네비게이션' : '컨트롤' }}
+                      {{ isNavigating ? '네비게이션' : '' }}
                     </span>
                     <VIcon size="16">
                       {{ showControlButtons ? 'bx-chevron-up' : 'bx-chevron-down' }}
@@ -870,22 +859,24 @@ const formatDistance = distance => {
                       v-if="showControlButtons && !isStepAnimationActive && !isNavigating"
                       class="d-flex align-center gap-2 mb-2 flex-wrap"
                     >
-                      <VBtn
+                      <!--
+                        <VBtn
                         size="small"
                         color="primary"
                         :disabled="isAnimating"
                         @click="startAnimation"
-                      >
+                        >
                         경로 재생
-                      </VBtn>
-                      <VBtn
+                        </VBtn>
+                        <VBtn
                         size="small"
                         color="error"
                         :disabled="!isAnimating"
                         @click="stopAnimation"
-                      >
+                        >
                         중지
-                      </VBtn>
+                        </VBtn> 
+                      -->
                       <VBtn
                         v-if="routeSteps.length > 0"
                         size="small"
@@ -917,7 +908,7 @@ const formatDistance = distance => {
                     <!-- 경유지별 이동 컨트롤 -->
                     <VExpandTransition>
                       <div
-                        v-if="showControlButtons && isStepAnimationActive && !isNavigating"
+                        v-if="(showControlButtons && isStepAnimationActive && !isNavigating)"
                         class="d-flex flex-column gap-2"
                       >
                         <div class="text-caption text-center mb-1">
@@ -930,7 +921,6 @@ const formatDistance = distance => {
                             :disabled="currentStepIndex <= 0"
                             @click="previousStep"
                           >
-                            <VIcon>mdi-chevron-left</VIcon>
                             이전
                           </VBtn>
                           <VBtn
@@ -940,46 +930,19 @@ const formatDistance = distance => {
                             @click="nextStep"
                           >
                             다음
-                            <VIcon>mdi-chevron-right</VIcon>
                           </VBtn>
                           <VBtn
                             size="small"
                             color="error"
                             @click="stopStepAnimation"
                           >
-                            <VIcon start>
-                              mdi-stop
-                            </VIcon>
                             종료
                           </VBtn>
                         </div>
                       </div>
-                    </VExpandTransition>
-                  
-                    <!-- 경유지별 이동 모드에서 카메라 리셋 버튼 -->
-                    <VExpandTransition>
+                      <!-- 네비게이션 진행 중 컨트롤 -->
                       <div
-                        v-if="showControlButtons && isStepAnimationActive && !isNavigating"
-                        class="d-flex justify-center mt-2"
-                      >
-                        <VBtn
-                          size="small"
-                          color="info"
-                          variant="outlined"
-                          @click="resetCamera"
-                        >
-                          <VIcon start>
-                            mdi-camera-control
-                          </VIcon>
-                          카메라 리셋
-                        </VBtn>
-                      </div>
-                    </VExpandTransition>
-                    
-                    <!-- 네비게이션 진행 중 컨트롤 -->
-                    <VExpandTransition>
-                      <div
-                        v-if="showControlButtons && isNavigating"
+                        v-if="isNavigating"
                         class="d-flex flex-column gap-2"
                       >
                         <!-- 스탭 카운터 -->
@@ -987,12 +950,6 @@ const formatDistance = distance => {
                           class="d-flex align-center justify-center gap-2 pa-2 mb-2"
                           style="background: #f5f5f5; border-radius: 8px;"
                         >
-                          <VIcon
-                            size="20"
-                            color="primary"
-                          >
-                            mdi-walk
-                          </VIcon>
                           <div class="d-flex flex-column align-center">
                             <span class="text-h6 font-weight-bold text-primary">
                               {{ stepCount }}
@@ -1002,16 +959,6 @@ const formatDistance = distance => {
                             </span>
                           </div>
                         </div>
-                        
-                        <!-- 상태 표시 -->
-                        <div
-                          class="text-caption text-center pa-2 mb-2"
-                          :class="pedometerConnectionStatus.class"
-                          style="background: #f5f5f5; border-radius: 8px;"
-                        >
-                          {{ pedometerConnectionStatus.text }}
-                        </div>
-                        
                         <!-- 중지 버튼 -->
                         <VBtn
                           size="small"
@@ -1019,16 +966,13 @@ const formatDistance = distance => {
                           block
                           @click="stopNavigation"
                         >
-                          <VIcon start>
-                            mdi-stop
-                          </VIcon>
                           네비게이션 중지
                         </VBtn>
                       </div>
                     </VExpandTransition>
                   </VExpandTransition>
                 </div>
-              </div> 
+              </div>
             </VCardText>
           </VCard>
         </div>
@@ -1088,7 +1032,7 @@ const formatDistance = distance => {
                   <!-- 우측: 경로 단계 -->
                   <div
                     class="route-steps-section"
-                    style="flex: 1; padding: 16px; max-height: 400px; overflow-y: auto;"
+                    style="flex: 1.7; padding: 16px; max-height: 400px; overflow-y: auto;"
                   >
                     <div
                       v-if="routeSteps && routeSteps.length > 0"
@@ -1106,25 +1050,36 @@ const formatDistance = distance => {
                           size="small"
                         >
                           <div class="d-flex justify-space-between align-center">
-                            <div>
-                              <div class="font-weight-medium">
-                                {{ step.sequence || '' }}. {{ step.location }}
-                              </div>
-                              <div
-                                v-if="step.description"
-                                class="text-caption text-medium-emphasis"
-                              >
-                                {{ step.description }}
-                              </div>
-                              <div
-                                v-if="step.orderNumber"
-                                class="text-caption text-primary"
-                              >
-                                주문: {{ step.orderNumber }}
+                            <div style="flex: 1; max-width: 80%;">
+                              <div class="font-weight-medium mb-1">
+                                <template v-if="step.location === '문' || step.location === '포장대'">
+                                  {{ step.location }}
+                                </template>
+                                <template v-else>
+                                  <!-- 부품 정보: description이 부품명, sequence가 개수 -->
+                                  <div class="text-body-2">
+                                    {{ step.description || '부품 정보 없음' }}
+                                    <span
+                                      v-if="step.sequence"
+                                      class="text-body-2 ms-1"
+                                    >
+                                      ({{ step.sequence }}개)
+                                    </span>
+                                    <span
+                                      v-if="step.orderNumber"
+                                      class="text-caption text-primary ms-1"
+                                    >
+                                      [{{ step.orderNumber }}]
+                                    </span>
+                                  </div>
+                                </template>
                               </div>
                             </div>
-                            <div class="text-caption text-medium-emphasis">
-                              {{ formatDistance(step.cumulativeDistance) }}
+                            <div
+                              class="text-caption text-medium-emphasis ms-3 mr-2"
+                              style="min-width: 45px; text-align: right;"
+                            >
+                              {{ step.location }}
                             </div>
                           </div>
                         </VTimelineItem>
@@ -1138,6 +1093,72 @@ const formatDistance = distance => {
         </div>
       </div>
     </div>
+    
+    <!-- POI 부품 정보 다이얼로그 -->
+    <VDialog
+      v-model="showPOIDialog"
+      max-width="500"
+    >
+      <VCard>
+        <VCardTitle class="d-flex align-center justify-space-between">
+          <span>
+            <VIcon
+              icon="bx-package"
+              class="me-2"
+            />
+            {{ selectedPOILocation }} 위치 부품 정보
+          </span>
+          <VBtn
+            icon
+            variant="text"
+            size="small"
+            @click="showPOIDialog = false"
+          >
+            <VIcon>bx-x</VIcon>
+          </VBtn>
+        </VCardTitle>
+        
+        <VDivider />
+        
+        <VCardText>
+          <div
+            v-if="selectedPOIParts.length > 0"
+            class="d-flex flex-column gap-2"
+          >
+            <div
+              v-for="(part, idx) in selectedPOIParts"
+              :key="idx"
+              class="d-flex justify-space-between align-center pa-3"
+              style="background: #f5f5f5; border-radius: 8px;"
+            >
+              <div class="d-flex flex-column">
+                <span class="font-weight-medium">
+                  {{ part.name }}
+                </span>
+                <span
+                  v-if="part.orderNumber && part.orderNumber !== '-'"
+                  class="text-caption text-primary"
+                >
+                  주문: {{ part.orderNumber }}
+                </span>
+              </div>
+              <VChip
+                color="primary"
+                size="small"
+              >
+                {{ part.quantity }}개
+              </VChip>
+            </div>
+          </div>
+          <div
+            v-else
+            class="text-center pa-4 text-medium-emphasis"
+          >
+            해당 위치에 부품 정보가 없습니다.
+          </div>
+        </VCardText>
+      </VCard>
+    </VDialog>
     
     <!-- 알고리즘 비교 다이얼로그 -->
     <VDialog
@@ -1389,7 +1410,7 @@ const formatDistance = distance => {
   flex-direction: column;
   overflow: hidden;
 }
-
+ 
 .warehouse-view-section {
   flex: 1;
   min-height: 0;

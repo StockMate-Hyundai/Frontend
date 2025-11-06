@@ -43,11 +43,7 @@ public class MainActivity extends BridgeActivity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == PERMISSION_REQUEST_CODE) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Log.d(TAG, "ACTIVITY_RECOGNITION 권한 허용됨");
-            } else {
-                Log.d(TAG, "ACTIVITY_RECOGNITION 권한 거부됨");
-            }
+            // 권한 처리
         }
     }
     
@@ -67,13 +63,7 @@ public class MainActivity extends BridgeActivity {
                 if (webView != null) {
                     // JavaScript Bridge 추가
                     webView.addJavascriptInterface(new PedometerBridge(), "PedometerBridge");
-                    Log.d(TAG, "PedometerBridge가 WebView에 추가되었습니다");
-                    
-                    // JavaScript에 Bridge가 준비되었음을 알림
-                    String jsCode = "console.log('PedometerBridge 준비됨');";
-                    webView.evaluateJavascript(jsCode, null);
                 } else {
-                    Log.w(TAG, "WebView를 가져올 수 없습니다. 잠시 후 다시 시도...");
                     // WebView가 아직 준비되지 않았으면 잠시 후 다시 시도
                     new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() {
                         @Override
@@ -83,7 +73,6 @@ public class MainActivity extends BridgeActivity {
                     }, 500);
                 }
             } else {
-                Log.w(TAG, "Bridge가 null입니다. 잠시 후 다시 시도...");
                 new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() {
                     @Override
                     public void run() {
@@ -92,7 +81,6 @@ public class MainActivity extends BridgeActivity {
                 }, 500);
             }
         } catch (Exception e) {
-            Log.e(TAG, "PedometerBridge 설정 중 오류:", e);
             // 예외 발생 시 잠시 후 다시 시도
             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() {
                 @Override
@@ -117,34 +105,28 @@ public class MainActivity extends BridgeActivity {
     public class PedometerBridge {
         @JavascriptInterface
         public void startTracking() {
-            Log.d(TAG, "JavaScript에서 startTracking() 호출됨");
             runOnUiThread(() -> {
                 pedometerManager.setListener(new PedometerManager.PedometerListener() {
                     @Override
                     public void onStepCountUpdate(int stepCount, float distance) {
                         // JavaScript로 데이터 전달
                         final String jsCode = String.format(
-                            "if (window.pedometerCallback) { window.pedometerCallback(%d, %f); } else { console.warn('pedometerCallback이 설정되지 않았습니다'); }",
+                            "if (window.pedometerCallback) { window.pedometerCallback(%d, %f); }",
                             stepCount, distance
                         );
                         runOnUiThread(() -> {
                             if (webView != null) {
                                 webView.evaluateJavascript(jsCode, null);
-                                Log.i(TAG, "→ JavaScript로 스텝 업데이트 전송: " + stepCount + " 걸음, " + String.format("%.2f", distance) + "m");
-                            } else {
-                                Log.w(TAG, "WebView가 null이어서 스텝 업데이트를 전송할 수 없습니다");
                             }
                         });
                     }
                 });
                 pedometerManager.startTracking();
-                Log.d(TAG, "PedometerManager.startTracking() 호출 완료");
             });
         }
         
         @JavascriptInterface
         public void stopTracking() {
-            Log.d(TAG, "JavaScript에서 stopTracking() 호출됨");
             runOnUiThread(() -> {
                 pedometerManager.stopTracking();
             });
@@ -152,7 +134,6 @@ public class MainActivity extends BridgeActivity {
         
         @JavascriptInterface
         public void resetTracking() {
-            Log.d(TAG, "JavaScript에서 resetTracking() 호출됨");
             runOnUiThread(() -> {
                 pedometerManager.reset();
             });

@@ -7,8 +7,16 @@ definePage({
     requiresAuth: true,
   },
 })
+import {
+  getDailyCategorySalesReport,
+  getDailyReport,
+  getMonthlyReport,
+  getTopSalesReport,
+  getWarehouseReport,
+  getWeeklyReport
+} from '@/api/order'
 import AppExportButton from '@/components/common/ExportToExcel.vue'
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import VueApexCharts from 'vue3-apexcharts'
 
 /* ========== 공통 상태 ========== */
@@ -19,73 +27,66 @@ const monthItems = ref([
 ])
 const month = ref('2025-10')
 const generatedAt = ref(new Date())
+const loading = ref(false)
+const error = ref('')
 
-/* ========== 핵심 KPI (네 기존 값 유지) ========== */
+/* ========== 핵심 KPI ========== */
 const summary = ref({
-  inbound: 412, outbound: 398, transfer: 62,
-  cost: 128_500_000, value: 139_200_000,
-  turnover: 4.2, leadtimeHr: 18.7,
+  inbound: 0, outbound: 0, transfer: 0,
+  cost: 0, value: 0,
+  turnover: 0, leadtimeHr: 0,
 })
 
 type PartRow = { id:string; name:string; model:string; unitPrice:number; inQty?:number; outQty?:number }
-const topInbound = ref<PartRow[]>([
-  { id:'P-1102', name:'오일필터 A', model:'HX-20', unitPrice:12500, inQty:190 },
-  { id:'P-2391', name:'브레이크 패드', model:'BR-12', unitPrice:42000, inQty:154 },
-  { id:'P-0930', name:'와이퍼 블레이드', model:'W-26', unitPrice:9800, inQty:141 },
-  { id:'P-5504', name:'에어필터 B', model:'AF-33', unitPrice:16300, inQty:120 },
-  { id:'P-7740', name:'점화플러그', model:'SP-07', unitPrice:8700, inQty:110 },
-])
-const topOutbound = ref<PartRow[]>([
-  { id:'P-2391', name:'브레이크 패드', model:'BR-12', unitPrice:42000, outQty:171 },
-  { id:'P-1102', name:'오일필터 A', model:'HX-20', unitPrice:12500, outQty:166 },
-  { id:'P-0930', name:'와이퍼 블레이드', model:'W-26', unitPrice:9800, outQty:149 },
-  { id:'P-3321', name:'타이밍 벨트', model:'TB-15', unitPrice:68000, outQty:102 },
-  { id:'P-7740', name:'점화플러그', model:'SP-07', unitPrice:8700, outQty:98  },
-])
+const topInbound = ref<PartRow[]>([])
+const topOutbound = ref<PartRow[]>([])
 
-/* ========== 운영 데이터(리포트용 데모) ========== */
-// 주차별 입/출/이 (네가 쓰던 stackedSeries 그대로)
-const weeks = ['09-01','09-08','09-15','09-22','09-29','10-06','10-13']
+/* ========== 운영 데이터 ========== */
+// 주차별 리포트 데이터
+const weeks = ref([])
 const stackedSeries = ref([
-  { name:'입고', data:[380,402,356,390,412,398,420] },
-  { name:'출고', data:[340,361,325,372,398,410,385] },
-  { name:'이동', data:[ 58, 61, 49, 55, 62, 57, 64] },
+  { name:'주문', data:[] },
+  { name:'출고', data:[] },
 ])
 
-// 일자별 처리 추이(전체/출고/입고) – 간단 라인
-const days = ['10/14','10/15','10/16','10/17','10/18','10/19','10/20']
+// 일자별 리포트 데이터
+const days = ref([])
 const dailySeries = ref([
-  { name:'출고', data:[2,11,9,3,2,2,11] },
-  { name:'입고', data:[1,4,2,1,0,1,3] },
-  { name:'이동', data:[0,1,2,1,1,0,1] },
+  { name:'주문', data:[] },
+  { name:'출고', data:[] },
 ])
 
-// 거점(사이트)별 처리 비중 – 도넛 + 스택 가로바
-const sites = ['본사창고','동부물류','서부물류','남부물류','협력창고']
+// 창고별 리포트 데이터
+const warehouseData = ref([])
+const sites = ref(['A', 'B', 'C', 'D', 'E'])
 const siteData = ref({
-  total:[180,120,96,88,50],
-  inbound:[72,44,38,26,15],
-  outbound:[90,62,48,52,28],
-  transfer:[18,14,10,10,7],
+  total:[],
+  inbound:[],
+  outbound:[],
+  transfer:[],
 })
 
-// 품절/지연 이벤트(데모용): 일자별 Stockout + Delay
-const serviceSeries = ref([
-  { name:'품절', data:[0,1,0,0,0,1,2] },
-  { name:'지연', data:[1,2,1,0,1,1,1] },
-])
+// TOP 매출/순이익 리포트 데이터
+const topRevenueData = ref([])
+const topProfitData = ref([])
 
 /* ========== KPI/요약 계산 ========== */
 const nf = new Intl.NumberFormat('ko-KR')
 const cf = (v:number) => '₩' + nf.format(v)
 
-const weeklyTotals = computed(() => weeks.map((_,i)=>
-  (stackedSeries.value[0].data[i]||0)+(stackedSeries.value[1].data[i]||0)+(stackedSeries.value[2].data[i]||0)
+const weeklyTotals = computed(() => weeks.value.map((_,i)=>
+  (stackedSeries.value[0].data[i]||0)+(stackedSeries.value[1].data[i]||0)
 ))
-const peakWeekIdx = computed(()=> weeklyTotals.value.indexOf(Math.max(...weeklyTotals.value)))
-const lowWeekIdx  = computed(()=> weeklyTotals.value.indexOf(Math.min(...weeklyTotals.value)))
-const peakWeek = computed(()=> weeks[peakWeekIdx.value])
-const lowWeek  = computed(()=> weeks[lowWeekIdx.value])
+const peakWeekIdx = computed(()=> {
+  if (weeklyTotals.value.length === 0) return 0
+  return weeklyTotals.value.indexOf(Math.max(...weeklyTotals.value))
+})
+const lowWeekIdx  = computed(()=> {
+  if (weeklyTotals.value.length === 0) return 0
+  return weeklyTotals.value.indexOf(Math.min(...weeklyTotals.value))
+})
+const peakWeek = computed(()=> weeks.value[peakWeekIdx.value] || '')
+const lowWeek  = computed(()=> weeks.value[lowWeekIdx.value] || '')
 
 const outInRatio = computed(() => {
   const sum=(a:number[])=>a.reduce((s,v)=>s+(v||0),0)
@@ -93,27 +94,28 @@ const outInRatio = computed(() => {
   const inn=sum(stackedSeries.value[0].data)||1
   return (out/inn).toFixed(1)
 })
-const avgMove = computed(() => {
-  const mv=stackedSeries.value[2].data
-  return Math.round(mv.reduce((s,v)=>s+(v||0),0)/(mv.length||1))
+
+const topSiteIdx = computed(()=> {
+  if (siteData.value.total.length === 0) return 0
+  return siteData.value.total.indexOf(Math.max(...siteData.value.total))
 })
-const topSiteIdx = computed(()=> siteData.value.total.indexOf(Math.max(...siteData.value.total)))
-const topSite = computed(()=> sites[topSiteIdx.value])
+const topSite = computed(()=> sites.value[topSiteIdx.value] || '')
 const siteShare = computed(()=> {
   const sum = siteData.value.total.reduce((s,v)=>s+v,0)||1
+  if (siteData.value.total.length === 0) return '0'
   return (siteData.value.total[topSiteIdx.value]/sum*100).toFixed(1)
 })
 
 /* ========== 차트 옵션(담백톤) ========== */
 const base = { chart:{ toolbar:{show:false}, foreColor:'#374151' }, grid:{ borderColor:'#e5e7eb' }, dataLabels:{ enabled:false }, legend:{ position:'top' } }
 
-const stackedOptions = ref({
+const stackedOptions = computed(() => ({
   ...base, chart:{ ...base.chart, type:'bar', stacked:true },
   plotOptions:{ bar:{ columnWidth:'40%', borderRadius:6 } },
-  colors:['#4f8cff','#60c5a8','#f6c453'],
-  xaxis:{ categories:weeks, axisBorder:{show:false}, axisTicks:{show:false} },
+  colors:['#4f8cff','#60c5a8'],
+  xaxis:{ categories:weeks.value, axisBorder:{show:false}, axisTicks:{show:false} },
   yaxis:{ title:{ text:'건수', style:{ color:'#6b7280' } } },
-})
+}))
 
 const lineOptions = (categories:string[]) => ({
   ...base, chart:{ ...base.chart, type:'line' },
@@ -122,19 +124,26 @@ const lineOptions = (categories:string[]) => ({
   tooltip:{ y:{ formatter:(v:number)=> nf.format(v)+'건' } },
 })
 
-const donutOptions = ref({
-  ...base, labels:sites, colors:['#2563eb','#10b981','#f59e0b','#ef4444','#8b5cf6'],
+const lineOptionsMoney = (categories:string[]) => ({
+  ...base, chart:{ ...base.chart, type:'line' },
+  stroke:{ width:3, curve:'smooth' }, markers:{ size:3 },
+  xaxis:{ categories, axisBorder:{show:false}, axisTicks:{show:false} },
+  tooltip:{ y:{ formatter:(v:number)=> cf(v) } },
+})
+
+const donutOptions = computed(() => ({
+  ...base, labels:sites.value, colors:['#2563eb','#10b981','#f59e0b','#ef4444','#8b5cf6'],
   legend:{ position:'right' },
   plotOptions:{ pie:{ donut:{ size:'68%' } } },
   tooltip:{ y:{ formatter:(v:number)=> `${nf.format(v)}건` } },
-})
+}))
 
-const siteStackedHBar = ref({
+const siteStackedHBar = computed(() => ({
   ...base, chart:{ ...base.chart, type:'bar', stacked:true },
   plotOptions:{ bar:{ horizontal:true, borderRadius:6, barHeight:'58%' } },
-  colors:['#4f8cff','#60c5a8','#f6c453'],
-  xaxis:{ categories:sites, axisBorder:{show:false}, axisTicks:{show:false} },
-})
+  colors:['#4f8cff','#60c5a8'],
+  xaxis:{ categories:sites.value, axisBorder:{show:false}, axisTicks:{show:false} },
+}))
 
 const barOptions = (categories:string[]) => ({
   ...base, chart:{ ...base.chart, type:'bar' },
@@ -143,13 +152,123 @@ const barOptions = (categories:string[]) => ({
   colors:['#4f8cff'],
 })
 
-/* ========== 월 변경시(데모) 소폭 변동 ========== */
+/* ========== 리포트 데이터 로딩 ========== */
+const loadReportData = async () => {
+  try {
+    loading.value = true
+    error.value = ''
+    generatedAt.value = new Date()
+    
+    const [year, monthStr] = month.value.split('-')
+    const monthNum = parseInt(monthStr, 10)
+    
+    // 모든 리포트 API 병렬 호출
+    const [
+      monthlyRes,
+      weeklyRes,
+      warehouseRes,
+      topSalesRes,
+      dailyRes,
+      dailyCategoryRes
+    ] = await Promise.all([
+      getMonthlyReport(year, monthNum),
+      getWeeklyReport(year, monthNum),
+      getWarehouseReport(year, monthNum),
+      getTopSalesReport(year, monthNum),
+      getDailyReport(year, monthNum),
+      getDailyCategorySalesReport(year, monthNum)
+    ])
+    
+    // 월별 리포트 데이터 처리
+    if (monthlyRes.success && monthlyRes.data) {
+      summary.value = {
+        inbound: monthlyRes.data.totalOrderCount || 0,
+        outbound: monthlyRes.data.totalShippedCount || 0,
+        transfer: 0, // API에 없음
+        cost: monthlyRes.data.totalCost || 0,
+        value: monthlyRes.data.totalRevenue || 0,
+        turnover: 0, // API에 없음
+        leadtimeHr: 0, // API에 없음
+      }
+    }
+    
+    // 주차별 리포트 데이터 처리
+    if (weeklyRes.success && weeklyRes.data) {
+      const weeksData = weeklyRes.data.weeks || []
+      weeks.value = weeksData.map(w => w.weekLabel || '')
+      stackedSeries.value = [
+        { name:'주문', data: weeksData.map(w => w.totalOrderCount || 0) },
+        { name:'출고', data: weeksData.map(w => w.totalShippedCount || 0) },
+      ]
+    }
+    
+    // 창고별 리포트 데이터 처리
+    if (warehouseRes.success && warehouseRes.data) {
+      const warehouses = warehouseRes.data.warehouses || []
+      warehouseData.value = warehouses
+      siteData.value = {
+        total: warehouses.map(w => w.totalOrderCount || 0),
+        inbound: [],
+        outbound: warehouses.map(w => w.totalShippedCount || 0),
+        transfer: [],
+      }
+    }
+    
+    // TOP 매출/순이익 리포트 데이터 처리
+    if (topSalesRes.success && topSalesRes.data) {
+      topRevenueData.value = topSalesRes.data.topRevenue || []
+      topProfitData.value = topSalesRes.data.topProfit || []
+      
+      // Top Inbound/Outbound 데이터 업데이트
+      topInbound.value = topRevenueData.value.slice(0, 5).map((item, idx) => ({
+        id: `P-${item.partId}`,
+        name: item.partName || '',
+        model: item.categoryName || '',
+        unitPrice: item.unitPrice || 0,
+        inQty: item.quantity || 0,
+      }))
+      
+      topOutbound.value = topProfitData.value.slice(0, 5).map((item, idx) => ({
+        id: `P-${item.partId}`,
+        name: item.partName || '',
+        model: item.categoryName || '',
+        unitPrice: item.unitPrice || 0,
+        outQty: item.quantity || 0,
+      }))
+    }
+    
+    // 일자별 리포트 데이터 처리
+    if (dailyRes.success && dailyRes.data) {
+      const daysData = dailyRes.data.days || []
+      days.value = daysData.map(d => d.date || '').slice(0, 7) // 최근 7일만
+      dailySeries.value = [
+        { name:'주문', data: daysData.map(d => d.totalOrderCount || 0).slice(0, 7) },
+        { name:'출고', data: daysData.map(d => d.totalShippedCount || 0).slice(0, 7) },
+      ]
+    }
+    
+    // 일자별 카테고리별 판매량 처리
+    if (dailyCategoryRes.success && dailyCategoryRes.data) {
+      const daysData = dailyCategoryRes.data.days || []
+      // 카테고리별 판매량 데이터는 차트에서 사용할 수 있도록 처리
+      // 여기서는 일단 기본 구조만 유지
+    }
+    
+  } catch (err) {
+    console.error('리포트 데이터 로딩 오류:', err)
+    error.value = '리포트 데이터를 불러오는데 실패했습니다.'
+  } finally {
+    loading.value = false
+  }
+}
+
+/* ========== 월 변경시 데이터 재로딩 ========== */
 watch(month, () => {
-  generatedAt.value = new Date()
-  summary.value.inbound  = 400 + Math.floor(Math.random()*40)
-  summary.value.outbound = 380 + Math.floor(Math.random()*45)
-  summary.value.transfer = 55  + Math.floor(Math.random()*12)
-  summary.value.value    = 132_000_000 + Math.floor(Math.random()*10_000_000)
+  loadReportData()
+})
+
+onMounted(() => {
+  loadReportData()
 })
 
 // 카테고리별 판매 추이 (데모)
@@ -190,16 +309,33 @@ const salesGrowth   = computed(()=> ((salesValues.value[peakIdx.value]-salesValu
         <div class="meta">기준: <b>{{ month }}</b> · 생성: {{ generatedAt.toLocaleString('ko-KR') }}</div>
       </div>
       <div class="r">
-        <VSelect v-model="month" :items="monthItems" variant="outlined" density="comfortable" hide-details style="min-width:140px" />
+        <VSelect v-model="month" :items="monthItems" variant="outlined" density="comfortable" hide-details style="min-width:140px" :disabled="loading" />
         <AppExportButton :filename="`부품관리_월간보고서_${month}.xlsx`" :rows="[...topInbound, ...topOutbound]"
           :fields="[{key:'id',label:'ID'},{key:'name',label:'부품명'},{key:'model',label:'모델'},{key:'unitPrice',label:'단가'}]"
           text="엑셀 다운로드" />
       </div>
     </header>
 
+    <!-- 에러 메시지 -->
+    <VAlert
+      v-if="error"
+      type="error"
+      variant="tonal"
+      closable
+      @click:close="error = ''"
+      class="mb-4"
+    >
+      {{ error }}
+    </VAlert>
+
+    <!-- 로딩 상태 -->
+    <div v-if="loading" class="d-flex justify-center align-center" style="min-height: 400px;">
+      <VProgressCircular indeterminate color="primary" size="64" />
+    </div>
+
     <!-- [요약] 핵심 KPI -->
-    <section class="card gap-lg">
-      <div class="lead">✦ 이번 달 처리량은 <span class="accent">{{ nf.format(summary.outbound+summary.inbound+summary.transfer) }}</span>건, 출고/입고 비율은 <span class="accent">{{ outInRatio }}</span>배입니다.</div>
+    <section class="card gap-lg" v-if="!loading">
+      <div class="lead">✦ 이번 달 주문량은 <span class="accent">{{ nf.format(summary.inbound) }}</span>건, 출고량은 <span class="accent">{{ nf.format(summary.outbound) }}</span>건입니다.</div>
       <div class="kpi-grid">
         <div class="kpi"><div class="kcap">입고</div><div class="kval">{{ nf.format(summary.inbound) }}건</div></div>
         <div class="kpi"><div class="kcap">출고</div><div class="kval">{{ nf.format(summary.outbound) }}건</div></div>
@@ -212,29 +348,41 @@ const salesGrowth   = computed(()=> ((salesValues.value[peakIdx.value]-salesValu
     </section>
 
     <!-- [처리] 주차별 입·출·이 -->
-    <section class="card">
-      <div class="lead">✦ 주차별 처리량은 <span class="accent">{{ peakWeek }}</span>에 최대, <span class="accent">{{ lowWeek }}</span>에 최소입니다. 이동은 주당 평균 <span class="accent">{{ avgMove }}</span>건입니다.</div>
-      <VueApexCharts type="bar" height="320" :options="stackedOptions" :series="stackedSeries" />
-      <div class="note">출고/입고 비율 <b>{{ outInRatio }}</b>배로 재고 감소 압력이 존재합니다. 이동은 거점 재배치 목적의 소량·빈발 패턴을 보입니다.</div>
+    <section class="card" v-if="!loading">
+      <div class="lead">✦ 주차별 처리량은 <span class="accent">{{ peakWeek }}</span>에 최대, <span class="accent">{{ lowWeek }}</span>에 최소입니다.</div>
+      <VueApexCharts v-if="weeks.length > 0" type="bar" height="320" :options="stackedOptions" :series="stackedSeries" />
+      <div v-else class="d-flex justify-center align-center" style="height: 320px;">
+        <span class="text-medium-emphasis">데이터가 없습니다</span>
+      </div>
+      <div class="note">출고/주문 비율 <b>{{ outInRatio }}</b>배입니다.</div>
     </section>
 
     <!-- [처리] 일자별 추이 -->
-    <section class="card">
-      <div class="lead">✦ 일자별로는 <span class="accent">{{ days[1] }}</span>과 <span class="accent">{{ days[6] }}</span>에 피크가 관측됩니다.</div>
-      <VueApexCharts type="line" height="300" :options="lineOptions(days)" :series="dailySeries" />
-      <div class="note">출고가 이벤트/정비 예약 집중일에 동반 상승합니다. <span class="muted">단위: 건, 시간 지연에 따른 ±1h 오차 가능</span></div>
+    <section class="card" v-if="!loading">
+      <div class="lead">✦ 일자별 처리 추이</div>
+      <VueApexCharts v-if="days.length > 0" type="line" height="300" :options="lineOptions(days)" :series="dailySeries" />
+      <div v-else class="d-flex justify-center align-center" style="height: 300px;">
+        <span class="text-medium-emphasis">데이터가 없습니다</span>
+      </div>
+      <div class="note">주문과 출고 추이를 확인할 수 있습니다. <span class="muted">단위: 건</span></div>
     </section>
 
     <!-- [거점] 거점별 처리 분포 -->
-    <section class="card">
-      <div class="lead">✦ 처리 비중이 가장 큰 거점은 <span class="accent">{{ topSite }}</span>(<span class="accent">{{ siteShare }}%</span>)이며, 출고 편중이 확인됩니다.</div>
+    <section class="card" v-if="!loading">
+      <div class="lead">✦ 처리 비중이 가장 큰 창고는 <span class="accent">{{ topSite }}</span>(<span class="accent">{{ siteShare }}%</span>)입니다.</div>
       <div class="grid2">
-        <VueApexCharts type="donut" height="300" :options="donutOptions" :series="siteData.total" />
-        <VueApexCharts type="bar" height="300" :options="siteStackedHBar" :series="[
-          {name:'입고',data:siteData.inbound},{name:'출고',data:siteData.outbound},{name:'이동',data:siteData.transfer}
+        <VueApexCharts v-if="siteData.total.length > 0" type="donut" height="300" :options="donutOptions" :series="siteData.total" />
+        <div v-else class="d-flex justify-center align-center" style="height: 300px;">
+          <span class="text-medium-emphasis">데이터가 없습니다</span>
+        </div>
+        <VueApexCharts v-if="siteData.outbound.length > 0" type="bar" height="300" :options="siteStackedHBar" :series="[
+          {name:'주문',data:siteData.total},{name:'출고',data:siteData.outbound}
         ]" />
+        <div v-else class="d-flex justify-center align-center" style="height: 300px;">
+          <span class="text-medium-emphasis">데이터가 없습니다</span>
+        </div>
       </div>
-      <div class="note">상위 거점이 전체의 <b>{{ siteShare }}%</b>를 담당합니다. 피크일 전후로 인력·차량 배치 조정이 필요합니다.</div>
+      <div class="note">상위 창고가 전체의 <b>{{ siteShare }}%</b>를 담당합니다.</div>
     </section>
 
     <!-- [재고] 재고가치 추세 -->
@@ -245,22 +393,27 @@ const salesGrowth   = computed(()=> ((salesValues.value[peakIdx.value]-salesValu
       <div class="note">월말 스냅샷 × 표준단가(가중평균) 기준. 단가 갱신 시점 차이로 월 경계에서 소폭 차이가 발생할 수 있습니다.</div>
     </section>
 
-    <!-- [서비스] 품절/지연 이벤트 -->
-    <section class="card">
-      <div class="lead">✦ 품절과 지연은 <span class="accent">{{ days[6] }}</span>에 집중되었으며, 주 중반에는 안정적입니다.</div>
-      <VueApexCharts type="area" height="280" :options="lineOptions(days)" :series="serviceSeries" />
-      <div class="note">지연은 SLA 초과(출고요청→실출고)로 정의. 품절은 판매/출고 요청 시 가용수량 0 이하인 경우로 산정합니다.</div>
-    </section>
+    <!-- [서비스] 품절/지연 이벤트 - API 데이터 없음으로 주석 처리 -->
+    <!-- <section class="card">
+      <div class="lead">✦ 품절과 지연 이벤트</div>
+      <div class="note">API 데이터가 준비되면 추가됩니다.</div>
+    </section> -->
 
     <!-- [품목] Top 5 입고/출고 -->
-    <section class="card">
-      <div class="lead">✦ 출고 상위는 <span class="accent">{{ topOutbound[0]?.name }}</span>, 입고 상위는 <span class="accent">{{ topInbound[0]?.name }}</span>입니다.</div>
+    <section class="card" v-if="!loading">
+      <div class="lead" v-if="topOutbound.length > 0 || topInbound.length > 0">
+        ✦ 출고 상위는 <span class="accent" v-if="topOutbound[0]?.name">{{ topOutbound[0]?.name }}</span><span v-else>-</span>, 
+        입고 상위는 <span class="accent" v-if="topInbound[0]?.name">{{ topInbound[0]?.name }}</span><span v-else>-</span>입니다.
+      </div>
       <div class="two-col">
         <div class="table-card">
-          <div class="table-title">Top 5 입고</div>
+          <div class="table-title">Top 5 매출량</div>
           <VTable density="compact" class="t">
-            <thead><tr><th>ID</th><th>부품명</th><th>모델</th><th class="ta-r">입고</th><th class="ta-r">단가</th></tr></thead>
+            <thead><tr><th>ID</th><th>부품명</th><th>카테고리</th><th class="ta-r">판매량</th><th class="ta-r">단가</th></tr></thead>
             <tbody>
+              <tr v-if="topInbound.length === 0">
+                <td colspan="5" class="text-center py-4">데이터가 없습니다</td>
+              </tr>
               <tr v-for="r in topInbound" :key="r.id">
                 <td>{{ r.id }}</td><td class="truncate">{{ r.name }}</td><td>{{ r.model }}</td>
                 <td class="ta-r">{{ nf.format(r.inQty || 0) }}</td><td class="ta-r">{{ cf(r.unitPrice) }}</td>
@@ -269,10 +422,13 @@ const salesGrowth   = computed(()=> ((salesValues.value[peakIdx.value]-salesValu
           </VTable>
         </div>
         <div class="table-card">
-          <div class="table-title">Top 5 출고</div>
+          <div class="table-title">Top 5 순이익</div>
           <VTable density="compact" class="t">
-            <thead><tr><th>ID</th><th>부품명</th><th>모델</th><th class="ta-r">출고</th><th class="ta-r">단가</th></tr></thead>
+            <thead><tr><th>ID</th><th>부품명</th><th>카테고리</th><th class="ta-r">판매량</th><th class="ta-r">단가</th></tr></thead>
             <tbody>
+              <tr v-if="topOutbound.length === 0">
+                <td colspan="5" class="text-center py-4">데이터가 없습니다</td>
+              </tr>
               <tr v-for="r in topOutbound" :key="r.id">
                 <td>{{ r.id }}</td><td class="truncate">{{ r.name }}</td><td>{{ r.model }}</td>
                 <td class="ta-r">{{ nf.format(r.outQty || 0) }}</td><td class="ta-r">{{ cf(r.unitPrice) }}</td>

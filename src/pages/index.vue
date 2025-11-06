@@ -7,7 +7,7 @@ definePage({
     requiresAuth: true,
   },
 }) 
-import { getTodayDashboard, getTodayInboundOutbound } from '@/api/order'
+import { getCategorySales, getRecentOrders, getTodayDashboard, getTodayInboundOutbound, getTopParts } from '@/api/order'
 import { computed, onMounted, ref } from 'vue'
 import VueApexCharts from 'vue3-apexcharts'
 
@@ -145,15 +145,15 @@ const donutOptions = {
 }
 
 /* ===== 부품 카테고리별 판매 비중 ===== */
-const categories = ['엔진', '브레이크', '전장', '소모품']
-const categorySales = ref([820,640,420,300])
-const barOptions = {
+const categories = ref([])
+const categorySales = ref([])
+const barOptions = computed(() => ({
   chart:{ type:'bar', toolbar:{ show:false } },
   plotOptions:{ bar:{ columnWidth:'45%', borderRadius:6 } },
-  xaxis:{ categories, axisBorder:{show:false}, axisTicks:{show:false} },
+  xaxis:{ categories:categories.value, axisBorder:{show:false}, axisTicks:{show:false} },
   colors:['#4f8cff'],
   tooltip:{ y:{ formatter:(v:number)=>`${v}건` } },
-}
+}))
 
 /* ===== 실시간 알림 ===== */
 const alerts = ref([
@@ -163,25 +163,13 @@ const alerts = ref([
 ])
 
 /* ===== 최근 처리 이력 ===== */
-type Row = { time:string; type:'입고'|'출고'|'이동'; part:string; qty:number; owner:string }
-const recent = ref<Row[]>([
-  { time:'15:21', type:'출고', part:'BR-12 브레이크 패드', qty:12, owner:'박성호' },
-  { time:'15:05', type:'입고', part:'HX-20 오일필터 A',   qty:30, owner:'김유진' },
-  { time:'14:52', type:'이동', part:'AF-33 에어필터 B',   qty:10, owner:'최지훈' },
-  { time:'14:41', type:'출고', part:'W-26 와이퍼',        qty:20, owner:'이지수' },
-])
+const recentOrders = ref([])
 
 /* ===== Top 부품 판매 ===== */
-const topSales = ref([
-  { name:'오일필터 A', qty:190, revenue:2_375_000 },
-  { name:'오일필터 A', qty:190, revenue:2_375_000 },
-  { name:'오일필터 A', qty:190, revenue:2_375_000 },
-  { name:'브레이크 패드', qty:154, revenue:6_468_000 },
-  { name:'와이퍼 블레이드', qty:141, revenue:1_382_000 },
-])
+const topSales = ref([])
 
 const nf = new Intl.NumberFormat('ko-KR')
-const chipColor = (t:Row['type']) => t==='입고'?'primary':t==='출고'?'info':'warning'
+const chipColor = (t:string) => t==='입고'?'primary':t==='출고'?'info':'warning'
 
 /* ===== 데이터 로딩 ===== */
 const loadDashboardData = async () => {
@@ -189,10 +177,13 @@ const loadDashboardData = async () => {
     loading.value = true
     error.value = ''
     
-    // 병렬로 두 API 호출
-    const [dashboardRes, inOutRes] = await Promise.all([
+    // 병렬로 모든 API 호출
+    const [dashboardRes, inOutRes, topPartsRes, recentOrdersRes, categorySalesRes] = await Promise.all([
       getTodayDashboard(),
-      getTodayInboundOutbound()
+      getTodayInboundOutbound(),
+      getTopParts(),
+      getRecentOrders(),
+      getCategorySales()
     ])
     
     // 대시보드 데이터 처리
@@ -207,7 +198,6 @@ const loadDashboardData = async () => {
           todayOutbound: dashboardRes.data.summary.shippingProcessed || 0,
           inTransit: dashboardRes.data.summary.shippingInProgress || 0,
           totalRevenue: dashboardRes.data.summary.totalRevenue || 0,
-          // [TODO] API 개발되면 criticalAlerts 추가해야함
         }
       }
     }
@@ -217,7 +207,41 @@ const loadDashboardData = async () => {
       hourlyInOutData.value = inOutRes.data.hours || []
     }
     
+    // Top 판매 부품 처리
+    if (topPartsRes.success && topPartsRes.data) {
+      const parts = topPartsRes.data.parts || []
+      topSales.value = parts.map(part => ({
+        name: part.name || '',
+        qty: part.salesCount || 0,
+        revenue: 0, // API에 매출 정보가 없으면 0
+      }))
+    }
+    
+    // 최근 주문 이력 처리
+    if (recentOrdersRes.success && recentOrdersRes.data) {
+      const orders = recentOrdersRes.data.orders || []
+      recentOrders.value = orders.map(order => {
+        const date = new Date(order.createdAt)
+        const time = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
+        return {
+          time,
+          type: '출고' as const,
+          part: order.orderNumber || '',
+          qty: order.totalItemQuantity || 0,
+          owner: order.userName || '',
+        }
+      })
+    }
+    
+    // 카테고리별 판매량 처리
+    if (categorySalesRes.success && categorySalesRes.data) {
+      const sales = categorySalesRes.data.categories || []
+      categories.value = sales.map(item => item.categoryName || '')
+      categorySales.value = sales.map(item => item.totalQuantity || 0)
+    }
+    
   } catch (err) {
+    console.error('대시보드 데이터 로딩 오류:', err)
     error.value = '대시보드 데이터를 불러오는데 실패했습니다.'
   } finally {
     loading.value = false
@@ -347,7 +371,16 @@ onMounted(() => {
               카테고리별 판매량
             </VCardTitle>
             <VCardText class="pt-0">
-              <VueApexCharts height="280" type="bar" :options="barOptions" :series="[{ name:'판매', data:categorySales }]" />
+              <VueApexCharts 
+              v-if="categories.length > 0 && categorySales.length > 0"
+              height="280" 
+              type="bar" 
+              :options="barOptions" 
+              :series="[{ name:'판매', data:categorySales }]" 
+            />
+            <div v-else class="d-flex justify-center align-center" style="height: 280px;">
+              <span class="text-medium-emphasis">데이터가 없습니다</span>
+            </div>
             </VCardText>
           </VCard>
         </div>
@@ -374,7 +407,12 @@ onMounted(() => {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="r in recent" :key="r.time+r.part">
+                  <tr v-if="recentOrders.length === 0">
+                    <td colspan="5" class="text-center text-body-2 text-medium-emphasis py-4">
+                      데이터가 없습니다
+                    </td>
+                  </tr>
+                  <tr v-for="(r, idx) in recentOrders" :key="idx">
                     <td class="text-body-2">{{ r.time }}</td>
                     <td>
                       <VChip 
@@ -411,10 +449,18 @@ onMounted(() => {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="t in topSales" :key="t.name">
+                  <tr v-if="topSales.length === 0">
+                    <td colspan="3" class="text-center text-body-2 text-medium-emphasis py-4">
+                      데이터가 없습니다
+                    </td>
+                  </tr>
+                  <tr v-for="(t, idx) in topSales" :key="idx">
                     <td class="text-body-2">{{ t.name }}</td>
                     <td class="text-body-2 text-right">{{ nf.format(t.qty) }}</td>
-                    <td class="text-body-2 text-right font-weight-medium">₩{{ nf.format(t.revenue) }}</td>
+                    <td class="text-body-2 text-right font-weight-medium">
+                      <template v-if="t.revenue > 0">₩{{ nf.format(t.revenue) }}</template>
+                      <template v-else>-</template>
+                    </td>
                   </tr>
                 </tbody>
               </VTable>

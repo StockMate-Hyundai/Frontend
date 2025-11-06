@@ -13,7 +13,10 @@ const props = defineProps({
   gridCols: { type: Number, default: 25 }, // 그리드 가로 칸 수
   gridRows: { type: Number, default: 24 }, // 그리드 세로 칸 수
   pathfindingGrid: { type: Array, default: null }, // 경로 탐색 그리드 데이터
+  orderItems: { type: Array, default: () => [] }, // 주문 아이템 목록 (부품 정보용)
 })
+
+const emit = defineEmits(['poi-click'])
 
 const mountRef = ref(null)
 let renderer, scene, camera, controls, rootGroup, animId, resizeObserver
@@ -36,6 +39,8 @@ let initialCameraTarget = null // 초기 카메라 타겟
 let currentPositionMarker = null // 현재 위치 마커
 let currentPathPosition = 0 // 경로상 현재 위치 (인덱스)
 let isNavigationMode = false // 네비게이션 모드 여부
+let raycaster = null // POI 클릭 감지용
+let mouse = null // 마우스 위치
 
 // 창고 레이아웃 상수
 const MM = 0.001
@@ -552,8 +557,6 @@ function highlightRacks(locations) {
     // location 파싱 (예: "A0-1" → zone='A', block=0, level=1)
     const m = loc.trim().match(/^([A-Z])(\d+)\s*-\s*(\d+)$/i)
     if (!m) {
-      console.warn('Invalid location format:', loc)
-      
       return
     }
     
@@ -608,8 +611,6 @@ function findRackPosition(location, useAislePosition = true) {
   }
   const m = parsed.match(/^([A-Z])(\d+)\s*-\s*(\d+)$/i)
   if (!m) {
-    console.warn('Invalid location format:', location)
-    
     return null
   }
   
@@ -768,7 +769,48 @@ function buildScene() {
   })
   resizeObserver.observe(mountRef.value)
 
+  // POI 클릭 이벤트 설정
+  raycaster = new THREE.Raycaster()
+  mouse = new THREE.Vector2()
+  
+  renderer.domElement.addEventListener('click', onCanvasClick)
+
   animate()
+}
+
+// POI 클릭 이벤트 핸들러
+function onCanvasClick(event) {
+  if (!renderer || !camera || !poiMarkersGroup) return
+  
+  const rect = renderer.domElement.getBoundingClientRect()
+  mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+  mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+  
+  raycaster.setFromCamera(mouse, camera)
+  
+  // POI 마커와 교차 검사
+  const intersects = raycaster.intersectObjects(poiMarkersGroup.children, true)
+  
+  if (intersects.length > 0) {
+    const clickedObject = intersects[0].object
+    // POI 마커의 userData에서 location 가져오기
+    let location = clickedObject.userData.location
+    if (!location) {
+      // 그룹 내부 객체인 경우 부모 그룹에서 찾기
+      let parent = clickedObject.parent
+      while (parent && !location) {
+        if (parent.userData && parent.userData.location) {
+          location = parent.userData.location
+          break
+        }
+        parent = parent.parent
+      }
+    }
+    
+    if (location) {
+      emit('poi-click', location)
+    }
+  }
 }
 
 // ===== Animation =====
@@ -842,6 +884,12 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (animId) cancelAnimationFrame(animId)
   if (resizeObserver && mountRef.value) resizeObserver.unobserve(mountRef.value)
+  
+  // POI 클릭 이벤트 리스너 제거
+  if (renderer && renderer.domElement) {
+    renderer.domElement.removeEventListener('click', onCanvasClick)
+  }
+  
   controls?.dispose?.()
   renderer?.dispose?.()
   if (renderer?.domElement && mountRef.value) {
@@ -874,25 +922,17 @@ onBeforeUnmount(() => {
 
 // ===== 바닥 그리드 (가로 25칸, 세로 24칸) =====
 function drawPathfindingGrid() {
-  console.log('[drawPathfindingGrid] 호출됨')
-  console.log('[drawPathfindingGrid] pathfindingGrid:', props.pathfindingGrid)
-  
   if (!props.pathfindingGrid || !Array.isArray(props.pathfindingGrid)) {
-    console.warn('[drawPathfindingGrid] pathfindingGrid가 없거나 배열이 아님')
-    
     return
   }
   
   if (!rootGroup) {
-    console.warn('[drawPathfindingGrid] rootGroup이 없음')
-    
     return
   }
   
   if (!gridGroup) {
     gridGroup = new THREE.Group()
     rootGroup.add(gridGroup)
-    console.log('[drawPathfindingGrid] gridGroup 생성')
   }
   
   // 기존 그리드 제거
@@ -906,11 +946,7 @@ function drawPathfindingGrid() {
   const GRID_ROWS = props.pathfindingGrid.length
   const GRID_COLS = props.pathfindingGrid[0]?.length || 0
   
-  console.log('[drawPathfindingGrid] 그리드 크기:', GRID_ROWS, 'x', GRID_COLS)
-  
   if (GRID_ROWS === 0 || GRID_COLS === 0) {
-    console.warn('[drawPathfindingGrid] 그리드 크기가 0')
-    
     return
   }
   
@@ -1034,8 +1070,6 @@ function drawPathfindingGrid() {
       }
     }
   }
-  
-  console.log('[drawPathfindingGrid] 그리드 그리기 완료, 자식 개수:', gridGroup.children.length)
 }
 
 function drawFloorGrid() {
@@ -1226,7 +1260,6 @@ function locationToAislePosition(locationStr) {
   }
   const m = parsed.match(/^([A-Z])(\d+)\s*-\s*(\d+)$/i)
   if (!m) {
-    console.warn('Invalid location format:', locationStr)
     
     return null
   }
@@ -1442,9 +1475,6 @@ function connectToNearestGridLine(pos, targetGrid) {
 function drawPathFromFullPath(fullPath) {
   if (!fullPath || fullPath.length === 0) return
   
-  console.log('[drawPathFromFullPath] 경로 그리기 시작, 점 개수:', fullPath.length)
-  console.log('[drawPathFromFullPath] 처음 10개 점:', fullPath.slice(0, 10))
-  
   // 기존 경로 제거
   if (pathGroup) {
     while (pathGroup.children.length) {
@@ -1464,7 +1494,6 @@ function drawPathFromFullPath(fullPath) {
   const allPoints = []
   for (const point of fullPath) {
     if (!point || typeof point.row !== 'number' || typeof point.col !== 'number') {
-      console.warn('[drawPathFromFullPath] 잘못된 점:', point)
       continue
     }
     
@@ -1476,12 +1505,8 @@ function drawPathFromFullPath(fullPath) {
   }
   
   if (allPoints.length < 2) {
-    console.warn('[drawPathFromFullPath] 점이 부족합니다:', allPoints.length)
-    
     return
   }
-  
-  console.log('[drawPathFromFullPath] 월드 좌표 변환 완료, 점 개수:', allPoints.length)
   
   // 경로를 바닥에서 약간 띄우기 (Y 좌표 조정)
   const pathHeight = 0.5 // 바닥에서 0.5m 위로
@@ -1505,8 +1530,6 @@ function drawPathFromFullPath(fullPath) {
 
   mesh.castShadow = true
   pathGroup.add(mesh)
-  
-  console.log('[drawPathFromFullPath] 경로 그리기 완료')
   
   // 경유지 순서 표시 (POI 마커)
   drawPOIMarkers()
@@ -1546,8 +1569,6 @@ function drawPOIMarkers() {
     // location을 랙의 실제 월드 위치로 변환 (통로 위치가 아닌 랙 위치)
     const rackPos = findRackPosition(location, false) // useAislePosition = false: 랙의 실제 위치
     if (!rackPos) {
-      console.warn(`[drawPOIMarkers] 랙 위치를 찾을 수 없음: ${location}`)
-      
       return
     }
     
@@ -1556,10 +1577,15 @@ function drawPOIMarkers() {
     
     marker.position.set(rackPos.x, 7.5, rackPos.z) // 랙 위에 표시
     marker.userData.baseScale = 1.0 // 기본 스케일 저장
+    marker.userData.location = location // 클릭 이벤트를 위한 location 저장
+    // 모든 자식 객체에도 location 저장
+    marker.traverse((child) => {
+      if (child.userData) {
+        child.userData.location = location
+      }
+    })
     poiMarkersGroup.add(marker)
   })
-  
-  console.log(`[drawPOIMarkers] POI 마커 ${props.optimizedRoute.length}개 생성 완료`)
 }
 
 /**
@@ -1804,14 +1830,10 @@ function clearPath() {
  */
 function startPathAnimation() {
   if (!props.fullPath || props.fullPath.length === 0) {
-    console.warn('[startPathAnimation] 경로가 없습니다')
-    
     return
   }
   
   if (isAnimating) {
-    console.log('[startPathAnimation] 이미 애니메이션이 실행 중입니다')
-    
     return
   }
   
@@ -1858,8 +1880,6 @@ function startPathAnimation() {
       // 애니메이션 완료 - 반복하지 않음
       isAnimating = false
       animationProgress = 1
-      console.log('[startPathAnimation] 경로 애니메이션 완료')
-      
       return
     }
     
@@ -1867,7 +1887,6 @@ function startPathAnimation() {
   }
   
   animate()
-  console.log('[startPathAnimation] 경로 애니메이션 시작')
 }
 
 function stopPathAnimation() {
@@ -1876,13 +1895,11 @@ function stopPathAnimation() {
     cancelAnimationFrame(animationFrameId)
     animationFrameId = null
   }
-  console.log('[stopPathAnimation] 경로 애니메이션 중지')
 }
 
 function resetPathAnimation() {
   stopPathAnimation()
   animationProgress = 0
-  console.log('[resetPathAnimation] 경로 애니메이션 리셋')
 }
 
 /**
@@ -1892,14 +1909,10 @@ function resetPathAnimation() {
  */
 function startStepAnimation() {
   if (!props.optimizedRoute || props.optimizedRoute.length === 0) {
-    console.warn('[startStepAnimation] 경유지가 없습니다')
-    
     return
   }
   
   if (isStepAnimationActive) {
-    console.log('[startStepAnimation] 이미 경유지별 애니메이션이 활성화되어 있습니다')
-    
     return
   }
   
@@ -1917,15 +1930,12 @@ function startStepAnimation() {
   }
   
   if (firstRealIndex === -1) {
-    console.warn('[startStepAnimation] 실제 경유지를 찾을 수 없습니다')
     currentStepIndex = -1
     nextStep() // 첫 번째로 이동 시도
   } else {
     currentStepIndex = firstRealIndex - 1 // nextStep() 호출 시 firstRealIndex로 이동
     nextStep()
   }
-  
-  console.log('[startStepAnimation] 경유지별 애니메이션 시작, 총 경로:', props.optimizedRoute.length, ', 첫 번째 실제 위치 인덱스:', firstRealIndex)
 }
 
 /**
@@ -1939,10 +1949,8 @@ function nextStep() {
   currentStepIndex++
   
   if (currentStepIndex >= props.optimizedRoute.length) {
-    console.log('[nextStep] 모든 경유지 방문 완료')
     isStepAnimationActive = false
     currentStepIndex = -1
-    
     return
   }
   
@@ -2002,7 +2010,6 @@ function nextStep() {
         isAnimating = false
 
         // 이동 완료 - 자동으로 다음으로 넘어가지 않음, 사용자가 버튼을 눌러야 함
-        console.log(`[nextStep] 경유지 ${currentStepIndex + 1}/${props.optimizedRoute.length} 도달: ${location}`)
         
         return
       }
@@ -2016,7 +2023,6 @@ function nextStep() {
     move()
   } else {
     // 위치를 찾지 못했으면 다음으로
-    console.warn(`[nextStep] 위치를 찾을 수 없음: ${location}`)
     nextStep()
   }
 }
@@ -2030,7 +2036,6 @@ function previousStep() {
   }
   
   if (currentStepIndex <= 0) {
-    console.log('[previousStep] 첫 번째 경유지입니다')
     
     return
   }
@@ -2086,7 +2091,6 @@ function previousStep() {
       if (t >= 1) {
         t = 1
         isAnimating = false
-        console.log(`[previousStep] 경유지 ${currentStepIndex + 1}/${props.optimizedRoute.length} 도달: ${location}`)
         
         return
       }
@@ -2108,7 +2112,6 @@ function stopStepAnimation() {
   isStepAnimationActive = false
   isAnimating = false
   currentStepIndex = -1
-  console.log('[stopStepAnimation] 경유지별 애니메이션 중지')
 }
 
 /**
@@ -2116,7 +2119,6 @@ function stopStepAnimation() {
  */
 function resetCamera() {
   if (!camera || !controls || !initialCameraPosition || !initialCameraTarget) {
-    console.warn('[resetCamera] 카메라 또는 초기 위치가 없습니다')
     
     return
   }
@@ -2139,7 +2141,6 @@ function resetCamera() {
       requestAnimationFrame(step)
     } else {
       controls.update()
-      console.log('[resetCamera] 카메라 리셋 완료')
     }
   }
   
@@ -2161,7 +2162,6 @@ function showCurrentPosition(show) {
     
     // 시작 위치에 현재 위치 마커 생성
     if (!props.fullPath || props.fullPath.length === 0) {
-      console.warn('[showCurrentPosition] 경로가 없습니다')
       return
     }
     
@@ -2179,7 +2179,6 @@ function showCurrentPosition(show) {
     currentPositionMarker = marker
     currentPathPosition = 0
     
-    console.log('[showCurrentPosition] 현재 위치 마커 표시:', worldPos)
   } else {
     // 마커 제거
     if (currentPositionMarker) {
@@ -2479,7 +2478,6 @@ watch(() => props.highlightLocations, newLocations => {
 }, { deep: true })
 watch(() => props.fullPath, newPath => {
   if (newPath && newPath.length > 0) {
-    console.log('[watch fullPath] fullPath 변경됨, 점 개수:', newPath.length)
     drawPathFromFullPath(newPath)
 
     // POI 마커도 다시 그리기
@@ -2523,13 +2521,10 @@ watch(() => props.optimizedRoute, newRoute => {
   }
 }, { deep: true })
 watch(() => props.showGrid, show => {
-  console.log('[watch showGrid] 변경됨:', show, 'pathfindingGrid:', props.pathfindingGrid)
   if (show) {
     if (props.pathfindingGrid && Array.isArray(props.pathfindingGrid) && props.pathfindingGrid.length > 0) {
-      console.log('[watch showGrid] pathfindingGrid로 그리기')
       drawPathfindingGrid()
     } else {
-      console.log('[watch showGrid] 일반 그리드로 그리기')
       drawFloorGrid()
     }
   } else {
@@ -2538,9 +2533,7 @@ watch(() => props.showGrid, show => {
 })
 
 watch(() => props.pathfindingGrid, newGrid => {
-  console.log('[watch pathfindingGrid] 변경됨:', newGrid)
   if (props.showGrid && newGrid && Array.isArray(newGrid) && newGrid.length > 0) {
-    console.log('[watch pathfindingGrid] 그리드 그리기 시작')
     drawPathfindingGrid()
   }
 }, { deep: true, immediate: false })

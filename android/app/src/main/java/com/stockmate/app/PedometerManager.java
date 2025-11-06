@@ -45,40 +45,29 @@ public class PedometerManager implements SensorEventListener {
     }
     
     public void startTracking() {
-        Log.d(TAG, "startTracking() 호출됨");
         stepCount = 0;
         totalDistance = 0f;
         
         if (stepDetectorSensor != null) {
-            Log.d(TAG, "Step Detector 센서 등록 시도: " + stepDetectorSensor.getName());
-            
             // 여러 지연 옵션 시도
             boolean registered = sensorManager.registerListener(this, stepDetectorSensor, SensorManager.SENSOR_DELAY_UI);
             if (!registered) {
-                Log.d(TAG, "SENSOR_DELAY_UI 실패, SENSOR_DELAY_NORMAL 시도");
                 registered = sensorManager.registerListener(this, stepDetectorSensor, SensorManager.SENSOR_DELAY_NORMAL);
             }
             if (!registered) {
-                Log.d(TAG, "SENSOR_DELAY_NORMAL 실패, SENSOR_DELAY_GAME 시도");
                 registered = sensorManager.registerListener(this, stepDetectorSensor, SensorManager.SENSOR_DELAY_GAME);
             }
             if (!registered) {
-                Log.d(TAG, "SENSOR_DELAY_GAME 실패, SENSOR_DELAY_FASTEST 시도");
                 registered = sensorManager.registerListener(this, stepDetectorSensor, SensorManager.SENSOR_DELAY_FASTEST);
             }
-            
-            Log.d(TAG, "최종 센서 등록 결과: " + registered);
             
             if (registered && listener != null) {
                 listener.onStepCountUpdate(0, 0f);
             }
-        } else {
-            Log.w(TAG, "Step Detector 센서를 지원하지 않습니다");
         }
     }
     
     public void stopTracking() {
-        Log.d(TAG, "stopTracking() 호출됨");
         sensorManager.unregisterListener(this);
     }
     
@@ -89,11 +78,6 @@ public class PedometerManager implements SensorEventListener {
             stepCount++;
             totalDistance = stepCount * estimatedStepLength;
             
-            // 스텝 감지 로그 (INFO 레벨로 더 눈에 띄게)
-            Log.i(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            Log.i(TAG, "📍 스텝 감지! 현재 걸음수: " + stepCount + " 걸음");
-            Log.i(TAG, "📏 누적 이동 거리: " + String.format("%.2f", totalDistance) + " m");
-            Log.i(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
             
             if (listener != null) {
                 listener.onStepCountUpdate(stepCount, totalDistance);
@@ -109,7 +93,6 @@ public class PedometerManager implements SensorEventListener {
     public void reset() {
         stepCount = 0;
         totalDistance = 0f;
-        Log.d(TAG, "reset() 호출됨 - 스텝 초기화");
     }
     
     public int getStepCount() {
