@@ -1,6 +1,7 @@
 import { getProfile } from '@/api/http'
 import stock from './stock'
 import user from './user'
+import warehouse from './warehouse'
 
 // 네비게이션 항목 생성 함수 (역할에 따라 필터링)
 export function getNavigationItems() {
@@ -17,7 +18,7 @@ export function getNavigationItems() {
       },
       { heading: '입/출고 관리' },
       {
-        title: '본사 재고 관리',
+        title: '재고 관리',
         icon: { icon: 'bx-package' },
         children: [
           { title: '전체 재고 조회', to: 'stock-list' },
@@ -34,10 +35,16 @@ export function getNavigationItems() {
           { title: '입출고 히스토리 캘린더', to: 'order-history-calendar' },
         ],
       },
+      { heading: '창고 관리' },
       {
         title: '3D 뷰어',
         to: { name: 'warehouse-viewer' },
         icon: { icon: 'bx-cube' },
+      },
+      {
+        title: '3D 네비게이션',
+        to: { name: 'warehouse-navigation' },
+        icon: { icon: 'bx-navigation' },
       },
     ]
   }
@@ -55,12 +62,8 @@ export function getNavigationItems() {
       icon: { icon: 'bx-bar-chart-alt-2' },
     },
     ...stock,
+    ...warehouse,
     ...user,
-    {
-      title: '3D 뷰어',
-      to: { name: 'warehouse-viewer' },
-      icon: { icon: 'bx-cube' },
-    },
   ]
 }
 

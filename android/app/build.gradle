@@ -40,6 +40,13 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+    
+    // Compose 의존성 (Android 공식 문서 참고)
+    // https://developer.android.com/health-and-fitness/guides/basic-fitness-app/read-step-count-data
+    implementation platform("androidx.compose:compose-bom:2023.10.01")
+    implementation "androidx.activity:activity-compose"
+    implementation "androidx.compose.foundation:foundation"
+    implementation "androidx.compose.material:material"
 }
 
 apply from: 'capacitor.build.gradle'

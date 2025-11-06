@@ -204,9 +204,10 @@ export async function getOrderListByMemberId({
  * 금일 대시보드 조회
  * GET /api/v1/order/dashboard/today
  */
-export async function getTodayDashboard() {
+export async function getTodayDashboard(date) {
   try {
-    const res = await http.get('/api/v1/order/dashboard/today')
+    const params = date ? { date } : {}
+    const res = await http.get('/api/v1/order/dashboard/today', { params })
     
     
     return {
@@ -224,10 +225,71 @@ export async function getTodayDashboard() {
  * 금일 시간대별 입출고 추이
  * GET /api/v1/order/dashboard/today/inout
  */
-export async function getTodayInboundOutbound() {
+export async function getTodayInboundOutbound(date) {
   try {
-    const res = await http.get('/api/v1/order/dashboard/today/inout')
+    const params = date ? { date } : {}
+    const res = await http.get('/api/v1/order/dashboard/today/inout', { params })
     
+    
+    return {
+      status: res?.data?.status ?? 200,
+      success: !!(res?.data?.success ?? true),
+      message: res?.data?.message,
+      data: res?.data?.data ?? {},
+    }
+  } catch (error) {
+    throw error
+  }
+}
+
+/**
+ * TOP 판매 부품 조회
+ * GET /api/v1/order/dashboard/top-parts
+ */
+export async function getTopParts(date) {
+  try {
+    const params = date ? { date } : {}
+    const res = await http.get('/api/v1/order/dashboard/top-parts', { params })
+    
+    return {
+      status: res?.data?.status ?? 200,
+      success: !!(res?.data?.success ?? true),
+      message: res?.data?.message,
+      data: res?.data?.data ?? {},
+    }
+  } catch (error) {
+    throw error
+  }
+}
+
+/**
+ * 최근 주문 이력 조회
+ * GET /api/v1/order/dashboard/recent-orders
+ */
+export async function getRecentOrders(date) {
+  try {
+    const params = date ? { date } : {}
+    const res = await http.get('/api/v1/order/dashboard/recent-orders', { params })
+    
+    return {
+      status: res?.data?.status ?? 200,
+      success: !!(res?.data?.success ?? true),
+      message: res?.data?.message,
+      data: res?.data?.data ?? {},
+    }
+  } catch (error) {
+    throw error
+  }
+}
+
+/**
+ * 카테고리별 판매량 조회
+ * GET /api/v1/order/dashboard/category-sales
+ */
+export async function getCategorySales(date) {
+  try {
+    const params = date ? { date } : {}
+    const res = await http.get('/api/v1/order/dashboard/category-sales', { params })
     
     return {
       status: res?.data?.status ?? 200,
@@ -358,5 +420,147 @@ export async function markAllNotificationsAsRead(type = 'admin') {
     status: res?.data?.status ?? 200,
     success: !!(res?.data?.success ?? true),
     message: res?.data?.message,
+  }
+}
+
+/**
+ * 리포트 관련 API
+ */
+
+/**
+ * 주차별 리포트 조회
+ * GET /api/v1/order/report/weekly?year=2024&month=11
+ */
+export async function getWeeklyReport(year, month) {
+  if (!year || !month) throw new Error('year와 month는 필수입니다')
+  
+  try {
+    const res = await http.get('/api/v1/order/report/weekly', {
+      params: { year: Number(year), month: Number(month) },
+    })
+    
+    return {
+      status: res?.data?.status ?? 200,
+      success: !!(res?.data?.success ?? true),
+      message: res?.data?.message,
+      data: res?.data?.data ?? {},
+    }
+  } catch (error) {
+    throw error
+  }
+}
+
+/**
+ * 월별 창고별 리포트 조회
+ * GET /api/v1/order/report/warehouse?year=2024&month=11
+ */
+export async function getWarehouseReport(year, month) {
+  if (!year || !month) throw new Error('year와 month는 필수입니다')
+  
+  try {
+    const res = await http.get('/api/v1/order/report/warehouse', {
+      params: { year: Number(year), month: Number(month) },
+    })
+    
+    return {
+      status: res?.data?.status ?? 200,
+      success: !!(res?.data?.success ?? true),
+      message: res?.data?.message,
+      data: res?.data?.data ?? {},
+    }
+  } catch (error) {
+    throw error
+  }
+}
+
+/**
+ * 월별 TOP 매출량/순이익 리포트 조회
+ * GET /api/v1/order/report/top-sales?year=2024&month=11
+ */
+export async function getTopSalesReport(year, month) {
+  if (!year || !month) throw new Error('year와 month는 필수입니다')
+  
+  try {
+    const res = await http.get('/api/v1/order/report/top-sales', {
+      params: { year: Number(year), month: Number(month) },
+    })
+    
+    return {
+      status: res?.data?.status ?? 200,
+      success: !!(res?.data?.success ?? true),
+      message: res?.data?.message,
+      data: res?.data?.data ?? {},
+    }
+  } catch (error) {
+    throw error
+  }
+}
+
+/**
+ * 월별 리포트 조회
+ * GET /api/v1/order/report/monthly?year=2024&month=11
+ */
+export async function getMonthlyReport(year, month) {
+  if (!year || !month) throw new Error('year와 month는 필수입니다')
+  
+  try {
+    const res = await http.get('/api/v1/order/report/monthly', {
+      params: { year: Number(year), month: Number(month) },
+    })
+    
+    return {
+      status: res?.data?.status ?? 200,
+      success: !!(res?.data?.success ?? true),
+      message: res?.data?.message,
+      data: res?.data?.data ?? {},
+    }
+  } catch (error) {
+    throw error
+  }
+}
+
+/**
+ * 일자별 리포트 조회
+ * GET /api/v1/order/report/daily?year=2024&month=11
+ */
+export async function getDailyReport(year, month) {
+  if (!year || !month) throw new Error('year와 month는 필수입니다')
+  
+  try {
+    const res = await http.get('/api/v1/order/report/daily', {
+      params: { year: Number(year), month: Number(month) },
+    })
+    
+    return {
+      status: res?.data?.status ?? 200,
+      success: !!(res?.data?.success ?? true),
+      message: res?.data?.message,
+      data: res?.data?.data ?? {},
+    }
+  } catch (error) {
+    throw error
+  }
+}
+
+/**
+ * 일자별 카테고리별 판매량 리포트 조회
+ * GET /api/v1/order/report/daily/category-sales?year=2024&month=11
+ */
+export async function getDailyCategorySalesReport(year, month) {
+  if (!year || !month) throw new Error('year와 month는 필수입니다')
+  
+  try {
+    const res = await http.get('/api/v1/order/report/daily/category-sales', {
+      params: { year: Number(year), month: Number(month) },
+    })
+    
+    return {
+      status: res?.data?.status ?? 200,
+      success: !!(res?.data?.success ?? true),
+      message: res?.data?.message,
+      data: res?.data?.data ?? {},
+    }
+  } catch (error) {
+    throw error
   }
 }

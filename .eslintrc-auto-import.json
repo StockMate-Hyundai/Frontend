@@ -372,6 +372,11 @@
     "transformOrderDataForInvoice": true,
     "isAppBuild": true,
     "isNativePlatform": true,
-    "isWebPlatform": true
+    "isWebPlatform": true,
+    "calculateOptimalPath": true,
+    "Pedometer": true,
+    "getPedometer": true,
+    "StepCounterWeb": true,
+    "PedometerManager": true
   }
 }

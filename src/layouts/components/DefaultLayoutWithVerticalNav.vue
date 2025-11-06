@@ -1,14 +1,14 @@
 <script setup>
-import { getNavigationItems } from '@/navigation/vertical'
 import { getProfile } from '@/api/http'
+import { getNavigationItems } from '@/navigation/vertical'
 import { themeConfig } from '@themeConfig'
 
 // Components
+import NavBarNotifications from '@/layouts/components/NavBarNotifications.vue'
 import NavbarThemeSwitcher from '@/layouts/components/NavbarThemeSwitcher.vue'
 import UserProfile from '@/layouts/components/UserProfile.vue'
 import NavBarI18n from '@core/components/I18n.vue'
 import NavigationHistoryTabs from '@core/components/NavigationHistoryTabs.vue'
-import NavBarNotifications from '@/layouts/components/NavBarNotifications.vue'
 
 // @layouts plugin
 import { useConfigStore } from '@/@core/stores/config'
@@ -26,7 +26,26 @@ const navItems = computed(() => {
   forceUpdate.value // eslint-disable-line no-unused-expressions
   // 항상 최신 프로필 정보를 가져오기 위해 getProfile 호출
   getProfile()
-  return getNavigationItems()
+  // 개발 모드에서 모듈 캐시 무효화를 위한 타임스탬프 추가
+  const timestamp = import.meta.hot ? Date.now() : 0
+  timestamp // eslint-disable-line no-unused-expressions
+  const items = getNavigationItems()
+  
+  // 개발 모드에서 네비게이션 로드 확인 (디버깅용)
+  if (import.meta.env.DEV) {
+    console.log('[Navigation] 네비게이션 항목 로드됨:', items)
+    const warehouseNav = items.find(item => 
+      item.title === '3D 네비게이션' || 
+      (item.children && item.children.some(child => child.title === '3D 네비게이션'))
+    )
+    if (warehouseNav) {
+      console.log('[Navigation] ✅ 3D 네비게이션 항목 확인됨')
+    } else {
+      console.warn('[Navigation] ⚠️ 3D 네비게이션 항목을 찾을 수 없습니다')
+    }
+  }
+  
+  return items
 })
 
 // localStorage 변경 감지 설정

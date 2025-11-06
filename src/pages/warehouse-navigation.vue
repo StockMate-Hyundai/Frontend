@@ -1,0 +1,1544 @@
+<!-- File: src/pages/warehouse-navigation.vue -->
+<script setup>
+import { fetchOrdersForTable } from '@/api/order'
+import { calculateOptimalRoute, compareAllAlgorithms } from '@/api/parts'
+import { ORDER_STATUS } from '@/utils/orderStatus'
+import { calculateOptimalPath } from '@/utils/pathfinding'
+import { getPedometer } from '@/utils/pedometer'
+import PartWarehouse3D from '@/views/parts/view/PartWarehouse3D.vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { PerfectScrollbar } from 'vue3-perfect-scrollbar'
+
+definePage({
+  meta: {
+    title: '창고 네비게이션',
+    icon: 'bx-navigation',
+    requiresAuth: true,
+  },
+})
+
+/* =========================
+   상태
+========================= */
+const loading = ref(false)
+const errorMsg = ref('')
+const orderNumbers = ref([])
+const orderNumberInput = ref('')
+const navigationResult = ref(null)
+const comparisonResult = ref(null)
+const showComparison = ref(false)
+const warehouse3DRef = ref(null)
+const isAnimating = ref(false)
+const isStepAnimationActive = ref(false)
+const currentStepIndex = ref(-1)
+const highlightLocations = ref([]) // 하이라이트할 위치 목록
+const pathfindingGrid = ref(null) // 경로 탐색 그리드 데이터
+const stepCount = ref(0) // 스탭 카운터
+const isNavigating = ref(false) // 네비게이션 진행 중 여부
+const navigationInterval = ref(null) // 스탭 증가 인터벌
+const pedometer = ref(null) // 걸음수 측정 인스턴스
+const showNavigationInfo = ref(true) // 네비게이션 정보 표시 여부
+const showControlButtons = ref(true) // 버튼 컨트롤 표시 여부
+const showRouteInfo = ref(true) // 경로 정보 표시 여부
+const showPOIDialog = ref(false) // POI 부품 정보 다이얼로그 표시 여부
+const selectedPOILocation = ref(null) // 선택된 POI 위치
+const selectedPOIParts = ref([]) // 선택된 POI의 부품 목록
+
+const pedometerConnectionStatus = ref({
+  text: '연결 확인 중...',
+  class: 'text-warning',
+}) // 걸음수 측정 연결 상태
+
+// 최근 주문 목록
+const recentOrders = ref([])
+const loadingOrders = ref(false)
+
+// 경로 정보 탭 관리
+const expandedTabs = ref([]) // 확장된 탭들의 인덱스 배열
+const routeTabs = ref([]) // 경로 정보 탭 데이터 배열
+
+function toggleTab(index) {
+  const idx = expandedTabs.value.indexOf(index)
+  if (idx > -1) {
+    expandedTabs.value.splice(idx, 1)
+  } else {
+    expandedTabs.value.push(index)
+  }
+}
+
+function isTabExpanded(index) {
+  return expandedTabs.value.includes(index)
+}
+
+/* =========================
+   최근 주문 목록 로드
+========================= */
+async function loadRecentOrders() {
+  loadingOrders.value = true
+  try {
+    const result = await fetchOrdersForTable({
+      page: 1,
+      itemsPerPage: 50,
+      filters: {
+        status: ORDER_STATUS.PENDING_SHIPPING, // 출고 대기 상태만 필터링
+      },
+    })
+    
+    // 주문 상태가 출고 대기인 것만 필터링 (추가 안전장치)
+    recentOrders.value = (result.rows || [])
+      .filter(order => order.orderStatus === ORDER_STATUS.PENDING_SHIPPING)
+      .map(order => ({
+        orderId: order.orderId,
+        orderNumber: order.orderNumber || `#${order.orderId}`,
+        createdAt: order.createdAt,
+        customer: order.customer || '-',
+      }))
+  } catch (e) {
+    // 에러 처리
+    recentOrders.value = []
+  } finally {
+    loadingOrders.value = false
+  }
+}
+
+/* =========================
+   주문 번호 관리
+========================= */
+function addOrderNumber() {
+  const num = orderNumberInput.value.trim()
+  if (!num) return
+  
+  if (!orderNumbers.value.includes(num)) {
+    orderNumbers.value.push(num)
+  }
+  orderNumberInput.value = ''
+}
+
+function removeOrderNumber(num) {
+  const index = orderNumbers.value.indexOf(num)
+  if (index > -1) {
+    orderNumbers.value.splice(index, 1)
+  }
+}
+
+function addOrderFromList(orderNumber) {
+  if (!orderNumbers.value.includes(orderNumber)) {
+    orderNumbers.value.push(orderNumber)
+  }
+}
+
+function clearOrderNumbers() {
+  orderNumbers.value = []
+  navigationResult.value = null
+  comparisonResult.value = null
+  highlightLocations.value = []
+  routeTabs.value = []
+  expandedTabs.value = []
+}
+
+/* =========================
+   최적 경로 계산
+========================= */
+async function calculateRoute() {
+  if (orderNumbers.value.length === 0) {
+    errorMsg.value = '주문 번호를 입력해주세요.'
+    
+    return
+  }
+  
+  loading.value = true
+  errorMsg.value = ''
+  navigationResult.value = null
+  
+  try {
+    // API에서 주문 정보 가져오기
+    let apiResult = null
+    try {
+      apiResult = await calculateOptimalRoute(orderNumbers.value)
+    } catch (apiError) {
+      throw new Error(`API 호출 실패: ${apiError?.message || '알 수 없는 오류'}`)
+    }
+    
+    if (!apiResult) {
+      throw new Error('API 응답이 없습니다.')
+    }
+    
+    // API 응답에서 location 배열 추출
+    let locations = []
+    
+    // API 응답 구조 확인 및 location 추출
+    if (apiResult?.optimizedRoute && Array.isArray(apiResult.optimizedRoute)) {
+      locations = apiResult.optimizedRoute
+        .filter(step => {
+          const loc = typeof step === 'string' ? step : step.location
+          
+          return loc && loc !== '문' && loc !== '포장대'
+        })
+        .map(step => {
+          const loc = typeof step === 'string' ? step : step.location
+
+          // "-" 전까지만 추출 (예: "A0-1" -> "A0")
+          return loc ? loc.split('-')[0] : loc
+        })
+    } else if (apiResult?.locations && Array.isArray(apiResult.locations)) {
+      // locations 필드가 직접 있는 경우
+      locations = apiResult.locations
+        .map(loc => {
+          // "-" 전까지만 추출 (예: "A0-1" -> "A0")
+          return loc ? loc.split('-')[0] : loc
+        })
+        .filter(loc => loc && loc !== '문' && loc !== '포장대')
+    } else if (apiResult?.orderItems && Array.isArray(apiResult.orderItems)) {
+      // orderItems에서 location 추출
+      locations = apiResult.orderItems
+        .map(item => {
+          const loc = item?.partDetail?.location || item?.location
+
+          // "-" 전까지만 추출 (예: "A0-1" -> "A0")
+          return loc ? loc.split('-')[0] : loc
+        })
+        .filter(loc => loc && loc !== '문' && loc !== '포장대')
+    } else {
+      // 마지막 시도: 모든 필드를 확인
+      for (const key in apiResult) {
+        if (Array.isArray(apiResult[key])) {
+          // 배열의 첫 번째 항목 구조 확인
+          if (apiResult[key].length > 0) {
+            const firstItem = apiResult[key][0]
+            if (typeof firstItem === 'string' || firstItem?.location) {
+              locations = apiResult[key]
+                .map(item => {
+                  const loc = typeof item === 'string' ? item : item.location
+                  
+                  return loc ? loc.split('-')[0] : loc
+                })
+                .filter(loc => loc && loc !== '문' && loc !== '포장대')
+              break
+            }
+          }
+        }
+      }
+    }
+    
+    // 프론트엔드 경로 탐색 알고리즘으로 경로 재계산 ('x' 장애물 처리)
+    if (locations.length > 0) {
+      const pathResult = calculateOptimalPath(locations)
+      
+      // API 원본 optimizedRoute 보존 (description, sequence, orderNumber, partId 등)
+      const originalRoute = apiResult?.optimizedRoute || []
+      
+      // API 결과와 프론트엔드 경로 결과 병합
+      // optimizedRoute는 원본 API 응답 사용 (부품 정보 포함)
+      navigationResult.value = {
+        ...apiResult,
+        optimizedRoute: originalRoute, // 원본 API 응답의 optimizedRoute 사용 (부품 정보 포함)
+        totalDistance: pathResult.totalDistance,
+        fullPath: pathResult.fullPath,
+      }
+      
+      // 그리드 데이터를 3D 뷰에 전달
+      pathfindingGrid.value = pathResult.grid
+      
+      // DOM 업데이트 후 그리드 다시 그리기
+      await nextTick()
+    } else {
+      navigationResult.value = apiResult
+    }
+    
+    // 3D 뷰에 하이라이트 표시
+    await nextTick()
+    
+    // 하이라이트할 locations: API에서 추출한 원본 locations + 경로 탐색 결과의 locations
+    const highlightSet = new Set()
+    
+    // 1. API에서 추출한 원본 locations (모든 방문할 위치)
+    if (locations && locations.length > 0) {
+      locations.forEach(loc => {
+        if (loc && loc !== '문' && loc !== '포장대') {
+          // "A0" 형식이면 "A0-1"로 변환, 이미 "A0-1" 형식이면 그대로 사용
+          const formattedLoc = loc.includes('-') ? loc : `${loc}-1`
+
+          highlightSet.add(formattedLoc)
+        }
+      })
+    }
+    
+    // 2. 경로 탐색 결과의 optimizedRoute에서도 추출
+    if (navigationResult.value?.optimizedRoute) {
+      navigationResult.value.optimizedRoute.forEach(step => {
+        const loc = step.location || step
+        if (loc && loc !== '문' && loc !== '포장대') {
+          // "A0" 형식이면 "A0-1"로 변환, 이미 "A0-1" 형식이면 그대로 사용
+          const formattedLoc = loc.includes('-') ? loc : `${loc}-1`
+
+          highlightSet.add(formattedLoc)
+        }
+      })
+    }
+    
+    // 3. API 응답의 orderItems에서도 location 추출 (추가 보장)
+    if (apiResult?.orderItems && Array.isArray(apiResult.orderItems)) {
+      apiResult.orderItems.forEach(item => {
+        const loc = item?.partDetail?.location || item?.location
+        if (loc && loc !== '문' && loc !== '포장대') {
+          // "-" 전까지만 추출 (예: "A0-1" -> "A0")
+          const baseLoc = loc.split('-')[0]
+          const formattedLoc = `${baseLoc}-1`
+
+          highlightSet.add(formattedLoc)
+        }
+      })
+    }
+    
+    highlightLocations.value = Array.from(highlightSet)
+    
+    // 경로 정보 탭 생성
+    createRouteTabs()
+  } catch (e) {
+    errorMsg.value = e?.message || '경로 계산 중 오류가 발생했습니다.'
+    navigationResult.value = null
+    routeTabs.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+/* =========================
+   경로 정보 탭 생성
+========================= */
+function createRouteTabs() {
+  if (!navigationResult.value) {
+    routeTabs.value = []
+    
+    return
+  }
+  
+  // 각 주문별로 탭 생성 또는 전체 경로를 하나의 탭으로 생성
+  const tabs = []
+  
+  // 전체 경로 정보 탭
+  tabs.push({
+    id: 'overview',
+    title: '전체 경로 정보',
+    type: 'overview',
+    data: navigationResult.value,
+  })
+  
+  // 경로 단계별 탭
+  if (navigationResult.value.optimizedRoute && navigationResult.value.optimizedRoute.length > 0) {
+    tabs.push({
+      id: 'route-steps',
+      title: '경로 단계',
+      type: 'steps',
+      data: navigationResult.value.optimizedRoute,
+    })
+  }
+  
+  // 주문별 상세 정보 탭
+  if (navigationResult.value.orderItems && navigationResult.value.orderItems.length > 0) {
+    const orderGroups = {}
+
+    navigationResult.value.orderItems.forEach(item => {
+      const orderNum = item.orderNumber || '미지정'
+      if (!orderGroups[orderNum]) {
+        orderGroups[orderNum] = []
+      }
+      orderGroups[orderNum].push(item)
+    })
+    
+    Object.entries(orderGroups).forEach(([orderNum, items]) => {
+      tabs.push({
+        id: `order-${orderNum}`,
+        title: `주문 ${orderNum}`,
+        type: 'order',
+        data: { orderNumber: orderNum, items },
+      })
+    })
+  }
+  
+  routeTabs.value = tabs
+
+  // 기본적으로 첫 번째 탭만 확장
+  expandedTabs.value = [0]
+}
+
+/* =========================
+   알고리즘 비교
+========================= */
+async function compareAlgorithms() {
+  if (orderNumbers.value.length === 0) {
+    errorMsg.value = '주문 번호를 입력해주세요.'
+    
+    return
+  }
+  
+  loading.value = true
+  errorMsg.value = ''
+  comparisonResult.value = null
+  
+  try {
+    const result = await compareAllAlgorithms(orderNumbers.value)
+
+    comparisonResult.value = result
+    showComparison.value = true
+  } catch (e) {
+    // 에러 처리
+    errorMsg.value = e?.message || '알고리즘 비교 중 오류가 발생했습니다.'
+    comparisonResult.value = null
+  } finally {
+    loading.value = false
+  }
+}
+
+/* =========================
+   애니메이션 컨트롤
+========================= */
+function startAnimation() {
+  if (warehouse3DRef.value) {
+    warehouse3DRef.value.startPathAnimation()
+    isAnimating.value = true
+  }
+}
+
+function stopAnimation() {
+  if (warehouse3DRef.value) {
+    warehouse3DRef.value.stopPathAnimation()
+    isAnimating.value = false
+  }
+}
+
+// 기존 경유지별 이동 기능 (수동 이동)
+function startStepAnimation() {
+  if (warehouse3DRef.value) {
+    warehouse3DRef.value.startStepAnimation()
+    isStepAnimationActive.value = true
+    
+    // 현재 상태 업데이트를 위한 간격 체크
+    const checkStatus = setInterval(() => {
+      if (warehouse3DRef.value) {
+        isStepAnimationActive.value = warehouse3DRef.value.getIsStepAnimationActive()
+        currentStepIndex.value = warehouse3DRef.value.getCurrentStepIndex()
+        if (!isStepAnimationActive.value) {
+          clearInterval(checkStatus)
+        }
+      }
+    }, 100)
+  }
+}
+
+// 새로운 스탭 기반 네비게이션 기능
+async function startNavigation() {
+  if (warehouse3DRef.value) {
+    try {
+      // 걸음수 측정 초기화
+      pedometer.value = getPedometer()
+      await pedometer.value.initialize()
+      
+      // 걸음수 업데이트 콜백 설정 (stepCount, distance)
+      pedometer.value.onStepUpdate((stepCountValue, distance) => {
+        // 스탭이 변경되었는지 확인
+        const stepChanged = stepCount.value !== stepCountValue
+
+        stepCount.value = stepCountValue
+        
+        // 첫 번째 걸음수 업데이트 시 연결 성공으로 표시
+        if (pedometerConnectionStatus.value.text !== '✓ 센서 연결됨' && stepCountValue >= 0) {
+          pedometerConnectionStatus.value = {
+            text: '✓ 센서 연결됨 (데이터 수신 중)',
+            class: 'text-success',
+          }
+        }
+        
+        // 스탭에 따라 경로를 따라 이동 (스탭이 변경되었을 때만 위치 고정)
+        if (warehouse3DRef.value) {
+          warehouse3DRef.value.moveAlongPathBySteps(stepCount.value, stepChanged)
+        }
+        
+        // 경로가 끝나면 정지
+        if (warehouse3DRef.value && warehouse3DRef.value.isPathComplete()) {
+          stopNavigation()
+        }
+      })
+      
+      // 스탭 초기화 및 네비게이션 시작
+      stepCount.value = 0
+      isNavigating.value = true
+      
+      // 네비게이션 시작 시 컨트롤 영역 자동으로 펼치기
+      showControlButtons.value = true
+      
+      // 시작 위치에 현재 위치 마커 표시 (fullPath의 첫 번째 위치)
+      warehouse3DRef.value.showCurrentPosition(true)
+      
+      // 네비게이션 모드 시작 (카메라 팔로잉 활성화)
+      warehouse3DRef.value.startNavigationMode()
+      
+      // 걸음수 측정 시작
+      pedometerConnectionStatus.value = {
+        text: '시뮬레이션 모드 (1초에 1걸음)',
+        class: 'text-info',
+      }
+      
+      await pedometer.value.startTracking()
+      
+      // 연결 성공 상태로 표시
+      pedometerConnectionStatus.value = {
+        text: pedometer.value.isNative ? '✓ 센서 연결됨' : '✓ 시뮬레이션 모드 작동 중',
+        class: 'text-success',
+      }
+    } catch (error) {
+      // 에러 처리
+      
+      pedometerConnectionStatus.value = {
+        text: '✗ 네비게이션 시작 오류',
+        class: 'text-error',
+      }
+      alert('네비게이션을 시작할 수 없습니다.')
+    }
+  }
+}
+
+
+function nextStep() {
+  if (warehouse3DRef.value && isStepAnimationActive.value) {
+    warehouse3DRef.value.nextStep()
+    setTimeout(() => {
+      if (warehouse3DRef.value) {
+        currentStepIndex.value = warehouse3DRef.value.getCurrentStepIndex()
+        isStepAnimationActive.value = warehouse3DRef.value.getIsStepAnimationActive()
+      }
+    }, 100)
+  }
+}
+
+function previousStep() {
+  if (warehouse3DRef.value && isStepAnimationActive.value) {
+    warehouse3DRef.value.previousStep()
+    setTimeout(() => {
+      if (warehouse3DRef.value) {
+        currentStepIndex.value = warehouse3DRef.value.getCurrentStepIndex()
+      }
+    }, 100)
+  }
+}
+
+function stopStepAnimation() {
+  if (warehouse3DRef.value) {
+    warehouse3DRef.value.stopStepAnimation()
+    isStepAnimationActive.value = false
+    currentStepIndex.value = -1
+  }
+}
+
+function stopNavigation() {
+  // 네비게이션 중지
+  
+  // 네비게이션 모드 종료 (카메라 팔로잉 비활성화)
+  if (warehouse3DRef.value) {
+    warehouse3DRef.value.stopNavigationMode()
+  }
+  
+  // 시간 기반 인터벌 정리
+  if (navigationInterval.value) {
+    clearInterval(navigationInterval.value)
+    navigationInterval.value = null
+  }
+  
+  // 걸음수 측정 중지
+  if (pedometer.value) {
+    pedometer.value.stopTracking()
+  }
+  
+  isNavigating.value = false
+  if (warehouse3DRef.value) {
+    warehouse3DRef.value.showCurrentPosition(false)
+  }
+  stepCount.value = 0
+  
+  // 연결 상태 초기화
+  pedometerConnectionStatus.value = {
+    text: '연결 확인 중...',
+    class: 'text-warning',
+  }
+  
+}
+
+function resetCamera() {
+  if (warehouse3DRef.value) {
+    warehouse3DRef.value.resetCamera()
+  }
+}
+
+/* =========================
+   초기화
+========================= */
+onMounted(() => {
+  loadRecentOrders()
+})
+
+onBeforeUnmount(() => {
+  // 컴포넌트 언마운트 시 정리
+  stopNavigation()
+  if (pedometer.value) {
+    pedometer.value.stopTracking()
+  }
+})
+
+/* =========================
+   계산된 속성
+========================= */
+const totalDistance = computed(() => navigationResult.value?.totalDistance || 0)
+const estimatedTime = computed(() => navigationResult.value?.estimatedTimeSeconds || 0)
+const walkingTime = computed(() => navigationResult.value?.walkingTimeSeconds || 0)
+const pickingTime = computed(() => navigationResult.value?.pickingTimeSeconds || 0)
+const algorithmType = computed(() => navigationResult.value?.algorithmType || '')
+const routeSteps = computed(() => navigationResult.value?.optimizedRoute || [])
+
+// 각 위치별 부품 정보를 가져오는 함수 (optimizedRoute에서 직접 가져오기)
+function getPartsAtLocation(location) {
+  if (!navigationResult.value?.optimizedRoute) return []
+  
+  // location 형식 정규화 (A0-1, A0 등)
+  const normalizedLoc = location?.split('-')[0] || location
+  
+  return navigationResult.value.optimizedRoute
+    .filter(step => {
+      const stepLoc = typeof step === 'string' ? step : step.location
+      if (!stepLoc) return false
+      const stepNormalizedLoc = stepLoc.split('-')[0]
+      
+      return stepNormalizedLoc === normalizedLoc
+    })
+    .map(step => {
+      const stepObj = typeof step === 'string' ? { location: step } : step
+      
+      return {
+        name: stepObj.description || '이름 없음',
+        quantity: stepObj.sequence || 0,
+        orderNumber: stepObj.orderNumber || '-',
+        partId: stepObj.partId || null,
+      }
+    })
+}
+
+// POI 클릭 이벤트 핸들러
+function onPOIClick(location) {
+  selectedPOILocation.value = location
+  selectedPOIParts.value = getPartsAtLocation(location)
+  showPOIDialog.value = true
+}
+
+const formatTime = seconds => {
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  if (mins > 0) {
+    return `${mins}분 ${secs}초`
+  }
+  
+  return `${secs}초`
+}
+
+const formatDistance = distance => {
+  if (distance === null || distance === undefined || isNaN(distance)) {
+    return '0m'
+  }
+  
+  return `${distance}m`
+}
+</script>
+
+<template>
+  <div class="warehouse-navigation-page">
+    <div class="page-content">
+      <!-- 좌측: 주문 선택 사이드바 -->
+      <div class="order-selector">
+        <div class="order-header">
+          <span class="order-title">주문 선택</span>
+        </div>
+        
+        <div class="order-input-section">
+          <VTextField
+            v-model="orderNumberInput"
+            placeholder="주문 번호 입력"
+            variant="outlined"
+            density="compact"
+            hide-details
+            class="order-input-field"
+            @keyup.enter="addOrderNumber"
+          >
+            <template #append-inner>
+              <VBtn
+                icon="bx-plus"
+                size="small"
+                variant="text"
+                @click="addOrderNumber"
+              />
+            </template>
+          </VTextField>
+        </div>
+        
+        <!-- 선택된 주문 목록 -->
+        <div
+          v-if="orderNumbers.length > 0"
+          class="selected-orders-section"
+        >
+          <div class="selected-orders-header">
+            <span class="selected-orders-title">선택된 주문 ({{ orderNumbers.length }})</span>
+            <VBtn
+              icon
+              size="x-small"
+              variant="text"
+              color="error"
+              @click="clearOrderNumbers"
+            >
+              <VIcon size="16">
+                bx-trash
+              </VIcon>
+            </VBtn>
+          </div>
+          <div class="selected-orders-chips">
+            <VChip
+              v-for="num in orderNumbers"
+              :key="num"
+              closable
+              size="small"
+              color="primary"
+              variant="tonal"
+              class="order-chip"
+              @click:close="removeOrderNumber(num)"
+            >
+              {{ num }}
+            </VChip>
+          </div>
+        </div>
+        
+        <!-- 액션 버튼 -->
+        <div class="action-buttons">
+          <VBtn
+            color="primary"
+            block
+            :loading="loading"
+            :disabled="orderNumbers.length === 0"
+            @click="calculateRoute"
+          >
+            최적 경로 계산
+          </VBtn>
+          
+          <VBtn
+            color="secondary"
+            variant="outlined"
+            block
+            class="mt-2"
+            :loading="loading"
+            :disabled="orderNumbers.length === 0"
+            @click="compareAlgorithms"
+          >
+            알고리즘 비교
+          </VBtn>
+        </div>
+        
+        <!-- 에러 메시지 -->
+        <VAlert
+          v-if="errorMsg"
+          type="error"
+          variant="tonal"
+          density="compact"
+          class="mt-2"
+        >
+          {{ errorMsg }}
+        </VAlert>
+        
+        <!-- 최근 주문 목록 -->
+        <div class="recent-orders-section">
+          <div class="recent-orders-header">
+            <span class="recent-orders-title">최근 주문</span>
+          </div>
+          <div class="recent-orders-container">
+            <PerfectScrollbar
+              :options="{ wheelPropagation: false, suppressScrollX: true }"
+              class="recent-orders-scroll"
+            >
+              <div class="recent-orders-content">
+                <div
+                  v-if="loadingOrders"
+                  class="d-flex align-center justify-center py-8"
+                >
+                  <VProgressCircular
+                    indeterminate
+                    color="primary"
+                    size="20"
+                  />
+                </div>
+                
+                <template v-else-if="recentOrders.length > 0">
+                  <div
+                    v-for="order in recentOrders"
+                    :key="order.orderId"
+                    class="order-item"
+                    :class="{ selected: orderNumbers.includes(order.orderNumber) }"
+                    @click="addOrderFromList(order.orderNumber)"
+                  >
+                    <div class="order-item-dot" />
+                    <span class="order-item-name">{{ order.orderNumber }}</span>
+                  </div>
+                </template>
+                
+                <div
+                  v-else
+                  class="d-flex flex-column align-center justify-center py-8 text-center"
+                >
+                  <VIcon
+                    icon="bx-package"
+                    size="32"
+                    class="mb-2 text-medium-emphasis"
+                  />
+                  <div class="text-caption text-medium-emphasis">
+                    최근 주문이 없습니다
+                  </div>
+                </div>
+              </div>
+            </PerfectScrollbar>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 우측: 3D 뷰 및 경로 정보 -->
+      <div class="main-content">
+        <!-- 3D 창고 뷰 -->
+        <div class="warehouse-view-section">
+          <VCard>
+            <VCardTitle class="d-flex align-center">
+              <VIcon
+                icon="bx-cube"
+                class="me-2"
+              />
+              3D 창고 뷰
+            </VCardTitle>
+            
+            <VDivider />
+            
+            <VCardText
+              class="pa-0"
+              style="position: relative;"
+            >
+              <div class="warehouse-container">
+                <PartWarehouse3D 
+                  ref="warehouse3DRef" 
+                  :highlight-locations="highlightLocations"
+                  :optimized-route="routeSteps"
+                  :full-path="navigationResult?.fullPath || []"
+                  :show-grid="false"
+                  :grid-cols="25"
+                  :grid-rows="38"
+                  :pathfinding-grid="pathfindingGrid"
+                  @poi-click="onPOIClick"
+                />
+                
+                <!-- 애니메이션 컨트롤 -->
+                <div
+                  class="animation-controls"
+                  style="position: absolute; top: 10px; right: 10px; z-index: 1000; background: white; padding: 12px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);"
+                >
+                  <!-- 버튼 토글 헤더 -->
+                  <div
+                    class="d-flex align-center justify-space-between mb-2"
+                    style="cursor: pointer;"
+                    @click="showControlButtons = !showControlButtons"
+                  >
+                    <span class="text-caption font-weight-medium">
+                      {{ isNavigating ? '네비게이션' : '' }}
+                    </span>
+                    <VIcon size="16">
+                      {{ showControlButtons ? 'bx-chevron-up' : 'bx-chevron-down' }}
+                    </VIcon>
+                  </div>
+                  
+                  <!-- 일반 애니메이션 컨트롤 -->
+                  <VExpandTransition>
+                    <div
+                      v-if="showControlButtons && !isStepAnimationActive && !isNavigating"
+                      class="d-flex align-center gap-2 mb-2 flex-wrap"
+                    >
+                      <!--
+                        <VBtn
+                        size="small"
+                        color="primary"
+                        :disabled="isAnimating"
+                        @click="startAnimation"
+                        >
+                        경로 재생
+                        </VBtn>
+                        <VBtn
+                        size="small"
+                        color="error"
+                        :disabled="!isAnimating"
+                        @click="stopAnimation"
+                        >
+                        중지
+                        </VBtn> 
+                      -->
+                      <VBtn
+                        v-if="routeSteps.length > 0"
+                        size="small"
+                        color="secondary"
+                        :disabled="isAnimating || isNavigating"
+                        @click="startStepAnimation"
+                      >
+                        경유지별 이동
+                      </VBtn>
+                      <VBtn
+                        v-if="routeSteps.length > 0"
+                        size="small"
+                        color="success"
+                        :disabled="isAnimating || isStepAnimationActive || isNavigating"
+                        @click="startNavigation"
+                      >
+                        네비게이션 시작
+                      </VBtn>
+                      <VBtn
+                        size="small"
+                        color="info"
+                        :disabled="isNavigating"
+                        @click="resetCamera"
+                      >
+                        카메라 리셋
+                      </VBtn>
+                    </div>
+                  
+                    <!-- 경유지별 이동 컨트롤 -->
+                    <VExpandTransition>
+                      <div
+                        v-if="(showControlButtons && isStepAnimationActive && !isNavigating)"
+                        class="d-flex flex-column gap-2"
+                      >
+                        <div class="text-caption text-center mb-1">
+                          경유지 {{ currentStepIndex + 1 }} / {{ routeSteps.length }}
+                        </div>
+                        <div class="d-flex align-center gap-2 flex-wrap">
+                          <VBtn
+                            size="small"
+                            color="primary"
+                            :disabled="currentStepIndex <= 0"
+                            @click="previousStep"
+                          >
+                            이전
+                          </VBtn>
+                          <VBtn
+                            size="small"
+                            color="primary"
+                            :disabled="currentStepIndex >= routeSteps.length - 1"
+                            @click="nextStep"
+                          >
+                            다음
+                          </VBtn>
+                          <VBtn
+                            size="small"
+                            color="error"
+                            @click="stopStepAnimation"
+                          >
+                            종료
+                          </VBtn>
+                        </div>
+                      </div>
+                      <!-- 네비게이션 진행 중 컨트롤 -->
+                      <div
+                        v-if="isNavigating"
+                        class="d-flex flex-column gap-2"
+                      >
+                        <!-- 스탭 카운터 -->
+                        <div
+                          class="d-flex align-center justify-center gap-2 pa-2 mb-2"
+                          style="background: #f5f5f5; border-radius: 8px;"
+                        >
+                          <div class="d-flex flex-column align-center">
+                            <span class="text-h6 font-weight-bold text-primary">
+                              {{ stepCount }}
+                            </span>
+                            <span class="text-caption text-medium-emphasis">
+                              걸음
+                            </span>
+                          </div>
+                        </div>
+                        <!-- 중지 버튼 -->
+                        <VBtn
+                          size="small"
+                          color="error"
+                          block
+                          @click="stopNavigation"
+                        >
+                          네비게이션 중지
+                        </VBtn>
+                      </div>
+                    </VExpandTransition>
+                  </VExpandTransition>
+                </div>
+              </div>
+            </VCardText>
+          </VCard>
+        </div>
+        
+        <!-- 경로 정보 (하나의 카드에 합쳐서 표시) -->
+        <div
+          v-if="navigationResult && (navigationResult.optimizedRoute || navigationResult.totalDistance)"
+          class="route-tabs-section"
+        >
+          <VCard>
+            <VCardText class="pa-0">
+              <!-- 경로 정보 토글 헤더 -->
+              <div
+                class="route-info-header d-flex align-center justify-space-between pa-3"
+                style="cursor: pointer; border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));"
+                @click="showRouteInfo = !showRouteInfo"
+              >
+                <span class="text-body-1 font-weight-medium">경로 정보</span>
+                <VIcon size="20">
+                  {{ showRouteInfo ? 'bx-chevron-down' : 'bx-chevron-right' }}
+                </VIcon>
+              </div>
+              
+              <VExpandTransition>
+                <div
+                  v-if="showRouteInfo"
+                  class="d-flex"
+                  style="min-height: 200px;"
+                >
+                  <!-- 좌측: 전체 경로 정보 -->
+                  <div
+                    class="route-overview-section"
+                    style="flex: 1; padding: 16px; border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));"
+                  >
+                    <div class="route-overview">
+                      <div class="route-info-grid">
+                        <div class="route-info-item">
+                          <span class="route-info-label">알고리즘:</span>
+                          <span class="route-info-value">{{ algorithmType }}</span>
+                        </div>
+                        <div class="route-info-item">
+                          <span class="route-info-label">총 거리:</span>
+                          <span class="route-info-value">{{ formatDistance(totalDistance) }}</span>
+                        </div>
+                        <div class="route-info-item">
+                          <span class="route-info-label">예상 소요 시간:</span>
+                          <span class="route-info-value">{{ formatTime(estimatedTime) }}</span>
+                        </div>
+                        <div class="route-info-item">
+                          <span class="route-info-label">이동 시간:</span>
+                          <span class="route-info-value">{{ formatTime(walkingTime) }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- 우측: 경로 단계 -->
+                  <div
+                    class="route-steps-section"
+                    style="flex: 1.7; padding: 16px; max-height: 400px; overflow-y: auto;"
+                  >
+                    <div
+                      v-if="routeSteps && routeSteps.length > 0"
+                      class="route-steps"
+                    >
+                      <VTimeline
+                        side="end"
+                        align="start"
+                        density="compact"
+                      >
+                        <VTimelineItem
+                          v-for="step in routeSteps"
+                          :key="step.sequence || step.location"
+                          :dot-color="step.location === '문' || step.location === '포장대' ? 'success' : 'primary'"
+                          size="small"
+                        >
+                          <div class="d-flex justify-space-between align-center">
+                            <div style="flex: 1; max-width: 80%;">
+                              <div class="font-weight-medium mb-1">
+                                <template v-if="step.location === '문' || step.location === '포장대'">
+                                  {{ step.location }}
+                                </template>
+                                <template v-else>
+                                  <!-- 부품 정보: description이 부품명, sequence가 개수 -->
+                                  <div class="text-body-2">
+                                    {{ step.description || '부품 정보 없음' }}
+                                    <span
+                                      v-if="step.sequence"
+                                      class="text-body-2 ms-1"
+                                    >
+                                      ({{ step.sequence }}개)
+                                    </span>
+                                    <span
+                                      v-if="step.orderNumber"
+                                      class="text-caption text-primary ms-1"
+                                    >
+                                      [{{ step.orderNumber }}]
+                                    </span>
+                                  </div>
+                                </template>
+                              </div>
+                            </div>
+                            <div
+                              class="text-caption text-medium-emphasis ms-3 mr-2"
+                              style="min-width: 45px; text-align: right;"
+                            >
+                              {{ step.location }}
+                            </div>
+                          </div>
+                        </VTimelineItem>
+                      </VTimeline>
+                    </div>
+                  </div>
+                </div>
+              </VExpandTransition>
+            </VCardText>
+          </VCard>
+        </div>
+      </div>
+    </div>
+    
+    <!-- POI 부품 정보 다이얼로그 -->
+    <VDialog
+      v-model="showPOIDialog"
+      max-width="500"
+    >
+      <VCard>
+        <VCardTitle class="d-flex align-center justify-space-between">
+          <span>
+            <VIcon
+              icon="bx-package"
+              class="me-2"
+            />
+            {{ selectedPOILocation }} 위치 부품 정보
+          </span>
+          <VBtn
+            icon
+            variant="text"
+            size="small"
+            @click="showPOIDialog = false"
+          >
+            <VIcon>bx-x</VIcon>
+          </VBtn>
+        </VCardTitle>
+        
+        <VDivider />
+        
+        <VCardText>
+          <div
+            v-if="selectedPOIParts.length > 0"
+            class="d-flex flex-column gap-2"
+          >
+            <div
+              v-for="(part, idx) in selectedPOIParts"
+              :key="idx"
+              class="d-flex justify-space-between align-center pa-3"
+              style="background: #f5f5f5; border-radius: 8px;"
+            >
+              <div class="d-flex flex-column">
+                <span class="font-weight-medium">
+                  {{ part.name }}
+                </span>
+                <span
+                  v-if="part.orderNumber && part.orderNumber !== '-'"
+                  class="text-caption text-primary"
+                >
+                  주문: {{ part.orderNumber }}
+                </span>
+              </div>
+              <VChip
+                color="primary"
+                size="small"
+              >
+                {{ part.quantity }}개
+              </VChip>
+            </div>
+          </div>
+          <div
+            v-else
+            class="text-center pa-4 text-medium-emphasis"
+          >
+            해당 위치에 부품 정보가 없습니다.
+          </div>
+        </VCardText>
+      </VCard>
+    </VDialog>
+    
+    <!-- 알고리즘 비교 다이얼로그 -->
+    <VDialog
+      v-model="showComparison"
+      max-width="800"
+    >
+      <VCard v-if="comparisonResult">
+        <VCardTitle class="d-flex align-center">
+          <VIcon
+            icon="bx-bar-chart-alt-2"
+            class="me-2"
+          />
+          알고리즘 비교 결과
+        </VCardTitle>
+        
+        <VDivider />
+        
+        <VCardText>
+          <div class="mb-4">
+            <div>
+              <strong>부품 개수:</strong> {{ comparisonResult.partCount }}
+            </div>
+            <div>
+              <strong>최적 거리:</strong> {{ formatDistance(comparisonResult.optimalDistance) }}
+            </div>
+            <div>
+              <strong>최악 거리:</strong> {{ formatDistance(comparisonResult.worstDistance) }}
+            </div>
+            <div>
+              <strong>추천 알고리즘:</strong> 
+              <VChip
+                color="success"
+                size="small"
+                class="ms-2"
+              >
+                {{ comparisonResult.recommendedAlgorithm }}
+              </VChip>
+            </div>
+          </div>
+          
+          <VTable>
+            <thead>
+              <tr>
+                <th>알고리즘</th>
+                <th>총 거리</th>
+                <th>실행 시간</th>
+                <th>정확도</th>
+                <th>최적</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(result, algorithm) in comparisonResult.results"
+                :key="algorithm"
+                :class="{ 'bg-success-lighten-5': result.optimal }"
+              >
+                <td>{{ result.algorithmName }}</td>
+                <td>{{ formatDistance(result.totalDistance) }}</td>
+                <td>{{ result.executionTimeMs }}ms</td>
+                <td>{{ result.actualAccuracy?.toFixed(1) }}%</td>
+                <td>
+                  <VIcon
+                    v-if="result.optimal"
+                    icon="bx-check-circle"
+                    color="success"
+                  />
+                  <span v-else>-</span>
+                </td>
+              </tr>
+            </tbody>
+          </VTable>
+        </VCardText>
+        
+        <VDivider />
+        
+        <VCardActions>
+          <VSpacer />
+          <VBtn
+            color="primary"
+            @click="showComparison = false"
+          >
+            닫기
+          </VBtn>
+        </VCardActions>
+      </VCard>
+    </VDialog>
+  </div>
+</template>
+
+<style scoped>
+.warehouse-navigation-page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 100px);
+  background: rgb(var(--v-theme-surface));
+}
+
+.page-content {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 좌측: 주문 선택 사이드바 */
+.order-selector {
+  width: 250px;
+  min-width: 250px;
+  border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  background: rgb(var(--v-theme-surface));
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.order-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.order-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.order-input-section {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.order-input-field {
+  width: 100%;
+}
+
+.selected-orders-section {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.selected-orders-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.selected-orders-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.selected-orders-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.order-chip {
+  font-size: 12px;
+}
+
+.action-buttons {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.recent-orders-section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 16px;
+}
+
+.recent-orders-header {
+  margin-bottom: 8px;
+}
+
+.recent-orders-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.recent-orders-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.recent-orders-scroll {
+  flex: 1;
+  min-height: 0;
+}
+
+.recent-orders-content {
+  padding: 4px 0;
+}
+
+.order-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.order-item:hover {
+  background: rgba(var(--v-theme-primary), 0.08);
+}
+
+.order-item.selected {
+  background: rgba(var(--v-theme-primary), 0.12);
+}
+
+.order-item.selected .order-item-dot {
+  background: rgb(var(--v-theme-primary));
+}
+
+.order-item-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(var(--v-theme-on-surface), 0.3);
+  flex-shrink: 0;
+}
+
+.order-item-name {
+  font-size: 13px;
+  color: rgb(var(--v-theme-on-surface));
+  user-select: none;
+}
+
+.order-item.selected .order-item-name {
+  font-weight: 500;
+  color: rgb(var(--v-theme-primary));
+}
+
+/* 우측: 메인 컨텐츠 */
+.main-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+ 
+.warehouse-view-section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.warehouse-container {
+  width: 100%;
+  height: 100%;
+  min-height: 500px;
+}
+
+.route-tabs-section {
+  max-height: 400px;
+  padding: 0 16px 16px 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.route-tabs-container {
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+.route-tab-item {
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.route-tab-item:last-child {
+  border-bottom: none;
+}
+
+.route-tab-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  user-select: none;
+}
+
+.route-tab-header:hover {
+  background: rgba(var(--v-theme-primary), 0.04);
+}
+
+.route-tab-title {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 500;
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.route-tab-content {
+  padding: 16px;
+  background: rgba(var(--v-theme-surface), 0.5);
+}
+
+.route-overview {
+  width: 100%;
+}
+
+.route-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.route-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.route-info-label {
+  font-size: 12px;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+
+.route-info-value {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.route-steps {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.route-order-detail {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.order-detail-header {
+  display: flex;
+  align-items: center;
+}
+
+@media (max-width: 960px) {
+  .page-content {
+    flex-direction: column;
+  }
+  
+  .order-selector {
+    width: 100%;
+    min-width: unset;
+    max-height: 250px;
+    border-right: none;
+    border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  }
+  
+  .warehouse-view-section {
+    padding: 12px;
+  }
+  
+  .warehouse-container {
+    min-height: 400px;
+  }
+  
+  .route-tabs-section {
+    max-height: 300px;
+  }
+}
+</style>
