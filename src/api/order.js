@@ -432,11 +432,17 @@ export async function markAllNotificationsAsRead(type = 'admin') {
  * GET /api/v1/order/report/weekly?year=2024&month=11
  */
 export async function getWeeklyReport(year, month) {
-  if (!year || !month) throw new Error('year와 month는 필수입니다')
+  const yearNum = Number(year)
+  const monthNum = Number(month)
+  
+  if (!year || !month || isNaN(yearNum) || isNaN(monthNum)) {
+    throw new Error(`year와 month는 필수입니다. year: ${year}, month: ${month}`)
+  }
   
   try {
+    const params = { year: yearNum, month: monthNum }
     const res = await http.get('/api/v1/order/report/weekly', {
-      params: { year: Number(year), month: Number(month) },
+      params,
     })
     
     return {
@@ -455,11 +461,17 @@ export async function getWeeklyReport(year, month) {
  * GET /api/v1/order/report/warehouse?year=2024&month=11
  */
 export async function getWarehouseReport(year, month) {
-  if (!year || !month) throw new Error('year와 month는 필수입니다')
+  const yearNum = Number(year)
+  const monthNum = Number(month)
+  
+  if (!year || !month || isNaN(yearNum) || isNaN(monthNum)) {
+    throw new Error(`year와 month는 필수입니다. year: ${year}, month: ${month}`)
+  }
   
   try {
+    const params = { year: yearNum, month: monthNum }
     const res = await http.get('/api/v1/order/report/warehouse', {
-      params: { year: Number(year), month: Number(month) },
+      params,
     })
     
     return {
@@ -478,11 +490,19 @@ export async function getWarehouseReport(year, month) {
  * GET /api/v1/order/report/top-sales?year=2024&month=11
  */
 export async function getTopSalesReport(year, month) {
-  if (!year || !month) throw new Error('year와 month는 필수입니다')
+  const yearNum = Number(year)
+  const monthNum = Number(month)
+  
+  if (!year || !month || isNaN(yearNum) || isNaN(monthNum)) {
+    throw new Error(`year와 month는 필수입니다. year: ${year}, month: ${month}`)
+  }
   
   try {
+    const params = { year: yearNum, month: monthNum }
+    console.log('getTopSalesReport 호출:', params)
+    
     const res = await http.get('/api/v1/order/report/top-sales', {
-      params: { year: Number(year), month: Number(month) },
+      params,
     })
     
     return {
@@ -492,6 +512,7 @@ export async function getTopSalesReport(year, month) {
       data: res?.data?.data ?? {},
     }
   } catch (error) {
+    console.error('getTopSalesReport 에러:', { year: yearNum, month: monthNum, error })
     throw error
   }
 }
@@ -501,11 +522,17 @@ export async function getTopSalesReport(year, month) {
  * GET /api/v1/order/report/monthly?year=2024&month=11
  */
 export async function getMonthlyReport(year, month) {
-  if (!year || !month) throw new Error('year와 month는 필수입니다')
+  const yearNum = Number(year)
+  const monthNum = Number(month)
+  
+  if (!year || !month || isNaN(yearNum) || isNaN(monthNum)) {
+    throw new Error(`year와 month는 필수입니다. year: ${year}, month: ${month}`)
+  }
   
   try {
+    const params = { year: yearNum, month: monthNum }
     const res = await http.get('/api/v1/order/report/monthly', {
-      params: { year: Number(year), month: Number(month) },
+      params,
     })
     
     return {
@@ -524,11 +551,17 @@ export async function getMonthlyReport(year, month) {
  * GET /api/v1/order/report/daily?year=2024&month=11
  */
 export async function getDailyReport(year, month) {
-  if (!year || !month) throw new Error('year와 month는 필수입니다')
+  const yearNum = Number(year)
+  const monthNum = Number(month)
+  
+  if (!year || !month || isNaN(yearNum) || isNaN(monthNum)) {
+    throw new Error(`year와 month는 필수입니다. year: ${year}, month: ${month}`)
+  }
   
   try {
+    const params = { year: yearNum, month: monthNum }
     const res = await http.get('/api/v1/order/report/daily', {
-      params: { year: Number(year), month: Number(month) },
+      params,
     })
     
     return {
@@ -547,11 +580,17 @@ export async function getDailyReport(year, month) {
  * GET /api/v1/order/report/daily/category-sales?year=2024&month=11
  */
 export async function getDailyCategorySalesReport(year, month) {
-  if (!year || !month) throw new Error('year와 month는 필수입니다')
+  const yearNum = Number(year)
+  const monthNum = Number(month)
+  
+  if (!year || !month || isNaN(yearNum) || isNaN(monthNum)) {
+    throw new Error(`year와 month는 필수입니다. year: ${year}, month: ${month}`)
+  }
   
   try {
+    const params = { year: yearNum, month: monthNum }
     const res = await http.get('/api/v1/order/report/daily/category-sales', {
-      params: { year: Number(year), month: Number(month) },
+      params,
     })
     
     return {

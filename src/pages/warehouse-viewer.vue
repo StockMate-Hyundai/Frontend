@@ -38,7 +38,7 @@
     >
       <header class="panel-header">
         <h3 v-if="selectedRack">
-          섹션 {{ selectedRack.section }}-{{ selectedRack.bay.toString().padStart(2,'0') }}
+          {{ selectedRack.section }}{{ selectedRack.block !== undefined ? selectedRack.block : (selectedRack.bay ? (selectedRack.bay - 1) : '') }}
         </h3>
         <h3 v-else>
           랙 정보를 클릭하세요
@@ -56,44 +56,124 @@
         class="panel-body"
       >
         <div class="kpi">
+          <div><span class="k">위치</span><span class="v">{{ selectedRack.section }}{{ selectedRack.block !== undefined ? selectedRack.block : (selectedRack.bay - 1) }}</span></div>
           <div><span class="k">레벨</span><span class="v">{{ selectedRack.levels }}</span></div>
           <div><span class="k">적치깊이</span><span class="v">{{ selectedRack.depthType }}</span></div>
           <div><span class="k">좌표</span><span class="v">{{ selectedRack.position.x.toFixed(1) }}, {{ selectedRack.position.z.toFixed(1) }}</span></div>
         </div>
         <div class="list">
-          <h4>대표 품목 (데모)</h4>
-          <ul>
-            <li
-              v-for="sku in selectedRack.sampleSkus"
-              :key="sku"
+          <h4>구역 {{ selectedRack.section }}{{ selectedRack.block !== undefined ? selectedRack.block : (selectedRack.bay - 1) }} 부품 목록</h4>
+          <div
+            v-if="loadingParts"
+            class="loading-parts"
+          >
+            부품 목록을 불러오는 중...
+          </div>
+          <div
+            v-else-if="locationParts.length > 0"
+            class="parts-list"
+          >
+            <div
+              v-for="(locationData, idx) in locationParts"
+              :key="idx"
+              class="floor-group"
             >
-              {{ sku }}
-            </li>
-          </ul>
-        </div>
-        <div class="btns">
-          <button
-            class="ghost"
-            @click="toggleWireframe"
+              <div
+                class="floor-header"
+                @click="toggleFloor(idx)"
+              >
+                <VIcon
+                  icon="bx-layer"
+                  size="18"
+                  class="floor-icon"
+                />
+                <h5 class="floor-title">
+                  {{ locationData.floor }}층
+                </h5>
+                <VChip
+                  size="small"
+                  color="primary"
+                  variant="tonal"
+                  class="floor-count"
+                >
+                  {{ locationData.parts?.length || 0 }}개
+                </VChip>
+                <VIcon
+                  :icon="locationData.collapsed ? 'bx-chevron-right' : 'bx-chevron-down'"
+                  size="20"
+                  class="floor-chevron"
+                />
+              </div>
+              <VExpandTransition>
+                <div
+                  v-show="!locationData.collapsed"
+                  class="parts-grid"
+                >
+                <div
+                  v-for="part in locationData.parts"
+                  :key="part.id"
+                  class="part-card"
+                  @click="goToPartDetail(part.id)"
+                >
+                  <div class="part-image-wrapper">
+                    <img
+                      v-if="part.image"
+                      :src="part.image"
+                      :alt="part.korName || part.name"
+                      class="part-image"
+                      @error="handleImageError"
+                    >
+                    <div
+                      v-else
+                      class="part-image-placeholder"
+                    >
+                      <VIcon
+                        icon="bx-package"
+                        size="24"
+                      />
+                    </div>
+                  </div>
+                  <div class="part-content">
+                    <div class="part-name">
+                      {{ part.korName || part.name }}
+                    </div>
+                    <div class="part-meta">
+                      <div class="part-meta-row">
+                        <VIcon
+                          icon="bx-map"
+                          size="14"
+                          class="meta-icon"
+                        />
+                        <span class="part-location">{{ part.location }}</span>
+                      </div>
+                      <div class="part-meta-row">
+                        <VIcon
+                          icon="bx-box"
+                          size="14"
+                          class="meta-icon"
+                        />
+                        <span class="part-amount">재고: {{ part.amount || 0 }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                </div>
+              </VExpandTransition>
+            </div>
+          </div>
+          <div
+            v-else
+            class="no-parts"
           >
-            {{ wireframeMode ? '와이어프레임 해제' : '와이어프레임 보기' }}
-          </button>
-          <button
-            class="ghost"
-            @click="resetCamera"
-          >
-            카메라 리셋
-          </button>
-        </div>
-        <p class="hint">
-          마우스 이동: 하이라이트, 클릭: 선택.
-        </p>
+            해당 구역에 등록된 부품이 없습니다.
+          </div>
+        </div>    
       </div>
     </aside>
 
-    <!-- 우상단 컨트롤 -->
-    <div class="control-panel">
-      <div class="control-section">
+      <!-- 우상단 컨트롤 -->
+      <div class="control-panel">
+        <div class="control-section">
         <h4>조작</h4>
         <div class="control-info">
           <p><strong>모드 전환</strong> F ({{ isFPS ? 'FPS' : 'Orbit' }})</p>
@@ -126,10 +206,12 @@
 </template>
 
 <script setup>
+import { getLocationParts } from '@/api/parts'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js'
 import { onMounted, onUnmounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 definePage({
   meta: {
@@ -139,12 +221,36 @@ definePage({
   },
 })
 
+/* ===== Router ===== */
+const router = useRouter()
+
 /* ===== State ===== */
 const canvasRef = ref(null)
 const loading = ref(true)
 const error = ref('')
 const modelInfo = ref({ vertices: 0, faces: 0 })
 const wireframeMode = ref(false)
+
+/* 이미지 에러 처리 */
+function handleImageError(event) {
+  event.target.style.display = 'none'
+  if (event.target.parentElement) {
+    event.target.parentElement.classList.add('has-error')
+  }
+}
+
+/* 부품 상세 페이지로 이동 */
+function goToPartDetail(partId) {
+  if (!partId) return
+  router.push({ name: 'part-detail-id', params: { id: String(partId) } })
+}
+
+/* 층별 토글 */
+function toggleFloor(index) {
+  if (locationParts.value[index]) {
+    locationParts.value[index].collapsed = !locationParts.value[index].collapsed
+  }
+}
 
 let scene, camera, renderer, controls, rootGroup
 let hoverObj = null
@@ -172,11 +278,11 @@ const DOCK_BUFFER = 10.0
 const WALL_RACKS = { back: false, left: false, right: false }
 
 const CENTER_GROUPS = [
-  { name: 'ZONE A', bundles: 1 },
-  { name: 'ZONE B', bundles: 1 },
-  { name: 'ZONE C', bundles: 1 },
-  { name: 'ZONE D', bundles: 1 },
-  { name: 'ZONE E', bundles: 1 },
+  { name: 'ZONE A', bundles: 1, letter: 'A' },
+  { name: 'ZONE B', bundles: 1, letter: 'B' },
+  { name: 'ZONE C', bundles: 1, letter: 'C' },
+  { name: 'ZONE D', bundles: 1, letter: 'D' },
+  { name: 'ZONE E', bundles: 1, letter: 'E' },
 ]
 
 const WORK = { size: { w: 12.0, d: 8.0 }, table: { w: 1.8, h: 0.9, d: 0.8 }, bufferFromRacks: 5.0 }
@@ -184,6 +290,8 @@ const WORK = { size: { w: 12.0, d: 8.0 }, table: { w: 1.8, h: 0.9, d: 0.8 }, buf
 /* Entry / 선택 */
 const ENTRANCE = new THREE.Vector3(0, 0.02, 0)
 const selectedRack = ref(null)
+const locationParts = ref([])
+const loadingParts = ref(false)
 
 /* 충돌용 AABB */
 const colliders = []
@@ -252,7 +360,10 @@ function buildWarehouse() {
       for(let seg=0; seg<4; seg++){
         const segCenterX = rowStartX + seg*(segWidth + SEGMENT.GAP)
 
-        buildBackToBackSegment(centerZ, segCenterX, SEGMENT.BAYS)
+        // 각 segment마다 blockOffset 계산: segment 0->0, 1->10, 2->20, 3->30
+        const blockOffset = seg * 10
+
+        buildBackToBackSegment(centerZ, segCenterX, SEGMENT.BAYS, zone.letter || zone.name.slice(-1), blockOffset)
       }
     }
     if (zi < CENTER_GROUPS.length-1) {
@@ -331,19 +442,34 @@ function buildWorkArea(cx, cz) {
 }
 
 /* Back-to-back segment */
-function buildBackToBackSegment(centerZ, segmentCenterX, bays=5){
+// blockOffset: 각 segment의 시작 block 번호 (segment 0->0, 1->10, 2->20, 3->30)
+// 앞면: blockOffset + 0~4 (예: A0-A4), 뒷면: blockOffset + 5~9 (예: A5-A9)
+function buildBackToBackSegment(centerZ, segmentCenterX, bays=5, section='C', blockOffset=0){
   const half = BAY.D_SINGLE + MIN_R2R/2
   const innerSpan = (bays-1)*BAY_PITCH
   const startX = segmentCenterX - innerSpan/2
+  
+  // 문쪽 (z가 작은 쪽, centerZ - half) = 앞면: blockOffset + 0~4
+  // 포장대쪽 (z가 큰 쪽, centerZ + half) = 뒷면: blockOffset + 5~9
   for(let i=0;i<bays;i++){
     const x = startX + i*BAY_PITCH
-    const front = makeRackUnitFacingFront('C', i+1, true)
+    
+    // 앞면 (문쪽): blockOffset + 0~4
+    const frontBlock = blockOffset + i
+    const front = makeRackUnitFacingFront(section, frontBlock + 1, true) // bay는 1부터 시작하므로 +1
 
-    front.position.set(x, 0, centerZ + half); rootGroup.add(front)
+    front.userData.block = frontBlock // block 정보 저장 (A0, A1, ...)
+    front.position.set(x, 0, centerZ - half) // 문쪽 (z가 작은 쪽)
+    rootGroup.add(front)
 
-    const back  = makeRackUnitFacingFront('C', i+1, true)
+    // 뒷면 (포장대쪽): blockOffset + 5~9
+    const backBlock = blockOffset + 5 + i
+    const back = makeRackUnitFacingFront(section, backBlock + 1, true) // bay는 1부터 시작하므로 +1
 
-    back.position.set(x, 0, centerZ - half); back.rotation.y = Math.PI; rootGroup.add(back)
+    back.userData.block = backBlock // block 정보 저장 (A5, A6, ...)
+    back.position.set(x, 0, centerZ + half) // 포장대쪽 (z가 큰 쪽)
+    back.rotation.y = Math.PI
+    rootGroup.add(back)
   }
 }
 
@@ -530,21 +656,51 @@ function onClick(e) {
   const obj = intersects[0]?.object
   if (obj) selectRack(obj)
 }
-function selectRack(obj) {
+async function selectRack(obj) {
   if (selectedObj) setEmissive(selectedObj, 0x000000)
   selectedObj = obj
   setEmissive(selectedObj, 0x00c2ff)
 
   const src = obj.userData.source ?? obj
-  const { section, bay, levels, depthType } = src.userData
+  const { section, bay, levels, depthType, block } = src.userData
   const world = new THREE.Vector3()
 
   src.getWorldPosition(world)
-  selectedRack.value = { section, bay, levels, depthType, position: { x: world.x, z: world.z }, sampleSkus: src.userData.sampleSkus ?? [] }
+
+  const blockNum = block !== undefined ? block : (bay ? bay - 1 : undefined)
+
+  selectedRack.value = { section, bay, block: blockNum, levels, depthType, position: { x: world.x, z: world.z }, sampleSkus: src.userData.sampleSkus ?? [] }
+  
+  // 해당 location의 부품 목록 가져오기
+  // warehouse-navigation 형식: "A0", "A1", "B0" 등 (section + block, block은 0부터 시작)
+  // block 정보가 있으면 직접 사용, 없으면 bay-1로 계산
+  if (section && (block !== undefined || bay)) {
+    const blockNum = block !== undefined ? block : (bay - 1) // block이 있으면 사용, 없으면 bay-1로 계산
+    const location = `${section}${blockNum}` // 예: "A0", "A1", "A5", "A10"
+
+    loadingParts.value = true
+    locationParts.value = []
+    try {
+      const parts = await getLocationParts(location)
+
+      // 각 층에 collapsed 상태 추가 (기본값: false, 펼쳐진 상태)
+      locationParts.value = parts.map(locationData => ({
+        ...locationData,
+        collapsed: false,
+      }))
+    } catch (error) {
+      console.error('[selectRack] getLocationParts error:', error)
+      locationParts.value = []
+    } finally {
+      loadingParts.value = false
+    }
+  }
 }
 function clearSelection() {
   if (selectedObj) setEmissive(selectedObj, 0x000000)
-  selectedObj = null; selectedRack.value = null
+  selectedObj = null
+  selectedRack.value = null
+  locationParts.value = []
 }
 function setEmissive(target, color) {
   const root = target.userData.source ?? target
@@ -863,19 +1019,209 @@ onUnmounted(() => {
   background: rgba(255,255,255,.98); box-shadow: 2px 0 10px rgba(0,0,0,.12);
   transition: width .25s ease; z-index: 12;
 }
-.side-panel.open { width: 320px; }
+.side-panel.open { width: 420px; }
 .panel-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #eee; }
 .panel-header h3 { font-size: 16px; margin: 0; }
 .panel-close { border: 0; background: #f0f0f0; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; }
-.panel-body { padding: 14px 16px; }
+.panel-body { padding: 16px; }
 
 .kpi { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; margin-bottom: 12px; }
 .kpi .k { display: block; font-size: 12px; color: #6c757d; }
 .kpi .v { display: block; font-weight: 600; font-size: 14px; }
 
-.list h4 { margin: 6px 0 8px; font-size: 13px; color: #333; }
+.list h4 { margin: 0 0 16px; font-size: 15px; font-weight: 600; color: #212529; }
 .list ul { margin: 0; padding-left: 16px; }
 .list li { font-size: 13px; margin: 2px 0; }
+
+.loading-parts, .no-parts {
+  padding: 20px;
+  text-align: center;
+  color: #6c757d;
+  font-size: 13px;
+}
+
+.parts-list {
+  max-height: 450px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* 스크롤바 스타일링 */
+.parts-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.parts-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.parts-list::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.parts-list::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+.floor-group {
+  margin-bottom: 24px;
+}
+
+.floor-group:last-child {
+  margin-bottom: 0;
+}
+
+.floor-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #e9ecef;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s ease;
+  padding: 8px;
+  margin: -8px -8px 12px -8px;
+  border-radius: 6px;
+}
+
+.floor-header:hover {
+  background-color: #f8f9fa;
+}
+
+.floor-icon {
+  color: #0d6efd;
+}
+
+.floor-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #212529;
+  margin: 0;
+  flex: 1;
+}
+
+.floor-count {
+  font-size: 11px;
+  height: 20px;
+}
+
+.floor-chevron {
+  color: #6c757d;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.parts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.part-card {
+  background: #ffffff;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.part-card:hover {
+  border-color: #0d6efd;
+  box-shadow: 0 2px 8px rgba(13, 110, 253, 0.15);
+  transform: translateY(-2px);
+}
+
+.part-image-wrapper {
+  width: 100%;
+  height: 120px;
+  background: #f8f9fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.part-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.2s ease;
+}
+
+.part-card:hover .part-image {
+  transform: scale(1.05);
+}
+
+.part-image-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #adb5bd;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+}
+
+.part-image-wrapper.has-error .part-image-placeholder {
+  display: flex;
+}
+
+.part-content {
+  padding: 12px;
+}
+
+.part-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #212529;
+  margin-bottom: 8px;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 36px;
+}
+
+.part-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.part-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #6c757d;
+}
+
+.meta-icon {
+  color: #adb5bd;
+  flex-shrink: 0;
+}
+
+.part-location {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 10px;
+  background: #f8f9fa;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.part-amount {
+  font-weight: 600;
+  color: #198754;
+}
 
 .btns { display: flex; gap: 8px; margin: 14px 0 8px; flex-wrap: wrap; }
 .primary { background: #0d6efd; color: #fff; border: 0; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; }

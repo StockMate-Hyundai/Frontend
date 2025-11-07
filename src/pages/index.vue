@@ -8,6 +8,7 @@ definePage({
   },
 }) 
 import { getCategorySales, getRecentOrders, getTodayDashboard, getTodayInboundOutbound, getTopParts } from '@/api/order'
+import { getWarehouseInventoryRatio } from '@/api/parts'
 import { computed, onMounted, ref } from 'vue'
 import VueApexCharts from 'vue3-apexcharts'
 
@@ -133,16 +134,16 @@ const lineOptions = {
 }
 
 /* ===== 거점별 재고(도넛) ===== */
-const sites = ['본사창고','동부물류','서부물류','남부물류','협력창고']
-const siteInventory = ref([480,320,220,200,140])
-const donutOptions = {
+const sites = ref<string[]>([])
+const siteInventory = ref([0, 0, 0, 0, 0])
+const donutOptions = computed(() => ({
   chart:{ type:'donut' },
-  labels: sites,
+  labels: sites.value,
   colors:['#2563eb','#10b981','#f59e0b','#ef4444','#8b5cf6'],
   legend:{ position:'right' },
   plotOptions:{ pie:{ donut:{ size:'68%' } } },
-  tooltip:{ y:{ formatter:(v:number)=> `${v}ea` } },
-}
+  tooltip:{ y:{ formatter:(v:number)=> `${nf.format(v)}ea` } },
+}))
 
 /* ===== 부품 카테고리별 판매 비중 ===== */
 const categories = ref([])
@@ -171,20 +172,73 @@ const topSales = ref([])
 const nf = new Intl.NumberFormat('ko-KR')
 const chipColor = (t:string) => t==='입고'?'primary':t==='출고'?'info':'warning'
 
+// 부품명 30자 제한 함수
+const truncateName = (name: string, maxLength = 30) => {
+  if (!name) return ''
+  if (name.length <= maxLength) return name
+  return name.substring(0, maxLength) + '...'
+}
+
 /* ===== 데이터 로딩 ===== */
 const loadDashboardData = async () => {
   try {
     loading.value = true
     error.value = ''
     
-    // 병렬로 모든 API 호출
-    const [dashboardRes, inOutRes, topPartsRes, recentOrdersRes, categorySalesRes] = await Promise.all([
-      getTodayDashboard(),
-      getTodayInboundOutbound(),
-      getTopParts(),
-      getRecentOrders(),
-      getCategorySales()
+    // 병렬로 모든 API 호출 (일부 실패해도 나머지 처리)
+    const results = await Promise.allSettled([
+      getTodayDashboard().catch(err => {
+        console.error('대시보드 데이터 로딩 실패:', err)
+        return { success: false, data: null, error: err }
+      }),
+      getTodayInboundOutbound().catch(err => {
+        console.error('입출고 추이 데이터 로딩 실패:', err)
+        return { success: false, data: null, error: err }
+      }),
+      getTopParts().catch(err => {
+        console.error('TOP 판매 부품 데이터 로딩 실패:', err)
+        return { success: false, data: null, error: err }
+      }),
+      getRecentOrders().catch(err => {
+        console.error('최근 주문 이력 데이터 로딩 실패:', err)
+        return { success: false, data: null, error: err }
+      }),
+      getCategorySales().catch(err => {
+        console.error('카테고리별 판매량 데이터 로딩 실패:', err)
+        return { success: false, data: null, error: err }
+      }),
+      getWarehouseInventoryRatio().catch(err => {
+        console.error('창고별 재고 비중 데이터 로딩 실패:', err)
+        return { success: false, data: null, error: err }
+      })
     ])
+    
+    // 결과 추출 (Promise.allSettled 결과 처리)
+    const dashboardRes = results[0].status === 'fulfilled' ? results[0].value : { success: false, data: null }
+    const inOutRes = results[1].status === 'fulfilled' ? results[1].value : { success: false, data: null }
+    const topPartsRes = results[2].status === 'fulfilled' ? results[2].value : { success: false, data: null }
+    const recentOrdersRes = results[3].status === 'fulfilled' ? results[3].value : { success: false, data: null }
+    const categorySalesRes = results[4].status === 'fulfilled' ? results[4].value : { success: false, data: null }
+    const warehouseRatioRes = results[5].status === 'fulfilled' ? results[5].value : { success: false, data: null }
+    
+    // 실패한 API가 있는지 확인
+    const failedApis = []
+    if (!dashboardRes.success) failedApis.push('대시보드')
+    if (!inOutRes.success) failedApis.push('입출고 추이')
+    if (!topPartsRes.success) failedApis.push('TOP 판매 부품')
+    if (!recentOrdersRes.success) failedApis.push('최근 주문 이력')
+    if (!categorySalesRes.success) failedApis.push('카테고리별 판매량')
+    if (!warehouseRatioRes.success) failedApis.push('창고별 재고 비중')
+    
+    if (failedApis.length > 0) {
+      console.warn('일부 대시보드 API 로딩 실패:', failedApis)
+      // 전체 실패가 아닌 경우 경고만 표시
+      if (failedApis.length === results.length) {
+        error.value = '대시보드 데이터를 불러오는데 실패했습니다.'
+      } else {
+        error.value = `${failedApis.join(', ')} 데이터를 불러오는데 실패했습니다.`
+      }
+    }
     
     // 대시보드 데이터 처리
     if (dashboardRes.success && dashboardRes.data) {
@@ -238,6 +292,17 @@ const loadDashboardData = async () => {
       const sales = categorySalesRes.data.categories || []
       categories.value = sales.map(item => item.categoryName || '')
       categorySales.value = sales.map(item => item.totalQuantity || 0)
+    }
+    
+    // 창고별 재고 비중 처리
+    if (warehouseRatioRes.success && warehouseRatioRes.data) {
+      const warehouses = warehouseRatioRes.data.warehouses || []
+      // 창고 코드를 "A구역", "B구역" 형태로 변환
+      sites.value = warehouses.map(w => {
+        const warehouseCode = w.warehouse || ''
+        return warehouseCode ? `${warehouseCode}구역` : ''
+      })
+      siteInventory.value = warehouses.map(w => w.totalQuantity || 0)
     }
     
   } catch (err) {
@@ -361,7 +426,16 @@ onMounted(() => {
               거점별 재고 비중
             </VCardTitle>
             <VCardText class="pt-0">
-              <VueApexCharts height="280" type="donut" :options="donutOptions" :series="siteInventory" />
+              <VueApexCharts 
+                v-if="siteInventory.some(v => v > 0)"
+                height="280" 
+                type="donut" 
+                :options="donutOptions" 
+                :series="siteInventory" 
+              />
+              <div v-else class="d-flex justify-center align-center" style="height: 280px;">
+                <span class="text-medium-emphasis">데이터가 없습니다</span>
+              </div>
             </VCardText>
           </VCard>
           
@@ -445,22 +519,17 @@ onMounted(() => {
                   <tr>
                     <th>부품명</th>
                     <th class="text-right">판매수량</th>
-                    <th class="text-right">매출</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-if="topSales.length === 0">
-                    <td colspan="3" class="text-center text-body-2 text-medium-emphasis py-4">
+                    <td colspan="2" class="text-center text-body-2 text-medium-emphasis py-4">
                       데이터가 없습니다
                     </td>
                   </tr>
                   <tr v-for="(t, idx) in topSales" :key="idx">
-                    <td class="text-body-2">{{ t.name }}</td>
-                    <td class="text-body-2 text-right">{{ nf.format(t.qty) }}</td>
-                    <td class="text-body-2 text-right font-weight-medium">
-                      <template v-if="t.revenue > 0">₩{{ nf.format(t.revenue) }}</template>
-                      <template v-else>-</template>
-                    </td>
+                    <td class="text-body-2 text-truncate" :title="t.name">{{ truncateName(t.name) }}</td>
+                    <td class="text-body-2 text-right sales-qty">{{ nf.format(t.qty) }}개</td>
                   </tr>
                 </tbody>
               </VTable>
@@ -568,6 +637,18 @@ onMounted(() => {
 .status-chip {
   font-weight: 500;
   font-size: 0.7rem;
+}
+
+/* 판매수량 컬럼 스타일 */
+.sales-qty {
+  min-width: 120px;
+  width: 120px;
+}
+
+.erp-table :deep(.v-table__head th:last-child),
+.erp-table :deep(.v-table__body td:last-child) {
+  min-width: 120px;
+  width: 120px;
 }
 
 /* 반응형 */
