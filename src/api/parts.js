@@ -406,3 +406,50 @@ export async function compareAllAlgorithms(orderNumbers = []) {
   // 응답 스펙: ApiResponseAlgorithmComparisonDTO -> data: AlgorithmComparisonDTO
   return res?.data?.data ?? null
 }
+
+/**
+ * 📊 창고별 재고 비중 조회 API
+ * GET /api/v1/parts/dashboard/warehouse-ratio
+ * @returns {Promise<WarehouseInventoryRatioResponseDTO>} 창고별 재고 비중 정보
+ */
+export async function getWarehouseInventoryRatio() {
+  try {
+    const res = await http.get('/api/v1/parts/dashboard/warehouse-ratio')
+    
+    return {
+      status: res?.data?.status ?? 200,
+      success: !!(res?.data?.success ?? true),
+      message: res?.data?.message,
+      data: res?.data?.data ?? {},
+    }
+  } catch (error) {
+    throw error
+  }
+}
+
+/**
+ * 📍 창고 구역별 부품 조회 API
+ * GET /api/v1/parts/location
+ * @param {string} location - 창고 구역 (예: "A", "B", "C", "D", "E")
+ * @returns {Promise<Array<LocationResponseDto>>} 층별 부품 목록
+ */
+export async function getLocationParts(location) {
+  if (!location) {
+    return []
+  }
+
+  try {
+    const res = await http.get('/api/v1/parts/location', {
+      params: { location },
+    })
+
+    // 응답 스펙: ApiResponseListLocationResponseDto -> data: LocationResponseDto[]
+    const payload = res?.data?.data ?? res?.data ?? []
+    
+    return Array.isArray(payload) ? payload : []
+  } catch (error) {
+    console.error('[getLocationParts] error:', error)
+    console.error('[getLocationParts] error response:', error.response?.data)
+    return []
+  }
+}
