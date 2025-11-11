@@ -43,33 +43,6 @@ export async function generateInvoicePDF(orderData) {
   div.style.background = 'white'
   document.body.appendChild(div)
   
-  // 이미지가 로드될 때까지 대기
-  await new Promise(resolve => {
-    const images = div.querySelectorAll('img')
-    if (images.length === 0) {
-      resolve()
-      return
-    }
-    
-    let loadedCount = 0
-    const totalImages = images.length
-    
-    const checkComplete = () => {
-      loadedCount++
-      if (loadedCount === totalImages) {
-        setTimeout(resolve, 500) // 이미지 렌더링을 위한 추가 대기 시간
-      }
-    }
-    
-    images.forEach(img => {
-      if (img.complete) {
-        checkComplete()
-      } else {
-        img.onload = checkComplete
-        img.onerror = checkComplete // 에러가 나도 진행
-      }
-    })
-  })
   
   // html2canvas로 이미지 변환
   const canvas = await html2canvas(div, {
@@ -78,7 +51,7 @@ export async function generateInvoicePDF(orderData) {
     useCORS: true,
     letterRendering: true,
     logging: false,
-    allowTaint: true,
+    allowTaint: false,
   })
   
   document.body.removeChild(div)
@@ -150,7 +123,6 @@ function createInvoiceHTML({ summary, customerInfo, lineItems, qrDataUrl, fmtCur
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
           <thead>
             <tr style="background: #f8f9fa; border-bottom: 2px solid #e0e0e0; page-break-inside: avoid;">
-              <th style="padding: 12px; text-align: left; font-size: 14px; font-weight: 600; width: 15%;">사진</th>
               <th style="padding: 12px; text-align: left; font-size: 14px; font-weight: 600;">부품명</th>
               <th style="padding: 12px; text-align: center; font-size: 14px; font-weight: 600; width: 10%;">수량</th>
               <th style="padding: 12px; text-align: right; font-size: 14px; font-weight: 600; width: 15%;">단가</th>
@@ -159,14 +131,8 @@ function createInvoiceHTML({ summary, customerInfo, lineItems, qrDataUrl, fmtCur
           </thead>
           <tbody>
             ${lineItems.map(item => {
-              const imageUrl = item.image || ''
-              const imageHtml = imageUrl 
-                ? `<img src="${imageUrl}" style="width: 60px; height: 60px; object-fit: contain; border: 1px solid #e0e0e0; border-radius: 4px; background: #f8f9fa;" alt="${item.productName}" onerror="this.style.display='none';" />`
-                : '<div style="width: 60px; height: 60px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #999; font-size: 10px;">이미지<br/>없음</div>'
-              
               return `
               <tr style="border-bottom: 1px solid #e0e0e0; page-break-inside: avoid;">
-                <td style="padding: 12px; font-size: 13px; text-align: center;">${imageHtml}</td>
                 <td style="padding: 12px; font-size: 13px;">${item.productName}</td>
                 <td style="padding: 12px; text-align: center; font-size: 13px;">${item.quantity}</td>
                 <td style="padding: 12px; text-align: right; font-size: 13px;">₩${fmtCurrency(item.price)}</td>
@@ -176,15 +142,15 @@ function createInvoiceHTML({ summary, customerInfo, lineItems, qrDataUrl, fmtCur
           </tbody>
           <tfoot style="page-break-inside: avoid;">
             <tr style="border-bottom: 1px solid #e0e0e0;">
-              <td colspan="4" style="padding: 12px; text-align: right; font-size: 14px; font-weight: 600;">합계금액:</td>
+              <td colspan="3" style="padding: 12px; text-align: right; font-size: 14px; font-weight: 600;">합계금액:</td>
               <td style="padding: 12px; text-align: right; font-size: 14px; font-weight: 600;">₩${fmtCurrency(totalAmount)}</td>
             </tr>
             <tr style="border-bottom: 1px solid #e0e0e0;">
-              <td colspan="4" style="padding: 12px; text-align: right; font-size: 14px;">부가세액:</td>
+              <td colspan="3" style="padding: 12px; text-align: right; font-size: 14px;">부가세액:</td>
               <td style="padding: 12px; text-align: right; font-size: 14px;">₩${fmtCurrency(vatAmount)}</td>
             </tr>
             <tr style="background: #f8f9fa; border-top: 2px solid #2563eb;">
-              <td colspan="4" style="padding: 12px; text-align: right; font-size: 16px; font-weight: bold;">공급가액:</td>
+              <td colspan="3" style="padding: 12px; text-align: right; font-size: 16px; font-weight: bold;">공급가액:</td>
               <td style="padding: 12px; text-align: right; font-size: 16px; font-weight: bold; color: #2563eb;">₩${fmtCurrency(supplyAmount)}</td>
             </tr>
           </tfoot>
@@ -218,13 +184,11 @@ export function transformOrderDataForInvoice(orderDetail) {
     const name = pd?.korName || pd?.name || pd?.engName || `#${x?.partId}`
     const price = pd?.price ?? 0
     const qty = x?.amount ?? 0
-    const image = pd?.imageUrl || pd?.image || pd?.thumbnail || null
     
     return {
       productName: name,
       price,
       quantity: qty,
-      image,
     }
   })
 

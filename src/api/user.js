@@ -1,10 +1,17 @@
-// src/api/user.js
+/**
+ * 사용자 관련 API
+ * 사용자 조회, 상태 변경, 역할 변경 등의 기능을 제공합니다.
+ */
 import { http } from './http'
 
-/* =========================================================
- * 공통: enum/가드
- * ======================================================= */
+/**
+ * 유효한 사용자 상태 목록
+ */
 export const VALID_STATUSES = ['ACTIVE', 'PENDING', 'DISABLED']
+
+/**
+ * 유효한 사용자 역할 목록
+ */
 export const VALID_ROLES = ['USER', 'ADMIN', 'SUPER_ADMIN', 'WAREHOUSE']
 
 /**
@@ -18,10 +25,14 @@ function assertNumber(n, name = 'value') {
   if (!Number.isFinite(n)) throw new Error(`${name}는 숫자여야 합니다.`)
 }
 
-/* =========================================================
- * 조회 계열
- * ======================================================= */
-// GET /api/v1/user/all?page={0-base}&size={n}
+/**
+ * 사용자 목록 조회
+ * GET /api/v1/user/all
+ * @param {Object} options - 조회 옵션
+ * @param {number} options.page - 페이지 번호 (0부터 시작)
+ * @param {number} options.size - 페이지 크기
+ * @returns {Promise<Object>} 사용자 목록 및 페이지네이션 정보
+ */
 export async function apiGetUsersPublic({ page = 0, size = 20 } = {}) {
   const { data } = await http.get('/api/v1/user/all', { params: { page, size } })
 
@@ -41,7 +52,12 @@ export async function apiGetUsersPublic({ page = 0, size = 20 } = {}) {
   }
 }
 
-// GET /api/v1/user/{memberId}
+/**
+ * 사용자 상세 조회
+ * GET /api/v1/user/{memberId}
+ * @param {number|string} memberId - 사용자 ID
+ * @returns {Promise<Object|null>} 사용자 정보
+ */
 export async function apiGetUserByMemberIdPublic(memberId) {
   assertNumber(memberId, 'memberId')
 
@@ -50,22 +66,34 @@ export async function apiGetUserByMemberIdPublic(memberId) {
   return data?.data ?? null
 }
 
-// GET /api/v1/user/my (토큰 필요)
+/**
+ * 현재 로그인한 사용자 정보 조회
+ * GET /api/v1/user/my
+ * @returns {Promise<Object|null>} 현재 사용자 정보
+ */
 export async function apiGetMyUser() {
   const { data } = await http.get('/api/v1/user/my')
   
   return data?.data ?? null
 }
 
-// GET /api/v1/user/health-check
+/**
+ * 사용자 서비스 헬스체크
+ * GET /api/v1/user/health-check
+ * @returns {Promise<{ok: boolean, raw: Object}>} 헬스체크 결과
+ */
 export async function apiUserHealthCheck() {
   const { data } = await http.get('/api/v1/user/health-check')
   
   return { ok: !!data?.success, raw: data }
 }
 
-// POST /api/v1/user/batch
-// body: { memberIds: number[] }
+/**
+ * 여러 사용자 정보 일괄 조회
+ * POST /api/v1/user/batch
+ * @param {number[]} memberIds - 사용자 ID 배열
+ * @returns {Promise<Array>} 사용자 정보 배열
+ */
 export async function apiGetUsersByMemberIds(memberIds = []) {
   if (!Array.isArray(memberIds) || memberIds.length === 0)
     throw new Error('memberIds는 비어있지 않은 숫자 배열이어야 합니다.')
@@ -77,12 +105,14 @@ export async function apiGetUsersByMemberIds(memberIds = []) {
   return Array.isArray(data?.data) ? data.data : []
 }
 
-/* =========================================================
- * 변경 계열 (권한 필요)
- * ======================================================= */
-// PUT /api/v1/user/status
-// body: { memberId: number, status: 'ACTIVE' | 'PENDING' | 'DISABLED' }
-
+/**
+ * 사용자 상태 변경
+ * PUT /api/v1/user/status
+ * @param {Object} params - 변경 정보
+ * @param {number} params.memberId - 사용자 ID
+ * @param {string} params.status - 상태 ('ACTIVE' | 'PENDING' | 'DISABLED')
+ * @returns {Promise<Object>} 응답 데이터
+ */
 export async function apiChangeUserStatus({ memberId, status }) {
   assertNumber(memberId, 'memberId')
   if (!VALID_STATUSES.includes(status))
@@ -93,9 +123,14 @@ export async function apiChangeUserStatus({ memberId, status }) {
   return data // { status, success, message, data: null }
 }
 
-// PUT /api/v1/user/role
-// body: { memberId: number, role: 'USER' | 'ADMIN' | 'SUPER_ADMIN' }
-
+/**
+ * 사용자 역할 변경
+ * PUT /api/v1/user/role
+ * @param {Object} params - 변경 정보
+ * @param {number} params.memberId - 사용자 ID
+ * @param {string} params.role - 역할 ('USER' | 'ADMIN' | 'SUPER_ADMIN' | 'WAREHOUSE')
+ * @returns {Promise<Object>} 응답 데이터
+ */
 export async function apiChangeUserRole({ memberId, role }) {
   assertNumber(memberId, 'memberId')
   if (!VALID_ROLES.includes(role))
@@ -106,16 +141,18 @@ export async function apiChangeUserRole({ memberId, role }) {
   return data // { status, success, message, data: null }
 }
 
-/* =========================================================
- * UI 헬퍼 (verified/role 라벨 & 칩 컬러)
- * ======================================================= */
-// 서버 모델: verified: 'ACTIVE' | 'PENDING' | 'DISABLED'
+/**
+ * 사용자 상태 라벨 매핑
+ */
 export const USER_STATUS_LABEL = {
   ACTIVE: '활성',
   PENDING: '대기',
   DISABLED: '비활성',
 }
 
+/**
+ * 사용자 역할 라벨 매핑
+ */
 export const USER_ROLE_LABEL = {
   USER: '일반',
   ADMIN: '관리자',
@@ -123,7 +160,11 @@ export const USER_ROLE_LABEL = {
   WAREHOUSE: '창고관리자',
 }
 
-// Vuetify VChip color helper
+/**
+ * Vuetify VChip용 상태 색상 반환
+ * @param {string} verified - 사용자 상태
+ * @returns {string|undefined} Vuetify 색상 variant
+ */
 export function resolveUserStatusVariant(verified) {
   switch (verified) {
   case 'ACTIVE': return 'success'
@@ -133,10 +174,12 @@ export function resolveUserStatusVariant(verified) {
   }
 }
 
-/* =========================================================
- * (선택) 정규화 유틸
- * - 리스트/단건 공통 필드 누락 방지
- * ======================================================= */
+/**
+ * 사용자 데이터 정규화
+ * 리스트/단건 공통 필드 누락 방지를 위한 유틸리티
+ * @param {Object} u - 사용자 객체
+ * @returns {Object} 정규화된 사용자 객체
+ */
 export function normalizeUser(u = {}) {
   return {
     id: u.id ?? null,

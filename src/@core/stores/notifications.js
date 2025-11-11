@@ -118,14 +118,12 @@ export const useNotificationsStore = defineStore('notifications', () => {
     try {
       // 이미 연결되어 있으면 리턴
       if (ws.value?.connected) {
-        console.log('[NotificationsStore] WebSocket already connected')
         return
       }
 
       // 역할 확인
       const { role } = getProfile()
       if (!role || (role !== 'ADMIN' && role !== 'SUPER_ADMIN' && role !== 'WAREHOUSE')) {
-        console.log('[NotificationsStore] No valid role, skipping WebSocket connection')
         return
       }
 
@@ -133,11 +131,10 @@ export const useNotificationsStore = defineStore('notifications', () => {
       ws.value = createDashboardWebSocket()
       
       ws.value.on('connected', () => {
-        console.log('[NotificationsStore] WebSocket connected')
+        // 연결 성공 (필요시 로깅)
       })
 
       ws.value.on('notification', (data) => {
-        console.log('[NotificationsStore] Received notification:', data)
         addNotification(data)
       })
 
@@ -146,7 +143,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
       })
 
       ws.value.on('disconnected', () => {
-        console.log('[NotificationsStore] WebSocket disconnected')
+        // 연결 해제 (필요시 로깅)
       })
 
       await ws.value.connect()

@@ -1,9 +1,13 @@
-// File: src/api/websocket.js
+/**
+ * 웹소켓 관련 API
+ * 주문 승인 및 대시보드 알림을 위한 웹소켓 연결을 관리합니다.
+ */
 import { approveOrder } from './order'
 import { apiGetMyUser } from './user'
 
 /**
  * 주문 승인 웹소켓 관리 클래스
+ * 주문 승인 프로세스 중 실시간 통신을 담당합니다.
  */
 export class OrderApprovalWebSocket {
   constructor() {
@@ -112,15 +116,24 @@ export class OrderApprovalWebSocket {
   }
 }
 
-/** 인스턴스 생성 */
+/**
+ * 주문 승인 웹소켓 인스턴스 생성
+ * @returns {OrderApprovalWebSocket} 웹소켓 인스턴스
+ */
 export function createOrderApprovalWebSocket() {
   return new OrderApprovalWebSocket()
 }
 
 /**
  * 대시보드 알림 웹소켓 관리 클래스
+ * 대시보드 알림을 위한 웹소켓 연결을 관리하며 자동 재연결 기능을 제공합니다.
  */
 export class DashboardWebSocket {
+  /**
+   * 대시보드 웹소켓 생성자
+   * 자동 재연결 기능을 포함합니다.
+   * Exponential Backoff + Jitter 전략을 사용하여 재연결 시도를 최적화합니다.
+   */
   constructor() {
     this.websocket = null
     this.currentUser = null
@@ -128,9 +141,53 @@ export class DashboardWebSocket {
     this.messageHandlers = new Map()
     this.reconnectAttempts = 0
     this.maxReconnectAttempts = 5
-    this.reconnectDelay = 3000
+    this.baseDelay = 1000 // 초기 지연 시간 (1초)
+    this.maxDelay = 30000 // 최대 지연 시간 (30초)
+    this.jitterRatio = 0.3 // Jitter 비율 (30%)
+    this.reconnectTimer = null // 재연결 타이머 (취소 가능하도록)
   }
 
+  /**
+   * Exponential Backoff + Jitter를 사용한 재연결 지연 시간 계산
+   * Exponential Backoff: baseDelay * 2^(attempts - 1)
+   * Jitter: Exponential Backoff에 랜덤 요소 추가 (Thundering Herd 문제 해결)
+   * 
+   * Equal Jitter 방식 사용:
+   * - baseDelay = exponentialDelay / 2
+   * - jitter = random(0, exponentialDelay / 2)
+   * - 최종 지연 시간 = baseDelay + jitter
+   * 
+   * @returns {number} 재연결 지연 시간 (밀리초)
+   */
+  calculateReconnectDelay() {
+    if (this.reconnectAttempts === 0) {
+      // 첫 번째 재시도는 Jitter 없이 기본 지연 시간 사용
+      return this.baseDelay
+    }
+    
+    // Exponential Backoff: baseDelay * 2^(attempts - 1)
+    const exponentialDelay = this.baseDelay * Math.pow(2, this.reconnectAttempts - 1)
+    
+    // 최대 지연 시간 제한
+    const cappedDelay = Math.min(exponentialDelay, this.maxDelay)
+    
+    // Equal Jitter: exponentialDelay / 2 + random(0, exponentialDelay / 2)
+    // 이 방식은 최소 지연 시간을 보장하면서도 랜덤 요소를 추가합니다
+    const baseJitterDelay = cappedDelay / 2
+    const jitterRange = cappedDelay / 2
+    const jitter = Math.random() * jitterRange
+    
+    // 최종 지연 시간 = baseJitterDelay + jitter
+    // 범위: [cappedDelay / 2, cappedDelay]
+    const finalDelay = Math.round(baseJitterDelay + jitter)
+    
+    return finalDelay
+  }
+
+  /**
+   * 현재 사용자 정보 로드
+   * @returns {Promise<Object>} 사용자 정보
+   */
   async loadCurrentUser() {
     try {
       this.currentUser = await apiGetMyUser()
@@ -142,6 +199,11 @@ export class DashboardWebSocket {
     }
   }
 
+  /**
+   * 웹소켓 연결
+   * 역할에 따라 적절한 웹소켓 URL로 연결합니다.
+   * @returns {Promise<void>}
+   */
   async connect() {
     if (!this.currentUser) {
       await this.loadCurrentUser()
@@ -169,9 +231,18 @@ export class DashboardWebSocket {
 
         this.websocket.onopen = () => {
           this.isConnected = true
+          
+          // 재연결 성공 시 카운터 리셋 및 타이머 취소
+          if (this.reconnectAttempts > 0) {
+            console.log('[DashboardWebSocket] 재연결 성공! Exponential Backoff + Jitter 카운터 리셋')
+          }
           this.reconnectAttempts = 0
+          if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer)
+            this.reconnectTimer = null
+          }
+          
           this.emit('connected')
-          console.log('[DashboardWebSocket] Connected')
           resolve()
         }
 
@@ -196,15 +267,34 @@ export class DashboardWebSocket {
           this.isConnected = false
           this.websocket = null
           this.emit('disconnected')
-          console.log('[DashboardWebSocket] Disconnected')
           
-          // 자동 재연결 시도
+          // Exponential Backoff를 사용한 자동 재연결 시도
           if (this.reconnectAttempts < this.maxReconnectAttempts) {
             this.reconnectAttempts++
-            console.log(`[DashboardWebSocket] Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`)
-            setTimeout(() => this.connect(), this.reconnectDelay)
+            const delay = this.calculateReconnectDelay()
+            
+            console.log(
+              `[DashboardWebSocket] 재연결 시도 ${this.reconnectAttempts}/${this.maxReconnectAttempts} ` +
+              `(지연: ${delay}ms, Exponential Backoff + Jitter 적용)`
+            )
+            
+            // 기존 타이머가 있으면 취소 (중복 재연결 방지)
+            if (this.reconnectTimer) {
+              clearTimeout(this.reconnectTimer)
+            }
+            
+            this.reconnectTimer = setTimeout(() => {
+              this.reconnectTimer = null
+              this.connect().catch(error => {
+                console.error('[DashboardWebSocket] 재연결 실패:', error)
+              })
+            }, delay)
           } else {
-            console.error('[DashboardWebSocket] Max reconnection attempts reached')
+            console.error('[DashboardWebSocket] 최대 재연결 시도 횟수 도달')
+            this.emit('error', { 
+              type: 'max_reconnect_attempts_reached', 
+              message: '최대 재연결 시도 횟수를 초과했습니다.' 
+            })
           }
         }
       } catch (e) {
@@ -243,6 +333,12 @@ export class DashboardWebSocket {
   }
 
   disconnect() {
+    // 재연결 타이머 취소
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+    
     this.maxReconnectAttempts = 0 // 재연결 비활성화
     if (this.websocket) {
       this.websocket.close()
@@ -256,7 +352,10 @@ export class DashboardWebSocket {
   }
 }
 
-/** 인스턴스 생성 */
+/**
+ * 대시보드 웹소켓 인스턴스 생성
+ * @returns {DashboardWebSocket} 웹소켓 인스턴스
+ */
 export function createDashboardWebSocket() {
   return new DashboardWebSocket()
 }

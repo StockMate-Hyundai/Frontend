@@ -8,12 +8,12 @@ definePage({
   },
 })
 import {
-  getDailyCategorySalesReport,
-  getDailyReport,
-  getMonthlyReport,
-  getTopSalesReport,
-  getWarehouseReport,
-  getWeeklyReport
+    getDailyCategorySalesReport,
+    getDailyReport,
+    getMonthlyReport,
+    getTopSalesReport,
+    getWarehouseReport,
+    getWeeklyReport
 } from '@/api/order'
 import AppExportButton from '@/components/common/ExportToExcel.vue'
 import { computed, onMounted, ref, watch } from 'vue'
@@ -646,7 +646,7 @@ const truncateName = (name: string, maxLength = 30) => {
         <div class="table-card">
           <div class="table-title">Top 5 매출량</div>
           <VTable density="compact" class="t">
-            <thead><tr><th>순위</th><th>부품명</th><th>카테고리</th><th class="ta-r">판매량</th><th class="ta-r">순이익</th></tr></thead>
+            <thead><tr><th>순위</th><th>부품명</th><th class="ta-r">판매량</th><th class="ta-r">순이익</th></tr></thead>
             <tbody>
               <tr v-if="topInbound.length === 0">
                 <td colspan="5" class="text-center py-4">데이터가 없습니다</td>
@@ -654,7 +654,6 @@ const truncateName = (name: string, maxLength = 30) => {
               <tr v-for="r in topInbound" :key="r.id">
                 <td>{{ r.rank || '-' }}</td>
                 <td class="truncate" :title="r.name">{{ truncateName(r.name) }}</td>
-                <td>{{ r.model }}</td>
                 <td class="ta-r">{{ nf.format(r.quantity || 0) }}</td>
                 <td class="ta-r">{{ cf(r.netProfit || 0) }}</td>
               </tr>
@@ -664,7 +663,7 @@ const truncateName = (name: string, maxLength = 30) => {
         <div class="table-card">
           <div class="table-title">Top 5 순이익</div>
           <VTable density="compact" class="t">
-            <thead><tr><th>순위</th><th>부품명</th><th>카테고리</th><th class="ta-r">판매량</th><th class="ta-r">순이익</th></tr></thead>
+            <thead><tr><th>순위</th><th>부품명</th><th class="ta-r">판매량</th><th class="ta-r">순이익</th></tr></thead>
             <tbody>
               <tr v-if="topOutbound.length === 0">
                 <td colspan="5" class="text-center py-4">데이터가 없습니다</td>
@@ -672,7 +671,6 @@ const truncateName = (name: string, maxLength = 30) => {
               <tr v-for="r in topOutbound" :key="r.id">
                 <td>{{ r.rank || '-' }}</td>
                 <td class="truncate" :title="r.name">{{ truncateName(r.name) }}</td>
-                <td>{{ r.model }}</td>
                 <td class="ta-r">{{ nf.format(r.quantity || 0) }}</td>
                 <td class="ta-r">{{ cf(r.netProfit || 0) }}</td>
               </tr>

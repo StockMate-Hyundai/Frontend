@@ -1,8 +1,13 @@
-// src/api/orderHistory.js
+/**
+ * 주문 이력 관련 API
+ * 입출고 히스토리 조회 및 등록 기능을 제공합니다.
+ */
 import { http } from '@/api/http'
 
 /**
- * 공통: 페이지네이션 응답 정규화
+ * 페이지네이션 응답 정규화
+ * @param {Object} payload - 서버 응답 데이터
+ * @returns {Object} 정규화된 히스토리 목록 데이터
  */
 function normalizeHistoryList(payload = {}) {
   const data = payload?.data ?? payload ?? {}
@@ -92,8 +97,6 @@ export async function getReceivingHistoryByMemberIdForAdmin(memberId, { page = 0
   const res = await http.get(`/api/v1/information/order-history/admin/member/${memberId}`, {
     params: { page, size },
   })
-  
-  console.log(res)
   
   return normalizeHistoryList(res?.data?.data ?? res?.data)
 }

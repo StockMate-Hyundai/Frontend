@@ -9,8 +9,8 @@ definePage({
 })
 import { deleteOrder as apiDeleteOrder, approveOrder, getOrderDetail, rejectOrder } from '@/api/order'
 import { executeOrderApproval } from '@/api/websocket'
-import { ORDER_STATUS, resolveOrderStatus } from '@/utils/orderStatus'
 import { generateInvoicePDF, transformOrderDataForInvoice } from '@/utils/invoice'
+import { ORDER_STATUS, resolveOrderStatus } from '@/utils/orderStatus'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -108,9 +108,11 @@ async function loadDetail() {
       const name = pd?.korName || pd?.name || pd?.engName || `#${x?.partId}`
       const price = pd?.price ?? 0
       const qty = x?.amount ?? 0
+      // 이미지 URL 우선순위: imageUrl > image > thumbnail
+      const image = pd?.imageUrl || pd?.image || pd?.thumbnail || null
       
       return {
-        image: pd?.image || null,
+        image,
         productName: name,
         productId: pd?.id,
         subtitle: pd?.categoryName,

@@ -1,10 +1,15 @@
-// src/api/parts.js
+/**
+ * 부품 관련 API
+ * 부품 검색, 조회, 재고 관리 등의 기능을 제공합니다.
+ */
 import { http } from '@/api/http'
 
 /**
- * Axios paramsSerializer용 유틸:
- * OpenAPI에 따르면 categoryName/trim/model는 배열 파라미터.
- * -> key=value&key=value 형태로 직렬화(대괄호 없이 반복).
+ * Axios paramsSerializer용 유틸
+ * OpenAPI에 따르면 categoryName/trim/model는 배열 파라미터
+ * key=value&key=value 형태로 직렬화 (대괄호 없이 반복)
+ * @param {Object} params - 파라미터 객체
+ * @returns {string} 직렬화된 쿼리 문자열
  */
 function toParamsString(params = {}) {
   const usp = new URLSearchParams()
@@ -18,7 +23,12 @@ function toParamsString(params = {}) {
   return usp.toString()
 }
 
-/** 공통 페이지 payload 정규화 */
+/**
+ * 공통 페이지네이션 응답 정규화
+ * @param {Object} raw - 서버 응답 데이터
+ * @param {number} fallbackSize - 기본 페이지 크기
+ * @returns {Object} 정규화된 페이지네이션 데이터
+ */
 function normalizePagePayload(raw, fallbackSize) {
   const payload = raw?.data?.data ?? raw?.data ?? {}
   
@@ -180,13 +190,9 @@ export async function getBranchList() {
       role: user.role,
     }))
     
-    console.log('[getBranchList] 전체 지점 수:', branches.length)
-    
     return branches
   } catch (error) {
     console.error('[getBranchList] error:', error)
-    console.error('[getBranchList] error response:', error.response?.data)
-    
     return []
   }
 }
@@ -228,17 +234,12 @@ export async function getBranchStock(branchId, {
   }
 
   try {
-    console.log('[getBranchStock] 조회 시작 - branchId:', branchId)
-    console.log('[getBranchStock] 파라미터:', params)
-    
     // /api/v1/store/search에 memberId 파라미터 추가 시도
     // 만약 API가 memberId를 지원하지 않으면 현재 사용자 재고만 반환됨
     const res = await http.get('/api/v1/store/search', {
       params,
       paramsSerializer: toParamsString,
     })
-    
-    console.log('[getBranchStock] API 응답:', res?.data)
     
     // StorePartsDto는 PartsDto와 약간 다릅니다 (stock, amount, limitAmount, isLack 필드가 추가)
     const normalized = normalizePagePayload(res, size)
@@ -253,8 +254,6 @@ export async function getBranchStock(branchId, {
     }
   } catch (error) {
     console.error('[getBranchStock] error:', error)
-    console.error('[getBranchStock] error response:', error.response?.data)
-    
     return { content: [], page: 0, size, totalElements: 0, totalPages: 0 }
   }
 }
@@ -449,7 +448,6 @@ export async function getLocationParts(location) {
     return Array.isArray(payload) ? payload : []
   } catch (error) {
     console.error('[getLocationParts] error:', error)
-    console.error('[getLocationParts] error response:', error.response?.data)
     return []
   }
 }

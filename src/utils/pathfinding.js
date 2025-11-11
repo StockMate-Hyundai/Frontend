@@ -122,89 +122,7 @@ function initializeGrid(locations = []) {
     }
   })
   
-  // 그리드 출력 (디버깅용)
-  console.log('=== 그리드 구조 ===')
-  console.log('행 수:', GRID_ROWS, ', 열 수:', GRID_COLS)
-  console.log('그리드 내용 (행별):')
-  
-  // 열 헤더 출력
-  let headerRow = '     '
-  for (let col = 0; col < GRID_COLS; col++) {
-    headerRow += col.toString().padStart(2, '0') + ' '
-  }
-  console.log(headerRow)
-  
-  for (let row = 0; row < GRID_ROWS; row++) {
-    let rowStr = `R${row.toString().padStart(2, '0')}: `
-    for (let col = 0; col < GRID_COLS; col++) {
-      const cell = grid[row][col]
-      if (cell === 'o') {
-        rowStr += ' . '
-      } else if (cell === 'x') {
-        rowStr += ' X '
-      } else {
-        // 라벨 (A0, B15 등) - 전체 라벨 표시
-        rowStr += cell.padEnd(3, ' ')
-      }
-    }
-    console.log(rowStr)
-  }
-  
-  console.log('\n=== 범례 ===')
-  console.log('  .  = 통로 (o)')
-  console.log('  X  = 장애물 (x)')
-  console.log('A0, B15 등 = 라벨 (통과 가능)')
-  console.log('=== 장애물 위치 (x) ===')
-  let xCount = 0
-  const xPositions = []
-  for (let row = 0; row < GRID_ROWS; row++) {
-    for (let col = 0; col < GRID_COLS; col++) {
-      if (grid[row][col] === 'x') {
-        xCount++
-        xPositions.push({ row, col })
-        if (xCount <= 30) { // 처음 30개만 출력
-          console.log(`x at [${row}, ${col}]`)
-        }
-      }
-    }
-  }
-  console.log(`총 x 개수: ${xCount}`)
-  
-  // Zone별 x 개수 확인
-  const zoneRowList = [7, 12, 17, 23, 28]
-
-  zoneRowList.forEach((baseRow, idx) => {
-    const zone = String.fromCharCode(65 + idx)
-    let zoneXCount = 0
-    for (let row = baseRow + 1; row <= baseRow + 2; row++) {
-      for (let col = 0; col < GRID_COLS; col++) {
-        if (grid[row] && grid[row][col] === 'x') {
-          zoneXCount++
-        }
-      }
-    }
-    console.log(`Zone ${zone} (rows ${baseRow + 1}-${baseRow + 2}) x 개수: ${zoneXCount}`)
-  })
-  console.log('=== 라벨 위치 ===')
-  let labelCount = 0
-  for (let row = 0; row < GRID_ROWS; row++) {
-    for (let col = 0; col < GRID_COLS; col++) {
-      const cell = grid[row][col]
-      if (cell !== 'o' && cell !== 'x') {
-        labelCount++
-        if (labelCount <= 20) { // 처음 20개만 출력
-          console.log(`${cell} at [${row}, ${col}]`)
-        }
-      }
-    }
-  }
-  console.log(`총 라벨 개수: ${labelCount}`)
-  console.log('=== locations ===')
-  console.log('locations:', locations)
-  locationMap.forEach((pos, loc) => {
-    console.log(`${loc} -> [${pos.row}, ${pos.col}]`)
-  })
-  
+  // 그리드 초기화 완료
   return { grid, locationMap }
 }
 
@@ -459,8 +377,6 @@ function astarPathfinding(grid, start, goal) {
         return null
       }
       
-      console.log(`[astarPathfinding] 경로 찾음: ${path.length}개 점`)
-      
       return path
     }
     
@@ -551,9 +467,6 @@ export function calculateOptimalPath(locations = []) {
     }
     
     // 경로 탐색
-    console.log(`[calculateOptimalPath] 경로 탐색: [${currentPos.row},${currentPos.col}] -> [${aislePos.row},${aislePos.col}]`)
-    console.log(`[calculateOptimalPath] 시작점 셀 값: "${grid[currentPos.row][currentPos.col]}", 목표점 셀 값: "${grid[aislePos.row][aislePos.col]}"`)
-
     const path = astarPathfinding(grid, currentPos, aislePos)
     if (path && path.length > 0) {
       // 경로 검증: 모든 점이 통과 가능한지 확인
@@ -573,17 +486,12 @@ export function calculateOptimalPath(locations = []) {
         throw new Error(`경로에 장애물이 포함되어 있습니다: ${invalidInPath[0].point}`)
       }
       
-      // 경로 상세 로그
-      console.log(`[calculateOptimalPath] 경로 상세 (처음 5개):`, path.slice(0, 5).map(p => `[${p.row},${p.col}]=${grid[p.row][p.col]}`))
-      console.log(`[calculateOptimalPath] 경로 상세 (마지막 5개):`, path.slice(-5).map(p => `[${p.row},${p.col}]=${grid[p.row][p.col]}`))
-      
       // 첫 번째 점 제외 (이전 경로의 마지막 점과 중복)
       if (fullPath.length > 0) {
         path.shift()
       }
       fullPath.push(...path)
       currentPos = aislePos
-      console.log(`[calculateOptimalPath] 경로 추가됨, 현재 위치: [${currentPos.row},${currentPos.col}]`)
     } else {
       console.error(`[calculateOptimalPath] 경로를 찾을 수 없음: [${currentPos.row},${currentPos.col}] -> [${aislePos.row},${aislePos.col}]`)
       throw new Error(`경로를 찾을 수 없습니다: ${location}`)
@@ -591,8 +499,6 @@ export function calculateOptimalPath(locations = []) {
   }
   
   // 마지막으로 끝점(E)으로 이동
-  console.log(`[calculateOptimalPath] 끝점으로 이동: [${currentPos.row},${currentPos.col}] -> [${END_POS.row},${END_POS.col}]`)
-
   const finalPath = astarPathfinding(grid, currentPos, END_POS)
   if (finalPath && finalPath.length > 0) {
     // 경로 검증
@@ -634,7 +540,6 @@ export function calculateOptimalPath(locations = []) {
   // 경로 검증: fullPath의 모든 점이 통과 가능한지 확인
   const invalidPoints = []
 
-  console.log(`[calculateOptimalPath] 전체 경로 검증 시작, 경로 길이: ${fullPath.length}`)
   fullPath.forEach((point, index) => {
     if (point.row < 0 || point.row >= GRID_ROWS || point.col < 0 || point.col >= GRID_COLS) {
       invalidPoints.push({
@@ -666,14 +571,6 @@ export function calculateOptimalPath(locations = []) {
     }
   })
   
-  // 경로의 모든 점을 로그로 출력 (처음 10개, 마지막 10개)
-  if (fullPath.length > 0) {
-    console.log('[calculateOptimalPath] 경로 처음 10개:', fullPath.slice(0, 10).map((p, i) => `${i}:[${p.row},${p.col}]=${grid[p.row][p.col]}`))
-    if (fullPath.length > 10) {
-      console.log('[calculateOptimalPath] 경로 마지막 10개:', fullPath.slice(-10).map((p, i) => `${fullPath.length - 10 + i}:[${p.row},${p.col}]=${grid[p.row][p.col]}`))
-    }
-  }
-  
   if (invalidPoints.length > 0) {
     console.error('[calculateOptimalPath] ⚠️ 경로에 장애물 통과 지점 발견!')
     console.error('[calculateOptimalPath] 장애물 개수:', invalidPoints.length)
@@ -687,8 +584,6 @@ export function calculateOptimalPath(locations = []) {
     
     // 장애물을 통과하는 경로는 제거
     throw new Error(`경로에 장애물이 포함되어 있습니다. 장애물 개수: ${invalidPoints.length}, 첫 번째 위치: [${invalidPoints[0].point.row}, ${invalidPoints[0].point.col}]`)
-  } else {
-    console.log('[calculateOptimalPath] ✅ 경로 검증 완료: 모든 경로가 통과 가능한 셀을 통과합니다.')
   }
   
   return {
