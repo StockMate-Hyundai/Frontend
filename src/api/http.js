@@ -1,16 +1,31 @@
 import axios from 'axios'
 import { getActivePinia } from 'pinia'
 
+/**
+ * API 기본 URL
+ */
 export const API_BASE_URL = 'https://api.stockmate.site'
 
-// ── Token 저장소 (메모리 + localStorage)
+/**
+ * Token 저장소 (메모리 + localStorage)
+ * - accessToken: 액세스 토큰
+ * - refreshToken: 리프레시 토큰
+ */
 let accessToken = localStorage.getItem('sm_accessToken')
 let refreshToken = localStorage.getItem('sm_refreshToken')
 
-// 사용자 프로필(이메일/역할)도 로컬에 같이 저장해서 새로고침 복원
+/**
+ * 사용자 프로필 저장소 (이메일/역할)
+ * 새로고침 시 복원을 위해 localStorage에 저장
+ */
 let profileEmail = localStorage.getItem('sm_email')
 let profileRole = localStorage.getItem('sm_role')
 
+/**
+ * 토큰 설정
+ * @param {string|null} at - 액세스 토큰
+ * @param {string|null} rt - 리프레시 토큰
+ */
 export function setTokens(at, rt) {
   accessToken = at ?? null
   refreshToken = rt ?? null
@@ -20,6 +35,11 @@ export function setTokens(at, rt) {
   else localStorage.removeItem('sm_refreshToken')
 }
 
+/**
+ * 사용자 프로필 설정
+ * @param {string|null} email - 이메일
+ * @param {string|null} role - 역할
+ */
 export function setProfile(email, role) {
   profileEmail = email ?? null
   profileRole = role ?? null
@@ -29,8 +49,12 @@ export function setProfile(email, role) {
   else localStorage.removeItem('sm_role')
 }
 
+/**
+ * 토큰 조회
+ * 앱 환경 대응을 위해 localStorage에서 직접 읽어 최신 값 반환
+ * @returns {{accessToken: string|null, refreshToken: string|null}}
+ */
 export function getTokens() {
-  // 항상 최신 값을 반환하기 위해 localStorage에서 직접 읽기 (앱 환경 대응)
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
       accessToken = localStorage.getItem('sm_accessToken')
@@ -41,8 +65,13 @@ export function getTokens() {
   }
   return { accessToken, refreshToken }
 }
+
+/**
+ * 사용자 프로필 조회
+ * 앱 환경 대응을 위해 localStorage에서 직접 읽어 최신 값 반환
+ * @returns {{email: string|null, role: string|null}}
+ */
 export function getProfile() {
-  // 항상 최신 값을 반환하기 위해 localStorage에서 직접 읽기 (앱 환경 대응)
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
       profileEmail = localStorage.getItem('sm_email')
@@ -53,15 +82,24 @@ export function getProfile() {
   }
   return { email: profileEmail, role: profileRole }
 }
-// 리다이렉트 중복 방지 플래그
+
+/**
+ * 리다이렉트 중복 방지 플래그
+ */
 let isRedirecting = false
 
+/**
+ * 세션 초기화 (토큰 및 프로필 삭제)
+ */
 export function clearSession() {
   setTokens(null, null)
   setProfile(null, null)
 }
 
-// ── axios 인스턴스
+/**
+ * Axios 인스턴스 생성
+ * 모든 API 요청의 기본 설정을 포함
+ */
 export const http = axios.create({
   baseURL: API_BASE_URL,
   timeout: 1500000,
@@ -72,7 +110,10 @@ export const http = axios.create({
   },
 })
 
-// 요청 인터셉터: Authorization 주입
+/**
+ * 요청 인터셉터
+ * Authorization 헤더에 액세스 토큰 자동 주입
+ */
 http.interceptors.request.use(config => {
   if (accessToken) {
     config.headers = config.headers || {}
@@ -82,12 +123,17 @@ http.interceptors.request.use(config => {
   return config
 })
 
-// 응답 인터셉터: 401 → 로그인으로
+/**
+ * 응답 인터셉터
+ * 401 에러 발생 시 세션 초기화 및 로그인 페이지로 리다이렉트
+ */
 http.interceptors.response.use(
   res => res,
   err => {
     const status = err?.response?.status
     const original = err?.config
+    
+    // 401 에러 처리 (인증 실패)
     if (status === 401 && original && !original._smRetried) {
       original._smRetried = true
       clearSession()
@@ -126,8 +172,6 @@ http.interceptors.response.use(
       setTimeout(() => {
         isRedirecting = false
       }, 3000)
-
-      // 여기서 흐름 종료
     }
     
     return Promise.reject(err)

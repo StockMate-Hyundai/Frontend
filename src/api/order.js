@@ -1,10 +1,18 @@
-// File: src/api/order.js
+/**
+ * 주문 관련 API
+ * 주문 생성, 조회, 승인, 반려 등의 기능을 제공합니다.
+ */
 import { http } from '@/api/http'
 
 // 주문 상태는 utils/orderStatus.js에서 통합 관리
 export { ORDER_STATUS } from '@/utils/orderStatus'
 
-/** 내부: 빈값 방지용 기본 응답 */
+/**
+ * 주문 목록 응답 정규화
+ * 빈값 방지를 위한 기본값 설정
+ * @param {Object} payload - 서버 응답 데이터
+ * @returns {Object} 정규화된 주문 목록 데이터
+ */
 function normalizeOrderList(payload = {}) {
   const data = payload?.data ?? payload ?? {}
   const content = Array.isArray(data.content) ? data.content : []
@@ -499,7 +507,6 @@ export async function getTopSalesReport(year, month) {
   
   try {
     const params = { year: yearNum, month: monthNum }
-    console.log('getTopSalesReport 호출:', params)
     
     const res = await http.get('/api/v1/order/report/top-sales', {
       params,
@@ -512,7 +519,6 @@ export async function getTopSalesReport(year, month) {
       data: res?.data?.data ?? {},
     }
   } catch (error) {
-    console.error('getTopSalesReport 에러:', { year: yearNum, month: monthNum, error })
     throw error
   }
 }

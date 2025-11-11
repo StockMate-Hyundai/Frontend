@@ -7,13 +7,16 @@ import VueApexCharts from 'vue3-apexcharts'
 import '@core/scss/template/index.scss'
 import '@styles/styles.scss'
 
-// Create vue app
+/**
+ * Vue 애플리케이션 초기화
+ */
 const app = createApp(App)
 
-
-// Register plugins
+// 플러그인 등록
 registerPlugins(app)
 
-// Mount vue app
-app.mount('#app')
+// ApexCharts 플러그인 등록 (마운트 전에 등록해야 함)
 app.use(VueApexCharts)
+
+// 애플리케이션 마운트
+app.mount('#app')
