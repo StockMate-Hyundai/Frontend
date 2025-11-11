@@ -35,10 +35,7 @@ const selectedRole = ref(null)
 const selectedStatus = ref(null)
 
 // Kakao APP KEY
-const KAKAO_APP_KEY = import.meta.env.VITE_KAKAO_APP_KEY || import.meta.env.VITE_KAKAO_JS_KEY || 'YOUR_KAKAO_APP_KEY'
-if (!KAKAO_APP_KEY || KAKAO_APP_KEY === 'YOUR_KAKAO_APP_KEY') {
-  console.warn('카카오 지도 앱 키가 설정되지 않았습니다. .env의 VITE_KAKAO_APP_KEY를 확인하세요.')
-}
+const KAKAO_APP_KEY = '0aae18be49caa8fd1b6bc925b8e698d7'
 
 /* ==========================
    Kakao SDK 로더 (1회만)
@@ -270,6 +267,7 @@ const selectBranch = (user, fromMarker = false) => {
     // 지도에서 해당 위치로 이동 (리스트에서 클릭한 경우에만)
     if (!fromMarker && map && user.latitude && user.longitude) {
       const position = new window.kakao.maps.LatLng(user.latitude, user.longitude)
+
       map.panTo(position)
       
       // 모든 인포윈도우 닫기 (리스트에서 클릭한 경우)
@@ -291,7 +289,7 @@ const selectBranch = (user, fromMarker = false) => {
   }
 }
 
-const goToUserDetail = (user) => {
+const goToUserDetail = user => {
   const memberId = user.memberId || user.id
   if (!memberId) return
   router.push({ name: 'user-detail-id', params: { id: String(memberId) } })

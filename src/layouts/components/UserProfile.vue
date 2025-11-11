@@ -1,7 +1,7 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { clearSession } from '@/api/http'
 import { useNotificationsStore } from '@/@core/stores/notifications'
+import { clearSession } from '@/api/http'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 const LS = { role: 'sm_role', email: 'sm_email', isLogin: 'isLogin', avatar: 'sm_avatar' }
@@ -70,133 +70,69 @@ function handleLogout() {
 </script>
 
 <template>
-  <VBadge
-    dot
-    bordered
-    location="bottom right"
-    offset-x="3"
-    offset-y="3"
-    :color="badgeColor"
+  <VAvatar
+    class="cursor-pointer"
+    :color="roleColor(displayRole)"
+    variant="tonal"
+    size="small"
   >
-    <VAvatar
-      class="cursor-pointer"
-      :color="roleColor(displayRole)"
-      variant="tonal"
-      size="small"
+    <!-- 이미지가 있으면 이미지, 없으면 앞 두 글자 -->
+    <VImg
+      v-if="avatarSrc"
+      :src="avatarSrc"
+    />
+    <span
+      v-else
+      class="text-subtitle-2 font-weight-medium"
+    >{{ initials }}</span>
+
+    <VMenu
+      activator="parent"
+      width="230"
+      location="bottom end"
+      offset="14px"
     >
-      <!-- 이미지가 있으면 이미지, 없으면 앞 두 글자 -->
-      <VImg
-        v-if="avatarSrc"
-        :src="avatarSrc"
-      />
-      <span
-        v-else
-        class="text-subtitle-2 font-weight-medium"
-      >{{ initials }}</span>
+      <VList>
+        <VListItem>
+          <template #prepend>
+            <VListItemAction start>
+              <VAvatar
+                :color="roleColor(displayRole)"
+                variant="tonal"
+                size="x-small"
+              >
+                <VImg
+                  v-if="avatarSrc"
+                  :src="avatarSrc"
+                />
+                <span
+                  v-else
+                  class="text-subtitle-2 font-weight-medium"
+                >{{ initials }}</span>
+              </VAvatar>
+            </VListItemAction>
+          </template>
 
-      <VMenu
-        activator="parent"
-        width="230"
-        location="bottom end"
-        offset="14px"
-      >
-        <VList>
-          <VListItem>
-            <template #prepend>
-              <VListItemAction start>
-                <VBadge
-                  dot
-                  location="bottom right"
-                  offset-x="3"
-                  offset-y="3"
-                  :color="badgeColor"
-                >
-                  <VAvatar
-                    :color="roleColor(displayRole)"
-                    variant="tonal"
-                    size="x-small"
-                  >
-                    <VImg
-                      v-if="avatarSrc"
-                      :src="avatarSrc"
-                    />
-                    <span
-                      v-else
-                      class="text-subtitle-2 font-weight-medium"
-                    >{{ initials }}</span>
-                  </VAvatar>
-                </VBadge>
-              </VListItemAction>
-            </template>
+          <VListItemTitle class="font-weight-semibold">
+            {{ displayEmail }}
+          </VListItemTitle>
+          <VListItemSubtitle>
+            {{ displayRole }}
+          </VListItemSubtitle>
+        </VListItem>
 
-            <VListItemTitle class="font-weight-semibold">
-              {{ displayEmail }}
-            </VListItemTitle>
-            <VListItemSubtitle>
-              {{ displayRole }}
-            </VListItemSubtitle>
-          </VListItem>
-
-          <VDivider class="my-2" />
-
-          <VListItem link>
-            <template #prepend>
-              <VIcon
-                class="me-2"
-                icon="bx-user"
-                size="22"
-              />
-            </template>
-            <VListItemTitle>Profile</VListItemTitle>
-          </VListItem>
-
-          <VListItem link>
-            <template #prepend>
-              <VIcon
-                class="me-2"
-                icon="bx-cog"
-                size="22"
-              />
-            </template>
-            <VListItemTitle>Settings</VListItemTitle>
-          </VListItem>
-
-          <VListItem link>
-            <template #prepend>
-              <VIcon
-                class="me-2"
-                icon="bx-dollar"
-                size="22"
-              />
-            </template>
-            <VListItemTitle>Pricing</VListItemTitle>
-          </VListItem>
-
-          <VListItem link>
-            <template #prepend>
-              <VIcon
-                class="me-2"
-                icon="bx-help-circle"
-                size="22"
-              />
-            </template>
-            <VListItemTitle>FAQ</VListItemTitle>
-          </VListItem>
-
-          <VDivider class="my-2" />
-
-          <VListItem @click="handleLogout">
-            <template #prepend>
-              <VIcon
-                class="me-2"
-                icon="bx-log-out"
-                size="22"
-              />
-            </template>
-            <VListItemTitle>Logout</VListItemTitle>
-          </VListItem>
-        </VList>
-      </VMenu>
-    </VAvatar>
-  </VBadge>
+        <VDivider class="my-2" />
+        <VListItem @click="handleLogout">
+          <template #prepend>
+            <VIcon
+              class="me-2"
+              icon="bx-log-out"
+              size="22"
+            />
+          </template>
+          <VListItemTitle>Logout</VListItemTitle>
+        </VListItem>
+      </VList>
+    </VMenu>
+  </VAvatar>
 </template>
