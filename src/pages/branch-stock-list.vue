@@ -1,7 +1,7 @@
 <!-- File: src/pages/branch-stock-list.vue -->
 <script setup>
 import { getProfile } from '@/api/http'
-import { getBranchList, getStorePartsList } from '@/api/parts'
+import { getBranchList, getStorePartsList, getPartsList } from '@/api/parts'
 import AppExportButton from '@/components/common/ExportToExcel.vue'
 import { useResponsiveLeftSidebar } from '@core/composable/useResponsiveSidebar'
 import { computed, onMounted, ref, watch } from 'vue'
@@ -105,8 +105,14 @@ async function loadBranches() {
   try {
     const list = unwrap(await getBranchList()) || []
 
-    branches.value = list.filter(b => b.id) // '전체' 제거, 실제 지점만 표시
-    if (branches.value.length && !selectedBranch.value) {
+    // '전체' 옵션을 맨 앞에 추가하고 실제 지점들 추가
+    branches.value = [
+      { id: null, name: '전체', isAll: true },
+      ...list.filter(b => b.id && b.id !== null)
+    ]
+    
+    // 기본값을 '전체'로 설정
+    if (!selectedBranch.value) {
       selectedBranch.value = branches.value[0]
     }
   } catch (e) {
@@ -124,6 +130,9 @@ function selectBranch(b) {
   loadStocks()
 }
 
+// '전체' 옵션 선택 여부
+const isAllSelected = computed(() => selectedBranch.value?.isAll || !selectedBranch.value?.id)
+
 /* =========================
    페이지네이션 / 데이터
 ========================= */
@@ -137,16 +146,33 @@ async function loadStocks() {
   tableLoading.value = true
   try {
     let res
-    if (isAdmin.value && selectedBranch.value?.id) {
-      // 관리자이고 특정 지점 선택 시: /api/v1/parts/list/{storeId}
-
-      res = await getStorePartsList(selectedBranch.value.id, {
-        page: page.value - 1,
-        size: itemsPerPage.value,
-      })
-    } 
-    console.log(selectedBranch.value?.id, res)
-    stocksData.value = unwrapList(res)
+    
+    if (isAdmin.value) {
+      // '전체' 선택 시: 전체 부품 목록 조회
+      if (selectedBranch.value?.isAll || !selectedBranch.value?.id) {
+        res = await getPartsList({
+          page: page.value - 1,
+          size: itemsPerPage.value,
+        })
+      } 
+      // 특정 지점 선택 시: 해당 지점의 재고 조회
+      else if (selectedBranch.value?.id) {
+        res = await getStorePartsList(selectedBranch.value.id, {
+          page: page.value - 1,
+          size: itemsPerPage.value,
+        })
+      }
+    } else {
+      // 일반 사용자는 자신의 재고만 조회 (구현 필요 시)
+      stocksData.value = { content: [], totalElements: 0, totalPages: 0 }
+      return
+    }
+    
+    if (res) {
+      stocksData.value = unwrapList(res)
+    } else {
+      stocksData.value = { content: [], totalElements: 0, totalPages: 0 }
+    }
   } catch (e) {
     console.error('[BranchStock] loadStocks error:', e)
     stocksData.value = { content: [], totalElements: 0, totalPages: 0 }
@@ -184,7 +210,10 @@ function onSearch() {
 }
 
 function onReset() {
-  if (isAdmin.value && branches.value.length) selectedBranch.value = branches.value[0]
+  if (isAdmin.value && branches.value.length) {
+    // '전체' 옵션을 기본값으로 설정
+    selectedBranch.value = branches.value.find(b => b.isAll) || branches.value[0]
+  }
   page.value = 1
   loadStocks()
 }
@@ -193,22 +222,41 @@ function onReset() {
    엑셀 전체 수집
 ========================= */
 async function fetchAllForExport() {
-  if (!isAdmin.value || !selectedBranch.value?.id) {
+  if (!isAdmin.value) {
     return []
   }
 
-  let all = []
-  let currentPage = 0
-  while (true) {
-    const res = await getStorePartsList(selectedBranch.value.id, { page: currentPage, size: 100 })
-    const { content, last } = unwrapList(res)
+  // '전체' 선택 시: 전체 부품 목록 조회
+  if (selectedBranch.value?.isAll || !selectedBranch.value?.id) {
+    let all = []
+    let currentPage = 0
+    while (true) {
+      const res = await getPartsList({ page: currentPage, size: 100 })
+      const { content, last } = unwrapList(res)
 
-    all = all.concat(content || [])
-    if (last || (content || []).length === 0) break
-    currentPage++
+      all = all.concat(content || [])
+      if (last || (content || []).length === 0) break
+      currentPage++
+    }
+    return all
+  }
+
+  // 특정 지점 선택 시: 해당 지점의 재고 조회
+  if (selectedBranch.value?.id) {
+    let all = []
+    let currentPage = 0
+    while (true) {
+      const res = await getStorePartsList(selectedBranch.value.id, { page: currentPage, size: 100 })
+      const { content, last } = unwrapList(res)
+
+      all = all.concat(content || [])
+      if (last || (content || []).length === 0) break
+      currentPage++
+    }
+    return all
   }
   
-  return all
+  return []
 }
 </script>
 
@@ -257,7 +305,9 @@ async function fetchAllForExport() {
                   v-for="b in branches"
                   :key="b.id ?? 'all'"
                   class="branch-item"
-                  :class="{ selected: selectedBranch?.id === b.id }"
+                  :class="{ 
+                    selected: (b.isAll && isAllSelected) || (!b.isAll && selectedBranch?.id === b.id)
+                  }"
                   @click="selectBranch(b)"
                 >
                   <div class="radio-dot" />

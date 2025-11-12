@@ -671,7 +671,7 @@ const truncateName = (name: string, maxLength = 30) => {
               <tr v-for="r in topOutbound" :key="r.id">
                 <td>{{ r.rank || '-' }}</td>
                 <td class="truncate" :title="r.name">{{ truncateName(r.name) }}</td>
-                <td class="ta-r">{{ nf.format(r.quantity || 0) }}</td>
+ㅎ                <td class="ta-r">{{ nf.format(r.quantity || 0) }}</td>
                 <td class="ta-r">{{ cf(r.netProfit || 0) }}</td>
               </tr>
             </tbody>
